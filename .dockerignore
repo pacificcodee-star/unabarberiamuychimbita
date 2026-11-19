@@ -14,3 +14,7 @@ _respaldo_rediseno
 tests
 phpunit.xml
 composer.phar
+.agents
+.claude
+.qoder
+.github
