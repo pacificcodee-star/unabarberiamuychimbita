@@ -1,0 +1,196 @@
+name: barberia
+
+# Variables compartidas por web, scheduler y queue.
+x-app-env: &app-env
+  APP_NAME: "Una Barberia Muy Chimbita"
+  APP_ENV: production
+  APP_KEY: ${APP_KEY}
+  APP_DEBUG: "false"
+  APP_URL: https://${APP_HOST}
+  APP_TIMEZONE: America/Bogota
+  APP_LOCALE: es
+  APP_FALLBACK_LOCALE: es
+  APP_FAKER_LOCALE: es_CO
+  LOG_CHANNEL: stderr
+  LOG_LEVEL: warning
+  DB_CONNECTION: mysql
+  DB_HOST: db
+  DB_PORT: "3306"
+  DB_DATABASE: barberia
+  DB_USERNAME: barberia
+  DB_PASSWORD: ${DB_PASSWORD}
+  SESSION_DRIVER: database
+  SESSION_LIFETIME: "120"
+  SESSION_ENCRYPT: "false"
+  QUEUE_CONNECTION: database
+  CACHE_STORE: database
+  FILESYSTEM_DISK: local
+  MAIL_MAILER: log
+  WHATSAPP_DRIVER: evolution
+  EVOLUTION_URL: http://evolution:8080
+  EVOLUTION_APIKEY: ${EVOLUTION_APIKEY}
+  EVOLUTION_INSTANCE: barberia
+  EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_APIKEY}
+  WHATSAPP_BOT_ENABLED: "true"
+  WHATSAPP_DEFAULT_COUNTRY: "57"
+  VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+  VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+  VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:no-reply@example.com}
+
+x-app-build: &app-build
+  context: ..
+  dockerfile: deploy/Dockerfile
+
+services:
+  web:
+    build: *app-build
+    image: barberia-app:latest
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      ROLE: web
+      APP_HOST: ${APP_HOST}
+      WA_HOST: ${WA_HOST}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - app_storage:/var/www/html/storage/app
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      db:
+        condition: service_healthy
+      evolution:
+        condition: service_started
+
+  scheduler:
+    build: *app-build
+    image: barberia-app:latest
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      ROLE: scheduler
+    volumes:
+      - app_storage:/var/www/html/storage/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  queue:
+    build: *app-build
+    image: barberia-app:latest
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      ROLE: queue
+    volumes:
+      - app_storage:/var/www/html/storage/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    command:
+      - "--innodb-buffer-pool-size=64M"
+      - "--innodb-log-buffer-size=8M"
+      - "--performance-schema=OFF"
+      - "--max-connections=50"
+      - "--table-open-cache=64"
+    environment:
+      MYSQL_DATABASE: barberia
+      MYSQL_USER: barberia
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.1
+    restart: unless-stopped
+    environment:
+      SERVER_URL: https://${WA_HOST}
+      AUTHENTICATION_API_KEY: ${EVOLUTION_APIKEY}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "false"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${EVOLUTION_DB_PASSWORD}@evolution-db:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_barberia
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://evolution-redis:6379/6
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_REDIS_SAVE_INSTANCES: "false"
+      CACHE_LOCAL_ENABLED: "false"
+      LANGUAGE: es
+      CONFIG_SESSION_PHONE_CLIENT: "Una Barberia Muy Chimbita"
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      QRCODE_LIMIT: "30"
+      WEBHOOK_GLOBAL_ENABLED: "false"
+      DEL_INSTANCE: "false"
+      TELEMETRY_ENABLED: "false"
+      LOG_LEVEL: "ERROR,WARN"
+      LOG_COLOR: "false"
+      NODE_OPTIONS: "--max-old-space-size=384"
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      evolution-db:
+        condition: service_healthy
+      evolution-redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  evolution-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=50"]
+    environment:
+      POSTGRES_DB: evolution
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${EVOLUTION_DB_PASSWORD}
+    volumes:
+      - evolution_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution -d evolution"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  evolution-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "96mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - evolution_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:
+  app_storage:
+  caddy_data:
+  caddy_config:
+  evolution_db_data:
+  evolution_redis_data:
+  evolution_instances:

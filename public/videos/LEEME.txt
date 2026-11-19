@@ -1,0 +1,30 @@
+VIDEO DE LA SECCIÓN "LA EXPERIENCIA" (INICIO)
+================================================
+
+La sección "La experiencia" del inicio puede mostrar un video que avanza y retrocede
+con el scroll del visitante. Mientras esta carpeta no tenga el video, la sección usa
+fotos como fotogramas (las "Imágenes del inicio" del panel o las fotos por defecto).
+
+Archivos que reconoce la página (los nombres deben ser exactos):
+
+  experiencia.mp4         Video principal (MP4 H.264, sin audio). OBLIGATORIO para activar el video.
+  experiencia.webm        Opcional. Alternativa WebM (VP9) para navegadores que la prefieran.
+  experiencia-movil.mp4   Opcional. Versión liviana para celulares (ej. 720 px de ancho).
+  experiencia.jpg         Opcional. Imagen de portada mientras carga el video (también .webp o .png).
+
+Recomendaciones para que el scroll se sienta fluido:
+
+  - Duración corta: 6 a 15 segundos. Peso ideal: menos de 12 MB (escritorio) y 4 MB (móvil).
+  - 1920x1080 o 1600x900 a 24/30 fps. Sin pista de audio.
+  - Muchos fotogramas clave: el navegador solo puede "saltar" rápido a fotogramas clave.
+    Con ffmpeg:
+
+      ffmpeg -i original.mp4 -an -vf "scale=1920:-2,fps=30" -c:v libx264 -preset slow -crf 23 -g 5 -keyint_min 5 -sc_threshold 0 -pix_fmt yuv420p -movflags +faststart experiencia.mp4
+
+      ffmpeg -i original.mp4 -an -vf "scale=720:-2,fps=24" -c:v libx264 -preset slow -crf 26 -g 6 -keyint_min 6 -sc_threshold 0 -pix_fmt yuv420p -movflags +faststart experiencia-movil.mp4
+
+Comportamiento:
+
+  - Computador: la sección queda fija y el video sigue la posición del scroll.
+  - Celular: el video se reproduce solo (sin sonido, en bucle) mientras está en pantalla y tiene botón de pausa.
+  - "Reducir movimiento" activado en el sistema: solo se muestra la imagen de portada.

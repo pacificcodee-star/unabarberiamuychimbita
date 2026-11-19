@@ -1,0 +1,370 @@
+/* =====================================================================
+   Sidebar Menu Template — FathyHesham (https://github.com/FathyHesham/Sidebar-Menu-Template)
+   Integrado al panel de "Una Barbería Muy Chimbita".
+
+   Se conservan la estructura, medidas, animaciones (0.4s / 0.3s ease),
+   estados hover/activo, buscador, interruptor de tema y overlay móvil
+   del original. Solo cambia el color principal al rojo del logo.
+
+   Colores originales del repositorio (para volver al morado):
+     --sb-primary: #695CFE;  --sb-primary-hover: #5745F5;
+     --sb-secondary: #ECECFD; --sb-hover-secondary: #e2e2fb; --sb-track: #c3d1ec;
+   ===================================================================== */
+
+.sidebar {
+    --sb-width: 270px;
+    --sb-width-closed: 80px;
+    --sb-text: #1F2936;
+    --sb-placeholder: #798EAE;
+    --sb-bg: #FFFFFF;
+    --sb-secondary: #F6EDEC;
+    --sb-hover-secondary: #EEDCD9;
+    --sb-hr: #E2E8F0;
+    --sb-primary: #a02e25;
+    --sb-primary-hover: #8a261f;
+    --sb-shadow: rgba(0, 0, 0, .08);
+    --sb-track: #dccdca;
+    --sb-speed: .4s;
+}
+html.admin-dark .sidebar {
+    --sb-text: #F1F5F9;
+    --sb-placeholder: #A6B7D2;
+    --sb-bg: #1f2937;
+    --sb-secondary: #3D4859;
+    --sb-hover-secondary: #48566a;
+    --sb-hr: #3B475C;
+    --sb-shadow: rgba(0, 0, 0, .3);
+    --sb-track: var(--sb-primary);
+}
+
+/* Sin animaciones mientras carga la página (evita saltos visuales). */
+html.sidebar-preload .sidebar,
+html.sidebar-preload .sidebar *,
+html.sidebar-preload .sidebar-overlay { transition: none !important; }
+
+/* ---------- Contenedor ---------- */
+.sidebar {
+    position: sticky;
+    top: 0;
+    width: var(--sb-width);
+    height: 100vh;
+    height: 100dvh;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--sb-bg);
+    color: var(--sb-text);
+    border-right: 1px solid var(--sb-hr);
+    box-shadow: 0 10px 10px var(--sb-shadow);
+    transition: width var(--sb-speed) ease, background-color .3s ease;
+    z-index: 1040;
+    overflow: hidden;
+}
+.sidebar.close { width: var(--sb-width-closed); }
+.sidebar ul { list-style: none; margin: 0; padding: 0; }
+.sidebar a { text-decoration: none; }
+
+/* ---------- Cabecera ---------- */
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 20px 18px;
+    border-bottom: 1px solid var(--sb-hr);
+}
+.header-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    color: var(--sb-text);
+    transition: opacity var(--sb-speed) ease;
+}
+.header-logo-mark {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--sb-primary);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    box-shadow: 0 6px 14px rgba(160, 46, 37, .28);
+}
+.header-logo-mark img { width: 100%; height: 100%; object-fit: contain; padding: 5px; }
+.header-logo-text { min-width: 0; white-space: nowrap; line-height: 1.15; }
+.header-logo-text strong { display: block; font-size: .9rem; font-weight: 700; color: var(--sb-text); }
+.header-logo-text small { display: block; margin-top: 2px; font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; color: var(--sb-placeholder); }
+.sidebar.close .header-logo { display: none; }
+
+.sidebar-button-toggle {
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: 10px;
+    background: var(--sb-secondary);
+    color: var(--sb-text);
+    cursor: pointer;
+    transition: var(--sb-speed) ease;
+}
+.sidebar-button-toggle:hover { background: var(--sb-hover-secondary); }
+.sidebar-button-toggle i { transition: transform var(--sb-speed) ease; }
+.sidebar.close .sidebar-header { justify-content: center; padding: 20px 0; }
+.sidebar.close .sidebar-button-toggle i { transform: rotate(180deg); }
+
+/* ---------- Contenido ---------- */
+.sidebar-content {
+    flex: 1;
+    padding: 20px 18px 14px;
+    overflow: hidden auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--sb-hr) transparent;
+}
+.sidebar.close .sidebar-content { padding-inline: 16px; scrollbar-width: none; }
+.sidebar.close .sidebar-content::-webkit-scrollbar { width: 0; }
+
+/* Buscador */
+.search-form {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    margin: 5px 0 16px;
+    padding: 0 15px;
+    border-radius: 8px;
+    background: var(--sb-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: text;
+    transition: all var(--sb-speed) ease;
+}
+.search-form:focus-within,
+.sidebar.close .search-form:hover { background: var(--sb-hover-secondary); }
+.sidebar.close .search-form { cursor: pointer; }
+.search-icon { flex: 0 0 auto; width: 18px; text-align: center; color: var(--sb-placeholder); }
+.search-form .search {
+    width: 100%;
+    margin-left: 15px;
+    border: none;
+    outline: none;
+    background: none;
+    color: var(--sb-text);
+    font-size: .88rem;
+}
+.search-form .search::placeholder { color: var(--sb-placeholder); }
+.search-form .search::-webkit-search-cancel-button { cursor: pointer; }
+.sidebar-search-empty { margin: 0 0 10px; padding: 0 6px; color: var(--sb-placeholder); font-size: .82rem; }
+
+/* Secciones y enlaces */
+.menu-sections { display: flex; flex-direction: column; gap: 6px; }
+.menu-section-title {
+    display: block;
+    padding: 10px 8px 6px;
+    color: var(--sb-placeholder);
+    font-size: .64rem;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: opacity .3s ease;
+}
+.sidebar.close .menu-section-title {
+    height: 1px;
+    padding: 0;
+    margin: 8px 6px;
+    overflow: hidden;
+    color: transparent;
+    background: var(--sb-hr);
+}
+.menu-section:first-child .menu-section-title { padding-top: 0; }
+.sidebar.close .menu-section:first-child .menu-section-title { display: none; }
+
+.menu-list { display: flex; flex-direction: column; gap: 4px; }
+.menu-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 15px;
+    border-radius: 10px;
+    color: var(--sb-text);
+    font-size: .88rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    transition: all .3s ease;
+}
+.menu-link i { flex: 0 0 18px; width: 18px; text-align: center; font-size: 1rem; }
+.menu-link:is(:hover, .active) { color: #FFF; background: var(--sb-primary); }
+.menu-link.active { font-weight: 600; box-shadow: 0 6px 14px rgba(160, 46, 37, .25); }
+.menu-link:focus-visible,
+.sidebar-button-toggle:focus-visible,
+.button-change-theme:focus-visible,
+.sidebar-footer-link:focus-visible { outline: 2px solid var(--sb-primary); outline-offset: 2px; }
+.menu-label { transition: opacity .3s ease; }
+.sidebar.close .menu-label { opacity: 0; pointer-events: none; }
+
+/* ---------- Pie ---------- */
+.sidebar-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px 18px 20px;
+    border-top: 1px solid var(--sb-hr);
+}
+.sidebar.close .sidebar-footer { padding-inline: 16px; }
+.sidebar-user { display: flex; align-items: center; gap: 10px; padding: 0 4px 6px; white-space: nowrap; overflow: hidden; }
+.sidebar-user-avatar {
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--sb-secondary);
+    color: var(--sb-primary);
+    font-weight: 700;
+}
+html.admin-dark .sidebar-user-avatar { color: #fff; }
+.sidebar-user-info { min-width: 0; transition: opacity .3s ease; }
+.sidebar-user-info strong { display: block; font-size: .84rem; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-user-info small { color: var(--sb-placeholder); font-size: .74rem; }
+.sidebar.close .sidebar-user { padding-inline: 5px; }
+.sidebar.close .sidebar-user-info { opacity: 0; pointer-events: none; }
+
+.sidebar-footer-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--sb-text);
+    font-size: .84rem;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all .3s ease;
+}
+.sidebar-footer-link i { flex: 0 0 18px; width: 18px; text-align: center; }
+.sidebar-footer-link:hover { background: var(--sb-hover-secondary); color: var(--sb-text); }
+.sidebar-footer form { margin: 0; }
+
+.button-change-theme {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 42px;
+    margin-top: 4px;
+    padding: 0 15px;
+    border: none;
+    border-radius: 10px;
+    background: var(--sb-secondary);
+    color: var(--sb-text);
+    font-size: .84rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all .3s ease;
+}
+.button-change-theme:hover { background: var(--sb-hover-secondary); }
+.icon-theme { display: flex; align-items: center; gap: 12px; }
+.icon-theme i { flex: 0 0 18px; width: 18px; text-align: center; }
+.theme-text { transition: opacity .3s ease; }
+.change-theme-track {
+    position: relative;
+    flex: 0 0 45px;
+    width: 45px;
+    height: 23px;
+    margin-left: auto;
+    border-radius: 20px;
+    background: var(--sb-track);
+    transition: opacity .4s .2s ease, background-color .3s ease;
+}
+.change-theme-indicator {
+    position: absolute;
+    top: 2.5px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #FFF;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, .1);
+    transition: transform .3s ease;
+}
+html.admin-dark .change-theme-indicator { transform: translateX(21px); }
+.sidebar.close .theme-text { opacity: 0; }
+.sidebar.close .change-theme-track { display: none; }
+
+/* ---------- Overlay (móvil y tablet) ---------- */
+.sidebar-overlay { display: none; }
+
+/* ---------- Escritorio y portátil ---------- */
+@media (min-width: 992px) {
+    .sidebar-open-btn { display: none !important; }
+}
+
+/* ---------- Tablet y teléfono: menú oculto que entra desde la izquierda ---------- */
+@media (max-width: 991.98px) {
+    .sidebar,
+    .sidebar.close {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: min(var(--sb-width) + 20px, 86vw);
+        transform: translateX(-105%);
+        visibility: hidden;
+        box-shadow: none;
+        transition: transform var(--sb-speed) ease, visibility 0s linear var(--sb-speed), background-color .3s ease;
+    }
+    .sidebar.is-open {
+        transform: translateX(0);
+        visibility: visible;
+        box-shadow: 10px 0 30px rgba(0, 0, 0, .25);
+        transition: transform var(--sb-speed) ease, visibility 0s linear 0s, background-color .3s ease;
+    }
+
+    /* En móvil el menú siempre se ve completo, aunque en escritorio esté contraído. */
+    .sidebar.close .header-logo { display: flex; }
+    .sidebar.close .sidebar-header { justify-content: space-between; padding: 20px 18px; }
+    .sidebar.close .sidebar-button-toggle i { transform: none; }
+    .sidebar.close .sidebar-content,
+    .sidebar.close .sidebar-footer { padding-inline: 18px; }
+    .sidebar.close .menu-label,
+    .sidebar.close .theme-text,
+    .sidebar.close .sidebar-user-info { opacity: 1; pointer-events: auto; }
+    .sidebar.close .change-theme-track { display: block; }
+    .sidebar.close .menu-section-title { height: auto; margin: 0; padding: 10px 8px 6px; background: none; color: var(--sb-placeholder); }
+    .sidebar.close .menu-section:first-child .menu-section-title { display: block; padding-top: 0; }
+
+    .sidebar-overlay {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 1035;
+        background: rgba(0, 0, 0, .6);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--sb-speed) ease;
+    }
+    body.sidebar-open .sidebar-overlay { opacity: 1; pointer-events: auto; }
+    body.sidebar-open { overflow: hidden; touch-action: none; }
+    body.sidebar-open .sidebar { touch-action: pan-y; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sidebar, .sidebar *, .sidebar-overlay { transition-duration: .01ms !important; transition-delay: 0s !important; }
+}
+
+@media print {
+    .sidebar, .sidebar-overlay, .sidebar-open-btn { display: none !important; }
+}
+
+.sidebar-open-btn i { font-size: 1.15rem; }

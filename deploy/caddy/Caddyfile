@@ -1,0 +1,17 @@
+# Sitio Laravel (panel + web pública) con HTTPS automático.
+{$APP_HOST} {
+	root * /var/www/html/public
+	encode zstd gzip
+	php_fastcgi 127.0.0.1:9000
+	file_server
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}
+
+# Evolution API (WhatsApp) solo por HTTPS; el 8080 nunca se publica.
+{$WA_HOST} {
+	reverse_proxy evolution:8080
+}

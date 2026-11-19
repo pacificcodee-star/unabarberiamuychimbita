@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /login
+Disallow: /logout
+Disallow: /sales
+Disallow: /turns
+Disallow: /appointments
+Disallow: /cash
+Disallow: /expenses
+Disallow: /barbers
+Disallow: /services
+Disallow: /home-slides
+Disallow: /reviews
+Disallow: /commissions
+Disallow: /reports

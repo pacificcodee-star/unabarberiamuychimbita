@@ -1,0 +1,4 @@
+Pon aquí las imágenes (JPG, PNG, WebP) o videos (MP4, WebM) de las tarjetas que giran en el inicio.
+Se muestran en orden por nombre: 01-fade.jpg, 02-barba.mp4, ...
+El nombre (sin el número) se usa como título. Si la carpeta queda vacía, las tarjetas muestran el logo.
+Las tarjetas son cuadradas (1:1).

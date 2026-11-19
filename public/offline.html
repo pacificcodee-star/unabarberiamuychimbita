@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0c0a08">
+    <title>Sin conexión · Una Barberia Muy Chimbita</title>
+    <style>
+        html, body { height: 100%; margin: 0; }
+        body { display: grid; place-items: center; background: #0c0a08; color: #f2e9da; font-family: Montserrat, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 24px; box-sizing: border-box; }
+        img { width: 140px; height: auto; margin-bottom: 18px; }
+        h1 { font-size: 1.6rem; margin: 0 0 10px; letter-spacing: -.02em; }
+        p { color: rgba(242, 233, 218, .75); max-width: 34ch; margin: 0 auto 22px; line-height: 1.55; }
+        button { min-height: 46px; padding: 0 22px; border: 0; border-radius: 4px; background: #e2a84f; color: #110e0b; font: 600 .78rem/1 inherit; letter-spacing: .14em; text-transform: uppercase; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <main>
+        <img src="/icons/icon-192.png" alt="Una Barberia Muy Chimbita" width="140" height="140">
+        <h1>Estás sin conexión</h1>
+        <p>Revisa tu internet y vuelve a intentarlo. Cuando vuelva la señal podrás reservar tu cita normalmente.</p>
+        <button type="button" onclick="location.reload()">Reintentar</button>
+    </main>
+</body>
+</html>

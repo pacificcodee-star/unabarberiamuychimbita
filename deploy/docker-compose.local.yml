@@ -1,0 +1,14 @@
+# Overrides para correr el stack en tu PC con Docker Desktop.
+# Uso:  docker compose -f docker-compose.yml -f docker-compose.local.yml --env-file .env.local up -d --build
+services:
+  web:
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8010
+    volumes:
+      - ./caddy/Caddyfile.local:/etc/caddy/Caddyfile:ro
+
+  evolution:
+    ports:
+      - "8080:8080"

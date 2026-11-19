@@ -1,0 +1,49 @@
+# syntax=docker/dockerfile:1
+# Imagen ÚNICA para Render (plan gratis): Laravel + Evolution API + scheduler + Caddy.
+# Un solo servicio = no se exceden las 750 horas/mes del plan gratuito.
+
+FROM node:22-alpine AS assets
+ENV NODE_OPTIONS=--max-old-space-size=1024
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY vite.config.js ./
+COPY resources ./resources
+COPY public ./public
+RUN npm run build
+
+FROM composer:2 AS vendor
+WORKDIR /app
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --prefer-dist --no-interaction --no-scripts --ignore-platform-req=ext-gmp
+COPY . .
+RUN composer dump-autoload --optimize --no-dev --ignore-platform-req=ext-gmp
+
+# Aprovecha la imagen oficial multi-arquitectura: trae Evolution ya compilada.
+FROM evoapicloud/evolution-api:v2.3.1 AS evolution
+
+FROM php:8.3-fpm-alpine AS runtime
+
+RUN apk add --no-cache caddy supervisor nodejs libgmp libpq icu-libs icu-dev gmp-dev postgresql-dev $PHPIZE_DEPS \
+    && docker-php-ext-install -j"$(nproc)" pdo_pgsql bcmath pcntl opcache intl gmp \
+    && apk del $PHPIZE_DEPS
+
+COPY --from=evolution /evolution /evolution
+
+WORKDIR /var/www/html
+COPY --from=vendor /app /var/www/html
+COPY --from=assets /app/public/build /var/www/html/public/build
+COPY deploy/caddy/Caddyfile.render /etc/caddy/Caddyfile
+COPY deploy/supervisord.render.conf /etc/supervisord.conf
+COPY deploy/render-entrypoint.sh /usr/local/bin/render-entrypoint
+COPY deploy/evolution-start.sh /usr/local/bin/evolution-start
+
+RUN chmod +x /usr/local/bin/render-entrypoint /usr/local/bin/evolution-start \
+    && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs storage/app/public bootstrap/cache /data /config \
+    && rm -f public/storage \
+    && ln -s ../storage/app/public public/storage \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && printf '[www]\npm = static\npm.max_children = 3\npm.max_requests = 200\n' > /usr/local/etc/php-fpm.d/zz-render.conf
+
+EXPOSE 10000
+ENTRYPOINT ["render-entrypoint"]

@@ -1,0 +1,14 @@
+# Render termina el TLS y entrega el puerto en $PORT.
+:{$PORT:10000} {
+	encode gzip
+
+	handle_path /evolution/* {
+		reverse_proxy 127.0.0.1:8080
+	}
+
+	handle {
+		root * /var/www/html/public
+		php_fastcgi 127.0.0.1:9000
+		file_server
+	}
+}

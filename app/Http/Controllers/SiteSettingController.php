@@ -1,0 +1,91 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\SiteSetting;
+use App\Rules\ImageUpload;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+
+/** Configuración del negocio: datos de contacto, horarios, redes, medios de pago y logo. Los textos de la página están en config/sitio.php. */
+class SiteSettingController extends Controller
+{
+    public function edit()
+    {
+        $settings = SiteSetting::currentData();
+
+        return view('site-settings.edit', compact('settings'));
+    }
+
+    public function update(Request $request)
+    {
+        $validated = $request->validate([
+            'data.address' => ['required', 'string', 'max:200'],
+            'data.city' => ['required', 'string', 'max:120'],
+            'data.phone' => ['required', 'string', 'max:40'],
+            'data.email' => ['required', 'email', 'max:160'],
+            'data.whatsapp' => ['required', 'regex:/^[0-9]{10,15}$/'],
+            'data.hours_mon' => ['nullable', 'string', 'max:100'],
+            'data.hours_tue' => ['nullable', 'string', 'max:100'],
+            'data.hours_wed' => ['nullable', 'string', 'max:100'],
+            'data.hours_thu' => ['nullable', 'string', 'max:100'],
+            'data.hours_fri' => ['nullable', 'string', 'max:100'],
+            'data.hours_sat' => ['nullable', 'string', 'max:100'],
+            'data.hours_sun' => ['nullable', 'string', 'max:100'],
+            'data.booking_start' => ['required', 'date_format:H:i'],
+            'data.booking_end' => ['required', 'date_format:H:i', 'after:data.booking_start'],
+            'data.map_url' => ['required', 'url', 'max:500'],
+            'data.map_coords' => ['nullable', 'regex:/^\s*-?\d{1,2}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?\s*$/'],
+            'data.instagram_url' => ['nullable', 'url', 'max:300'],
+            'data.facebook_url' => ['nullable', 'url', 'max:300'],
+            'data.tiktok_url' => ['nullable', 'url', 'max:300'],
+            'data.account_nequi' => ['nullable', 'string', 'max:120'],
+            'data.account_daviplata' => ['nullable', 'string', 'max:120'],
+            'data.account_transfer' => ['nullable', 'string', 'max:255'],
+            'data.account_breb' => ['nullable', 'string', 'max:120'],
+            'logo' => ['nullable', 'file', new ImageUpload, 'max:20480'],
+        ], [
+            'data.whatsapp.regex' => 'El WhatsApp debe tener solo números, con indicativo (ej. 573001234567).',
+            'data.instagram_url.url' => 'El enlace de Instagram debe empezar por https://',
+            'data.facebook_url.url' => 'El enlace de Facebook debe empezar por https://',
+            'data.tiktok_url.url' => 'El enlace de TikTok debe empezar por https://',
+            'data.map_coords.regex' => 'Las coordenadas deben ser «latitud,longitud», por ejemplo 1.8067,-78.7647.',
+            'data.booking_end.after' => 'La hora final de reservas debe ser después de la hora inicial.',
+        ]);
+
+        $record = SiteSetting::query()->firstOrCreate([], ['data' => []]);
+        $data = $record->data ?? [];
+
+        foreach ($validated['data'] as $key => $value) {
+            $data[$key] = trim((string) $value);
+        }
+        // Un día sin horario escrito se toma como cerrado.
+        foreach (array_keys(SiteSetting::DAYS) as $day) {
+            if (($data['hours_'.$day] ?? '') === '') {
+                $data['hours_'.$day] = 'Cerrado';
+            }
+        }
+        // El teléfono para enlaces (tel:) se arma solo, a partir del teléfono visible.
+        $data['phone_link'] = '+'.ltrim(preg_replace('/\D+/', '', $data['phone']), '+');
+
+        foreach (array_keys(SiteSetting::PAYMENT_METHODS) as $method) {
+            $data['payment_'.$method] = $request->boolean('data.payment_'.$method);
+        }
+
+        if ($request->hasFile('logo')) {
+            $oldPath = $data['logo_path'] ?? null;
+            $data['logo_path'] = $request->file('logo')->store('site', 'public');
+            if ($oldPath) {
+                Storage::disk('public')->delete($oldPath);
+            }
+        } elseif ($request->boolean('remove_logo') && ! empty($data['logo_path'])) {
+            Storage::disk('public')->delete($data['logo_path']);
+            $data['logo_path'] = '';
+        }
+
+        $record->data = $data;
+        $record->save();
+
+        return redirect()->route('site-settings.edit')->with('success', 'Configuración del negocio guardada.');
+    }
+}
