@@ -230,25 +230,21 @@ class NotificationSystemTest extends TestCase
         $key = "appointment:{$appointment->id}";
         $stamp = $start->format('YmdHi');
 
-        $this->assertSame(3, $appointment->clientNotifications()->whereIn('type', ClientNotifier::REMINDER_TYPES)->count());
+        // Un solo recordatorio, 30 minutos antes (config/notificaciones.php → appointment_reminders).
+        $this->assertSame(1, $appointment->clientNotifications()->whereIn('type', ClientNotifier::REMINDER_TYPES)->count());
 
         $this->artisan('barberia:tick');
         $this->assertContains("{$key}:appt_booked", $this->push->tags());
-        $this->assertNotContains("{$key}:appt_reminder_60:{$stamp}", $this->push->tags());
+        $this->assertNotContains("{$key}:appt_reminder_30:{$stamp}", $this->push->tags());
 
-        $this->travelTo($start->copy()->subMinutes(60));
+        $this->travelTo($start->copy()->subMinutes(31));
         $this->artisan('barberia:tick');
-        $this->artisan('barberia:tick');
-        $this->assertCount(1, array_keys($this->push->tags(), "{$key}:appt_reminder_60:{$stamp}"));
+        $this->assertNotContains("{$key}:appt_reminder_30:{$stamp}", $this->push->tags());
 
-        $this->travelTo($start->copy()->subMinutes(15));
-        $this->artisan('barberia:tick');
-        $this->assertCount(1, array_keys($this->push->tags(), "{$key}:appt_reminder_15:{$stamp}"));
-
-        $this->travelTo($start->copy());
+        $this->travelTo($start->copy()->subMinutes(30));
         $this->artisan('barberia:tick');
         $this->artisan('barberia:tick');
-        $this->assertCount(1, array_keys($this->push->tags(), "{$key}:appt_reminder_0:{$stamp}"));
+        $this->assertCount(1, array_keys($this->push->tags(), "{$key}:appt_reminder_30:{$stamp}"));
     }
 
     public function test_rescheduling_replaces_reminders_and_cancelling_removes_them(): void
@@ -262,9 +258,9 @@ class NotificationSystemTest extends TestCase
         $notifier->appointmentChanged($appointment->fresh()->load(['barber', 'service']), $before);
 
         $pending = $appointment->clientNotifications()->where('channel', 'push')->where('status', ClientNotification::PENDING)->whereIn('type', ClientNotifier::REMINDER_TYPES)->get();
-        $this->assertCount(3, $pending);
+        $this->assertCount(1, $pending);
         $this->assertTrue($pending->every(fn ($n) => str_contains($n->dedupe_key, $start->copy()->setTime(17, 0)->format('YmdHi'))));
-        $this->assertSame(3, $appointment->clientNotifications()->where('status', ClientNotification::CANCELLED)->whereIn('type', ClientNotifier::REMINDER_TYPES)->count());
+        $this->assertSame(1, $appointment->clientNotifications()->where('status', ClientNotification::CANCELLED)->whereIn('type', ClientNotifier::REMINDER_TYPES)->count());
 
         $this->post(route('track.cancel', ['type' => 'cita', 'token' => $appointment->public_token]))->assertSessionHas('track_success');
         $this->assertSame('cancelada', $appointment->fresh()->status);
