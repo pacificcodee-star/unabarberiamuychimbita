@@ -356,9 +356,7 @@
                 <a href="{{ route('legal.notice') }}">Aviso legal</a>
                 <a href="{{ route('legal.privacy') }}">Privacidad</a>
                 <a href="{{ route('legal.cookies') }}">Cookies</a>
-                <button type="button" class="footer-legal-btn" data-cookie-settings>Preferencias de cookies</button>
-                <a href="{{ route('login') }}" class="footer-staff-link">Acceso del equipo</a>
-            </nav>
+                <button type="button" class="footer-legal-btn" data-cookie-settings>Preferencias de cookies</button>            </nav>
         </div>
     </div>
 </footer>

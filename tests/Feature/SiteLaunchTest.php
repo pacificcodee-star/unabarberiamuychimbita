@@ -26,6 +26,17 @@ class SiteLaunchTest extends TestCase
             ->assertSee('id="cookieBanner"', false);
     }
 
+    public function test_public_pages_do_not_link_to_the_staff_login(): void
+    {
+        foreach (['/', '/servicios', '/barberos', '/resenas', '/contacto', '/reservar', '/aviso-legal'] as $page) {
+            $this->get($page)->assertOk()
+                ->assertDontSee('Acceso del equipo')
+                ->assertDontSee('href="'.route('login').'"', false);
+        }
+        // El panel sigue disponible para quien conoce la dirección.
+        $this->get('/login')->assertOk();
+    }
+
     public function test_legal_owner_data_comes_from_config(): void
     {
         config(['web.legal.owner' => 'Barbería Ejemplo S.A.S.', 'web.legal.nit' => '900.123.456-7']);
