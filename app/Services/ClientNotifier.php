@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Appointment;
 use App\Models\ClientNotification;
+use App\Models\SiteSetting;
 use App\Models\Turn;
+use App\Support\AttendanceConfirmation;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -24,7 +26,7 @@ use Throwable;
  */
 class ClientNotifier
 {
-    public const REMINDER_TYPES = ['appt_reminder_60', 'appt_reminder_15', 'appt_reminder_0'];
+    public const REMINDER_TYPES = ['appt_reminder_60', 'appt_reminder_15', 'appt_reminder_0', 'appt_reminder_30'];
 
     /** @var int[] ids guardados en esta petición, pendientes de enviar con flush() */
     private array $queued = [];
@@ -43,14 +45,14 @@ class ClientNotifier
             $turn,
             'turn_confirmed',
             'Turno '.$this->number($turn).' confirmado',
-            '¡Tu turno ha sido confirmado! Tu número es el '.$this->number($turn).$this->withBarberAndService($turn).'. Te avisaremos cuando se aproxime tu atención.',
+            '¡Tu turno ha sido confirmado! Tu número de turno es el '.$this->number($turn).$this->withBarberAndService($turn).'. Te avisaremos cuando se aproxime tu atención.',
             ttlMinutes: (int) config('notificaciones.ttl_minutes.confirmation', 120),
         );
     }
 
     public function turnNext(Turn $turn, ?Carbon $estimatedCall = null): void
     {
-        $when = $estimatedCall ? ' Hora aproximada: '.$estimatedCall->format('g:i A').'.' : '';
+        $when = $estimatedCall ? ' Hora aproximada: '.$this->time($estimatedCall) : '';
 
         $this->queue(
             $turn,
@@ -76,15 +78,110 @@ class ClientNotifier
         );
     }
 
-    /** Solo cuando cancela la barbería. Si cancela el propio cliente no se le envía nada más. */
-    public function turnCancelledByStaff(Turn $turn): void
+    /** Aviso 15 minutos antes del inicio estimado del turno (se recalcula si la fila se mueve). */
+    public function turnStartingSoon(Turn $turn, Carbon $startAt, int $minutesBefore): void
     {
+        $stamp = $startAt->format('YmdHi');
+        $prefix = $turn->notificationKey().':turn_reminder:';
+
+        // Si la fila se movió, el aviso anterior queda anulado para que no llegue con una hora vieja.
+        ClientNotification::query()
+            ->where('notifiable_type', $turn->getMorphClass())
+            ->where('notifiable_id', $turn->getKey())
+            ->where('type', 'turn_reminder')
+            ->where('status', ClientNotification::PENDING)
+            ->where('dedupe_key', 'not like', $prefix.$stamp.'%')
+            ->update(['status' => ClientNotification::CANCELLED, 'updated_at' => now()]);
+
+        $body = '¡Hola'.($this->firstName($turn->client_name) !== '' ? ', '.$this->firstName($turn->client_name) : '')."!\n\n"
+            .'¡Tenemos una actualización importante sobre tu turno!'."\n\n"
+            .'Tu atención en '.$this->brand().' está próxima a comenzar.'."\n\n"
+            .'💈 Número de turno: '.$this->number($turn)."\n"
+            .($turn->service ? '✂️ Servicio: '.$turn->service->name."\n" : '')
+            .($turn->barber ? '💈 Barbero: '.$turn->barber->name."\n" : '')
+            ."\n".'⏳ Tiempo estimado para iniciar tu atención: '.max(1, $minutesBefore).' minutos.'."\n\n"
+            .'¿Deseas continuar con tu turno?'."\n\n"
+            .'1. Sí, deseo recibir el servicio.'."\n"
+            .'2. Cancelar mi turno.'."\n"
+            .'3. Necesito más información.'."\n\n"
+            .'Selecciona una opción para actualizar el estado de tu turno.';
+
+        $this->queue($turn, 'turn_reminder', 'Tu turno está por comenzar', $body, ttlMinutes: 15, stamp: $stamp);
+    }
+
+    /** El cliente confirmó que desea recibir su turno y ya puede acercarse a la barbería. */
+    public function turnArrivalConfirmed(Turn $turn): void
+    {
+        $this->queue(
+            $turn,
+            'turn_confirmed',
+            'Turno '.$this->number($turn).' confirmado',
+            '¡Excelente! Hemos registrado tu confirmación. Tu turno '.$this->number($turn).' continúa activo y ya puedes acercarte a nuestra barbería para recibir tu servicio.',
+            ttlMinutes: (int) config('notificaciones.ttl_minutes.confirmation', 120),
+            stamp: 'arrival',
+        );
+    }
+
+    /** Mensaje de agradecimiento cuando el servicio (cita o turno) quedó como atendido. Se envía una sola vez. */
+    public function serviceThanks(Appointment|Turn $subject): void
+    {
+        $name = $this->firstName($subject->client_name);
+        $url = rtrim((string) config('app.url'), '/').'/';
+
+        $body = '¡Gracias por tu visita'.($name !== '' ? ', '.$name : '').'! 💈'."\n\n"
+            .'Fue un gusto atenderte en '.$this->brand().'. Esperamos que disfrutes tu nuevo estilo.'."\n\n"
+            .'Cuando quieras volver, reserva aquí: '.$url."\n\n"
+            .'¡Te esperamos pronto!';
+
+        $this->queue(
+            $subject,
+            'service_thanks',
+            '¡Gracias por tu visita!',
+            $body,
+            ttlMinutes: (int) config('notificaciones.ttl_minutes.change', 120),
+        );
+    }
+
+    /** La cita o el turno se canceló solo porque el cliente no confirmó a tiempo tras el recordatorio. */
+    public function cancelledWithoutConfirmation(Appointment|Turn $subject, int $minutes): void
+    {
+        $this->cancelPending($subject);
+        $isTurn = $subject instanceof Turn;
+        $name = $this->firstName($subject->client_name);
+        $url = rtrim((string) config('app.url'), '/').'/';
+
+        $detail = $isTurn
+            ? 'tu turno '.$this->number($subject)
+            : 'tu cita '.$this->appointmentWhen($subject, lower: true);
+
+        $body = 'Hola'.($name !== '' ? ', '.$name : '').'.'."\n\n"
+            .'Como no recibimos tu confirmación en los '.$minutes.' minutos siguientes al recordatorio, '
+            .$detail.' fue *cancelad'.($isTurn ? 'o' : 'a').'* para darle el espacio a otro cliente.'."\n\n"
+            .'Si aún quieres atenderte, puedes '.($isTurn ? 'tomar un turno nuevo' : 'agendar otra cita').' aquí: '.$url."\n"
+            .'o escribiéndonos por este chat.'."\n\n"
+            .$this->brand();
+
+        $this->queue(
+            $subject,
+            $isTurn ? 'turn_cancelled' : 'appt_cancelled',
+            ($isTurn ? 'Turno' : 'Cita').' cancelad'.($isTurn ? 'o' : 'a').' por falta de confirmación',
+            $body,
+            ttlMinutes: (int) config('notificaciones.ttl_minutes.change', 120),
+            stamp: 'sin-confirmar',
+        );
+    }
+
+    /** Confirmación de cancelación de turno, la pida el cliente o la barbería. */
+    public function turnCancelled(Turn $turn): void
+    {
+        $this->cancelPending($turn);
         $this->queue(
             $turn,
             'turn_cancelled',
             'Turno '.$this->number($turn).' cancelado',
-            'Tu turno '.$this->number($turn).' fue cancelado por la barbería. Si quieres, puedes tomar uno nuevo desde la página.',
+            $this->cancellationBody($turn),
             ttlMinutes: (int) config('notificaciones.ttl_minutes.change', 120),
+            stamp: now()->format('YmdHi'),
         );
     }
 
@@ -95,21 +192,68 @@ class ClientNotifier
     /** Confirmación inmediata + recordatorios (1 hora antes, 15 minutos antes y a la hora). */
     public function appointmentBooked(Appointment $appointment): void
     {
+        $autoConfirmed = $this->autoConfirmIfSoon($appointment);
+        $window = (int) config('notificaciones.confirm_window_minutes', 15);
+        $minutesLeft = (int) ceil(now()->diffInMinutes($appointment->startsAt(), false));
+
+        if ($autoConfirmed) {
+            // Agendada en el último cuarto de hora: mensaje propio, sin recordatorio ni pregunta de confirmación.
+            $name = $this->firstName($appointment->client_name);
+            $address = trim((string) (SiteSetting::currentData()['address'] ?? ''));
+            $title = '✅ Tu cita quedó confirmada';
+            $body = '⏰ ¡Hola'.($name !== '' ? ', '.$name : '').'! Tu cita es '.($minutesLeft <= 1 ? 'en este momento' : 'en '.$minutesLeft.' minutos')
+                .' y ya quedó *confirmada automáticamente*: no necesitas responder nada más.'."\n\n"
+                .'📅 '.ucfirst($this->appointmentWhen($appointment, lower: true))."\n"
+                .($appointment->service?->name ? '✂️ Servicio: '.$appointment->service->name."\n" : '')
+                .($appointment->barber?->name ? '💈 Barbero: '.$appointment->barber->name."\n" : '')
+                .($address !== '' ? '📍 Dirección: '.$address."\n" : '')."\n"
+                .'🚶 Te recomendamos salir ya para llegar a tiempo. ¡Te esperamos en '.$this->brand().'!';
+        } elseif ($minutesLeft <= 30) {
+            $title = '¡Tu cita quedó registrada!';
+            $body = $this->withDot('Te esperamos '.$this->appointmentWhen($appointment, lower: true))
+                .' En un momento te llegará un mensaje para confirmar tu asistencia: tendrás '.$window.' minutos para responder.';
+        } else {
+            $title = '¡Tu cita quedó registrada!';
+            $body = $this->withDot('Te esperamos '.$this->appointmentWhen($appointment, lower: true)).' Te enviaremos un recordatorio 30 minutos antes.';
+        }
+
         $this->queue(
             $appointment,
             'appt_booked',
-            '¡Tu cita quedó registrada!',
-            '¡Tu cita quedó registrada! '.$this->appointmentWhen($appointment).'. Te la recordaremos 1 hora y 15 minutos antes.',
+            $title,
+            $body,
             ttlMinutes: (int) config('notificaciones.ttl_minutes.confirmation', 120),
         );
         $this->scheduleAppointmentReminders($appointment);
     }
 
     /**
+     * Cita agendada faltando 15 minutos o menos (página, panel o bot): no hay tiempo para pedir
+     * confirmación, así que queda confirmada sola. Devuelve true si se confirmó automáticamente.
+     */
+    public function autoConfirmIfSoon(Appointment $appointment): bool
+    {
+        $window = (int) config('notificaciones.confirm_window_minutes', 15);
+        $minutesLeft = now()->diffInMinutes($appointment->startsAt(), false);
+
+        if ($minutesLeft > $window || ! in_array($appointment->status, ['pendiente', 'confirmada'], true)) {
+            return false;
+        }
+
+        if ($appointment->status !== 'confirmada') {
+            $appointment->update(['status' => 'confirmada']);
+        }
+        AttendanceConfirmation::mark($appointment);
+
+        return true;
+    }
+
+    /**
      * Llamar después de modificar una cita. $before = ['status' => ..., 'starts_at' => Carbon] con los valores anteriores.
      * Cancela los recordatorios viejos y crea los nuevos cuando corresponde.
+     * La cancelación se avisa siempre, tanto si la pidió el cliente como si la anuló la barbería.
      */
-    public function appointmentChanged(Appointment $appointment, array $before, bool $byClient = false): void
+    public function appointmentChanged(Appointment $appointment, array $before): void
     {
         $active = in_array($appointment->status, ['pendiente', 'confirmada'], true);
         $wasActive = in_array($before['status'] ?? null, ['pendiente', 'confirmada'], true);
@@ -118,12 +262,12 @@ class ClientNotifier
 
         if (! $active) {
             $this->cancelPending($appointment);
-            if ($appointment->status === 'cancelada' && $wasActive && ! $byClient) {
+            if ($appointment->status === 'cancelada' && $wasActive) {
                 $this->queue(
                     $appointment,
                     'appt_cancelled',
                     'Cita cancelada',
-                    'Tu cita del '.$this->dateTime($start).' fue cancelada. Si quieres, puedes agendar otra desde la página.',
+                    $this->cancellationBody($appointment),
                     ttlMinutes: (int) config('notificaciones.ttl_minutes.change', 120),
                     stamp: now()->format('YmdHi'),
                 );
@@ -144,8 +288,8 @@ class ClientNotifier
             $this->queue(
                 $appointment,
                 'appt_rescheduled',
-                'Tu cita fue reprogramada',
-                'Tu cita fue reprogramada. Ahora es '.$this->appointmentWhen($appointment, lower: true).'.',
+                'Cita reprogramada',
+                $this->withDot('Tu cita quedó reprogramada para '.$this->appointmentWhen($appointment, lower: true)),
                 ttlMinutes: (int) config('notificaciones.ttl_minutes.change', 120),
                 stamp: $start->format('YmdHi'),
             );
@@ -158,7 +302,7 @@ class ClientNotifier
                 $appointment,
                 'appt_confirmed',
                 'Cita confirmada',
-                'Tu cita fue confirmada: '.$this->appointmentWhen($appointment, lower: true).'. ¡Te esperamos!',
+                $this->withDot('Tu cita quedó confirmada para '.$this->appointmentWhen($appointment, lower: true)).' ¡Te esperamos!',
                 ttlMinutes: (int) config('notificaciones.ttl_minutes.change', 120),
             );
         }
@@ -172,19 +316,45 @@ class ClientNotifier
 
         $start = $appointment->startsAt();
         $barber = $appointment->barber?->name ?: 'tu barbero';
-        $hour = $start->format('g:i A');
+        $hour = $this->time($start);
+        $date = $start->copy()->locale('es')->translatedFormat('l j \d\e F');
         $texts = [
-            60 => ['Tu cita es en 1 hora', "Tu cita con {$barber} es en 1 hora ({$hour}). ¡Te esperamos!"],
-            15 => ['Tu cita es en 15 minutos', "Tu cita con {$barber} es en 15 minutos ({$hour}). Ve saliendo para llegar a tiempo."],
-            0 => ['¡Es la hora de tu cita!', "¡Es la hora de tu cita con {$barber}! Te estamos esperando."],
+            30 => [
+                'Recordatorio: tu cita es en 30 minutos',
+                '¡Hola'.($this->firstName($appointment->client_name) !== '' ? ', '.$this->firstName($appointment->client_name) : '')."!\n\n"
+                .'Te recordamos que dentro de 30 minutos tienes una cita programada en '.$this->brand().".\n\n"
+                .'📅 Fecha: '.$date."\n"
+                .'🕒 Hora: '.$hour."\n"
+                .($appointment->service?->name ? '✂️ Servicio: '.$appointment->service->name."\n" : '')
+                .'💈 Barbero: '.$barber."\n\n"
+                .'¿Deseas mantener tu reserva?'."\n\n"
+                .'1. Confirmar mi asistencia.'."\n"
+                .'2. Cancelar mi cita.'."\n"
+                .'3. Hablar con un asesor.'."\n\n"
+                .'Tu confirmación nos ayuda a organizar mejor nuestra agenda.'."\n\n"
+                .'¡Te esperamos!',
+            ],
         ];
 
-        foreach ((array) config('notificaciones.appointment_reminders', [60 => 30, 15 => 10, 0 => 10]) as $minutesBefore => $ttl) {
+        foreach ((array) config('notificaciones.appointment_reminders', [30 => 20]) as $minutesBefore => $ttl) {
             $at = $start->copy()->subMinutes((int) $minutesBefore);
+            $early = false;
             if ($at->lte(now())) {
-                continue; // esa hora ya pasó (por ejemplo, cita agendada para dentro de 40 minutos)
+                // La hora del recordatorio ya pasó (cita agendada sobre la hora). Si aún faltan 15 minutos o más,
+                // se manda ya para que el cliente alcance a confirmar; con menos de 15 se confirmó sola al agendar.
+                if (now()->diffInMinutes($start, false) <= (int) config('notificaciones.confirm_window_minutes', 15) || AttendanceConfirmation::confirmed($appointment)) {
+                    continue;
+                }
+                $at = now();
+                $early = true;
             }
-            [$title, $body] = $texts[$minutesBefore] ?? ['Recordatorio de tu cita', "Tu cita con {$barber} es a las {$hour}."];
+            [$title, $body] = $texts[$minutesBefore] ?? ['Recordatorio de tu cita', "Tu cita con {$barber} es a las {$hour}"];
+            $left = (int) ceil(now()->diffInMinutes($start, false));
+            if ($early && $left < (int) $minutesBefore) {
+                // Enviado antes de tiempo: el texto dice los minutos que faltan de verdad.
+                $title = str_replace($minutesBefore.' minutos', $left.' minutos', $title);
+                $body = str_replace($minutesBefore.' minutos', $left.' minutos', $body);
+            }
             $this->queue($appointment, 'appt_reminder_'.$minutesBefore, $title, $body, $at, (int) $ttl, $start->format('YmdHi'));
         }
     }
@@ -365,7 +535,7 @@ class ClientNotifier
         $ttl = $notification->expires_at ? max(60, (int) now()->diffInSeconds($notification->expires_at, false)) : 600;
         $payload = [
             'title' => $notification->title,
-            'body' => $notification->body,
+            'body' => $this->plainText($notification->body), // el push no interpreta la negrita de WhatsApp
             'url' => $notification->url ?: '/',
             'tag' => preg_replace('/:push$/', '', $notification->dedupe_key),
         ];
@@ -476,7 +646,7 @@ class ClientNotifier
 
     private function appointmentWhen(Appointment $appointment, bool $lower = false): string
     {
-        $text = Str::ucfirst($this->dateTime($appointment->startsAt()));
+        $text = Str::ucfirst('el '.$this->dateTime($appointment->startsAt()));
         if ($appointment->barber?->name) {
             $text .= ' con '.$appointment->barber->name;
         }
@@ -489,6 +659,84 @@ class ClientNotifier
 
     private function dateTime(Carbon $moment): string
     {
-        return $moment->copy()->locale('es')->translatedFormat('l j \d\e F').' a las '.$moment->format('g:i A');
+        return $moment->copy()->locale('es')->translatedFormat('l j \d\e F').' a las '.$this->time($moment);
+    }
+
+    private function time(Carbon $moment): string
+    {
+        return $moment->format('g:i').' '.((int) $moment->format('G') >= 12 ? 'p. m.' : 'a. m.');
+    }
+
+    /** Cierra la frase sin duplicar el punto cuando ya termina en «p. m.» o «a. m.». */
+    private function withDot(string $text): string
+    {
+        return str_ends_with($text, '.') ? $text : $text.'.';
+    }
+
+    /** Quita la negrita de WhatsApp (*texto*) para los canales que la muestran tal cual. */
+    private function plainText(string $text): string
+    {
+        return (string) preg_replace('/\*{1,2}([^*\n]+)\*{1,2}/u', '$1', $text);
+    }
+
+    private function firstName(?string $name): string
+    {
+        $name = trim((string) $name);
+
+        return $name === '' ? '' : explode(' ', $name)[0];
+    }
+
+    private function brand(): string
+    {
+        $settings = SiteSetting::currentData();
+
+        return (string) ($settings['brand_name'] ?? config('app.name', 'la barbería'));
+    }
+
+    /**
+     * Confirmación de cancelación (cita o turno) con los datos de la página:
+     * fecha y hora de la reserva, el enlace oficial para volver a reservar, la marca y el eslogan.
+     */
+    private function cancellationBody(Appointment|Turn $subject): string
+    {
+        $settings = SiteSetting::currentData();
+        $brand = (string) ($settings['brand_name'] ?? config('app.name', 'la barbería'));
+        $tagline = trim((string) ($settings['tagline'] ?? ''));
+        $url = rtrim((string) config('app.url'), '/').'/';
+        $isTurn = $subject instanceof Turn;
+
+        $lines = [
+            '*Confirmación de cancelación de '.($isTurn ? 'turno' : 'cita').'*',
+            '',
+            $isTurn
+                ? 'Te informamos que tu turno ha sido cancelado correctamente.'
+                : 'Te informamos que tu cita ha sido cancelada correctamente.',
+            '',
+        ];
+
+        if ($isTurn) {
+            $lines[] = '*Turno:* '.$this->number($subject);
+            $lines[] = '*Fecha:* '.$subject->turn_date->copy()->locale('es')->translatedFormat('l j \d\e F');
+        } else {
+            $start = $subject->startsAt();
+            $lines[] = '*Fecha:* '.$start->copy()->locale('es')->translatedFormat('l j \d\e F');
+            $lines[] = '*Hora:* '.$this->time($start);
+        }
+
+        $lines[] = '';
+        $lines[] = $isTurn
+            ? 'Si deseas reservar un nuevo turno, puedes hacerlo fácilmente a través de nuestro sitio web oficial:'
+            : 'Si deseas reservar una nueva cita, puedes hacerlo fácilmente a través de nuestro sitio web oficial:';
+        $lines[] = '';
+        $lines[] = '🌐 '.$url;
+        $lines[] = '';
+        $lines[] = 'Será un gusto atenderte nuevamente.';
+        $lines[] = '';
+        $lines[] = '*'.$brand.'*';
+        if ($tagline !== '') {
+            $lines[] = str_ends_with($tagline, '.') ? $tagline : $tagline.'.';
+        }
+
+        return implode("\n", $lines);
     }
 }

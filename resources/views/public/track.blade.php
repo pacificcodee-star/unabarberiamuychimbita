@@ -8,10 +8,10 @@
 @endphp
 
 @section('title', $heading.' · '.($siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita'))
+@section('robots', 'noindex, nofollow')
 @section('meta_description', 'Seguimiento de tu '.$type.' en '.($siteSettings['brand_name'] ?? 'la barbería').'.')
 
 @push('styles')
-    <meta name="robots" content="noindex, nofollow">
     <style>
         .track-wrap { max-width: 720px; margin-inline: auto; }
         .track-status { display: flex; flex-direction: column; gap: .35rem; padding: 1.1rem 1.25rem; border: 1px solid rgba(255, 255, 255, .14); border-radius: 14px; margin-bottom: 1.25rem; }
@@ -80,11 +80,11 @@
                         @unless($isTurn)
                             <div>
                                 <dt>Fecha</dt>
-                                <dd>{{ \Illuminate\Support\Str::ucfirst($subject->startsAt()->locale('es')->translatedFormat('l, d \d\e F')) }}</dd>
+                                <dd>{{ $subject->startsAt()->locale('es')->translatedFormat('l j \d\e F') }}</dd>
                             </div>
                             <div>
                                 <dt>Hora</dt>
-                                <dd>{{ $subject->startsAt()->format('h:i A') }}</dd>
+                                <dd>{{ $subject->startsAt()->format('g:i') }} {{ (int) $subject->startsAt()->format('G') >= 12 ? 'p. m.' : 'a. m.' }}</dd>
                             </div>
                         @endunless
                     </dl>

@@ -35,6 +35,14 @@
                         <i class="bi bi-robot me-1"></i>{{ $conversation->bot_active ? 'Pausar bot' : 'Reanudar bot' }}
                     </button>
                 </form>
+                <form method="POST" action="{{ route('whatsapp.chat.destroy', $conversation) }}"
+                      onsubmit="return confirm('¿Eliminar este chat de la bandeja? Se borran todos sus mensajes del panel (no del teléfono). No se puede deshacer.');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash3 me-1"></i>Eliminar chat
+                    </button>
+                </form>
             </span>
         </div>
     </div>

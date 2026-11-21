@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\Auth\AuthController;
@@ -14,7 +14,6 @@ use App\Http\Controllers\LandingController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\PublicReviewController;
-use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\ServiceController;
@@ -32,11 +31,18 @@ Route::get('/', [LandingController::class, 'index'])->name('landing');
 Route::get('/sitemap.xml', function () {
     return response()->view('sitemap')->header('Content-Type', 'application/xml; charset=UTF-8');
 })->name('sitemap');
+Route::get('/robots.txt', function () {
+    return response()->view('robots')->header('Content-Type', 'text/plain; charset=UTF-8');
+})->name('robots');
+
+// Páginas legales
+Route::view('/aviso-legal', 'public.legal.aviso-legal')->name('legal.notice');
+Route::view('/politica-de-privacidad', 'public.legal.privacidad')->name('legal.privacy');
+Route::view('/cookies', 'public.legal.cookies')->name('legal.cookies');
 Route::get('/nosotros', [LandingController::class, 'about'])->name('public.about');
 Route::get('/servicios', [LandingController::class, 'services'])->name('public.services');
 Route::get('/barberos', [LandingController::class, 'barbers'])->name('public.barbers');
 Route::get('/resenas', [LandingController::class, 'reviews'])->name('public.reviews');
-// Opiniones de clientes: llegan sin publicar y el administrador las aprueba en el panel.
 Route::post('/resenas', [PublicReviewController::class, 'store'])->middleware('throttle:5,10')->name('public.reviews.store');
 Route::get('/contacto', [LandingController::class, 'contact'])->name('public.contact');
 Route::get('/reservar', [PublicBookingController::class, 'index'])->name('public.booking');
@@ -64,11 +70,13 @@ Route::post('/webhook/evolution', EvolutionWebhookController::class)
     ->middleware('throttle:120,1')
     ->name('webhook.evolution');
 
-Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-Route::post('/login', [AuthController::class, 'login'])->name('login.store');
+Route::middleware('panel-desktop')->group(function () {
+    Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [AuthController::class, 'login'])->name('login.store');
+});
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['panel-desktop', 'auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/staff/push', [StaffPushController::class, 'store'])->middleware('throttle:20,1')->name('staff.push.store');
     Route::delete('/staff/push', [StaffPushController::class, 'destroy'])->middleware('throttle:20,1')->name('staff.push.destroy');
@@ -110,7 +118,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/disponibilidad', [AvailabilityController::class, 'store'])->name('availability.store');
         Route::delete('/disponibilidad/{availability}', [AvailabilityController::class, 'destroy'])->name('availability.destroy');
 
-        // NÃ³mina: lo ganado por servicios âˆ’ insumos entregados = pago del barbero.
+        // Nómina: lo ganado por servicios − insumos entregados = pago del barbero.
         Route::get('/nomina', [CommissionController::class, 'index'])->name('commissions.index');
         Route::post('/nomina', [CommissionController::class, 'store'])->name('commissions.store');
         Route::get('/nomina/barbero/{barber}', [CommissionController::class, 'show'])->name('commissions.show');
@@ -131,21 +139,19 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
 
-        // Reseñas de clientes: aprobar, editar o eliminar las que se publican en la web.
-        Route::patch('/reviews/{review}/toggle', [ReviewController::class, 'toggle'])->name('reviews.toggle');
-        Route::resource('reviews', ReviewController::class)->except(['show']);
-
         // WhatsApp (Evolution API): instancia + QR, y bandeja de chat con los clientes.
         Route::get('/whatsapp', [WhatsAppController::class, 'index'])->name('whatsapp.index');
         Route::get('/whatsapp/status', [WhatsAppController::class, 'status'])->name('whatsapp.status');
         Route::post('/whatsapp/connect', [WhatsAppController::class, 'connect'])->name('whatsapp.connect');
         Route::post('/whatsapp/logout', [WhatsAppController::class, 'logout'])->name('whatsapp.logout');
         Route::post('/whatsapp/webhook', [WhatsAppController::class, 'configureWebhook'])->name('whatsapp.webhook');
+        Route::post('/whatsapp/promocion', [WhatsAppController::class, 'sendPromotion'])->name('whatsapp.promotion');
 
         Route::get('/whatsapp/chat', [WhatsAppChatController::class, 'index'])->name('whatsapp.chat.index');
         Route::get('/whatsapp/chat/{conversation}', [WhatsAppChatController::class, 'show'])->name('whatsapp.chat.show');
         Route::get('/whatsapp/chat/{conversation}/messages', [WhatsAppChatController::class, 'messages'])->name('whatsapp.chat.messages');
         Route::post('/whatsapp/chat/{conversation}/send', [WhatsAppChatController::class, 'send'])->name('whatsapp.chat.send');
         Route::post('/whatsapp/chat/{conversation}/bot', [WhatsAppChatController::class, 'toggleBot'])->name('whatsapp.chat.bot');
+        Route::delete('/whatsapp/chat/{conversation}', [WhatsAppChatController::class, 'destroy'])->name('whatsapp.chat.destroy');
     });
 });

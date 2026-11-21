@@ -19,7 +19,7 @@ class PublicReviewsTest extends TestCase
         $this->get('/resenas')->assertOk()->assertDontSee('rv-list-title', false)->assertSee('¿Cómo te fue');
     }
 
-    public function test_a_client_review_arrives_hidden_until_the_admin_approves_it(): void
+    public function test_a_client_review_arrives_unpublished(): void
     {
         $this->post('/resenas', ['client_name' => 'Andrea', 'rating' => 4, 'comment' => 'Excelente corte y muy buena atención.'])
             ->assertRedirect(route('public.reviews').'#opinar');
@@ -28,11 +28,12 @@ class PublicReviewsTest extends TestCase
         $this->assertFalse($review->approved);
         $this->assertSame(4, $review->rating);
         $this->get('/')->assertDontSee('Excelente corte y muy buena atención.');
+        $this->get('/resenas')->assertDontSee('Excelente corte y muy buena atención.');
+    }
 
-        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
-        $this->actingAs($admin)->get(route('reviews.index'))->assertOk()->assertSee('Pendiente')->assertSee('Andrea');
-        $this->actingAs($admin)->patch(route('reviews.toggle', $review))->assertRedirect();
-        $this->assertTrue($review->fresh()->approved);
+    public function test_previously_approved_reviews_still_appear(): void
+    {
+        Review::create(['client_name' => 'Andrea', 'rating' => 4, 'comment' => 'Excelente corte y muy buena atención.', 'approved' => true]);
 
         $this->get('/')->assertOk()->assertSee('Excelente corte y muy buena atención.')->assertSee('Andrea');
         $this->get('/resenas')->assertOk()->assertSee('Excelente corte y muy buena atención.');
@@ -48,9 +49,10 @@ class PublicReviewsTest extends TestCase
         $this->assertSame(0, Review::count());
     }
 
-    public function test_only_the_admin_manages_reviews(): void
+    public function test_review_management_is_unavailable_to_administrators(): void
     {
-        $barber = User::factory()->create(['role' => 'barbero', 'active' => true]);
-        $this->actingAs($barber)->get(route('reviews.index'))->assertForbidden();
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $this->actingAs($admin)->get('/reviews')->assertNotFound();
+        $this->patch('/reviews/1/toggle')->assertNotFound();
     }
 }

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Turnos y citas')
+@section('title', 'Turnos')
 
 @section('actions')
     <form method="POST" action="{{ route('turns.call-next') }}" class="d-flex align-items-center gap-2">
@@ -72,32 +72,25 @@
 
     <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-person-plus me-1 text-warning"></i> Sacar turno o cita</span>
-            <span class="small text-muted">Elige si el cliente va por orden de llegada o con cita</span>
+            <span><i class="bi bi-person-plus me-1 text-warning"></i> Dar turno</span>
+            <span class="small text-muted">Por orden de llegada · las citas con hora se agendan en <a href="{{ route('appointments.index') }}">Citas</a></span>
         </div>
         <div class="card-body">
             <form method="POST" action="{{ route('turns.store') }}" class="row g-2 align-items-end" data-turn-form>
                 @csrf
-                @php $typeOld = old('type', 'llegada'); @endphp
-                <div class="col-12 mb-1">
-                    <div class="btn-group" role="group" aria-label="Tipo de atención">
-                        <input type="radio" class="btn-check" name="type" id="typeLlegada" value="llegada" @checked($typeOld === 'llegada')>
-                        <label class="btn btn-outline-dark" for="typeLlegada"><i class="bi bi-list-ol me-1"></i> Por orden de llegada</label>
-                        <input type="radio" class="btn-check" name="type" id="typeCita" value="cita" @checked($typeOld === 'cita')>
-                        <label class="btn btn-outline-dark" for="typeCita"><i class="bi bi-calendar-event me-1"></i> Con cita</label>
-                    </div>
-                </div>
                 @if(auth()->user()->isAdmin())
                     <div class="col-md-3">
                         <label class="form-label small text-muted mb-1">Barbero</label>
-                        <select name="barber_id" class="form-select" required data-barber-select>
+                        <select name="barber_id" class="form-select" required>
                             <option value="">Selecciona</option>
+                            {{-- Solo barberos que atienden por orden de llegada (Barberos → Modalidad de atención) --}}
                             @foreach($barbers as $barber)
-                                {{-- La modalidad de cada barbero viene de la base de datos (Barberos → Modalidad de atención) --}}
-                                <option value="{{ $barber->id }}" data-mode="{{ $barber->attention_mode === 'citas' ? 'cita' : 'llegada' }}" @selected(old('barber_id') == $barber->id)>{{ $barber->name }}</option>
+                                <option value="{{ $barber->id }}" @selected(old('barber_id') == $barber->id)>{{ $barber->name }}</option>
                             @endforeach
                         </select>
-                        <div class="form-text" data-barber-hint></div>
+                        @if($barbers->isEmpty())
+                            <div class="form-text text-danger">No hay barberos activos que atiendan por orden de llegada.</div>
+                        @endif
                     </div>
                 @endif
                 <div class="col-md-3">
@@ -117,45 +110,12 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-2" data-cita-field @if($typeOld !== 'cita') hidden @endif>
-                    <label class="form-label small text-muted mb-1">Fecha de la cita</label>
-                    <input type="date" name="appointment_date" value="{{ old('appointment_date', $date >= now()->toDateString() ? $date : now()->toDateString()) }}" min="{{ now()->toDateString() }}" class="form-control">
-                </div>
-                <div class="col-md-2" data-cita-field @if($typeOld !== 'cita') hidden @endif>
-                    <label class="form-label small text-muted mb-1">Hora</label>
-                    <input type="time" name="appointment_time" value="{{ old('appointment_time') }}" step="900" class="form-control">
-                </div>
                 <div class="col-auto">
-                    <button class="btn btn-dark"><i class="bi bi-plus-lg me-1"></i> <span data-submit-label>{{ $typeOld === 'cita' ? 'Agendar cita' : 'Dar turno' }}</span></button>
+                    <button class="btn btn-dark"><i class="bi bi-plus-lg me-1"></i> Dar turno</button>
                 </div>
             </form>
         </div>
     </div>
-
-    @if($appointments->isNotEmpty())
-        <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-calendar-event me-1 text-warning"></i> Citas de este día</span>
-                <a href="{{ route('appointments.index', ['date' => $date]) }}" class="small">Gestionar en Citas →</a>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-sm mb-0 align-middle">
-                    <thead><tr><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Barbero</th><th>Estado</th></tr></thead>
-                    <tbody>
-                    @foreach($appointments as $appointment)
-                        <tr>
-                            <td class="fw-semibold text-nowrap">{{ \Carbon\Carbon::parse($appointment->appointment_time)->format('h:i A') }}</td>
-                            <td>{{ $appointment->client_name }}@if($appointment->client_phone)<div class="small text-muted">{{ $appointment->client_phone }}</div>@endif</td>
-                            <td>{{ $appointment->service?->name ?? 'Por definir' }}</td>
-                            <td>{{ $appointment->barber?->name }}</td>
-                            <td><span class="badge-soft {{ $appointment->status === 'atendida' ? 'green' : ($appointment->status === 'cancelada' ? 'red' : '') }}">{{ $appointment->statusLabel() }}</span></td>
-                        </tr>
-                    @endforeach
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    @endif
 
     <div class="card mb-2"><div class="card-body py-2 small fw-semibold"><i class="bi bi-list-ol text-warning me-1"></i> Turnos por orden de llegada</div></div>
     <div class="card">
@@ -251,34 +211,6 @@
 
 @push('scripts')
 <script>
-    // Sacar turno o cita: muestra fecha y hora solo cuando es cita.
-    (() => {
-        const form = document.querySelector('[data-turn-form]');
-        if (!form) return;
-        const sync = () => {
-            const isCita = form.querySelector('input[name="type"]:checked')?.value === 'cita';
-            form.querySelectorAll('[data-cita-field]').forEach((el) => { el.hidden = !isCita; el.querySelector('input').required = isCita; });
-            form.querySelector('[data-submit-label]').textContent = isCita ? 'Agendar cita' : 'Dar turno';
-            // Solo los barberos de esa modalidad (según la base de datos).
-            const select = form.querySelector('[data-barber-select]');
-            if (select) {
-                const mode = isCita ? 'cita' : 'llegada';
-                let visible = 0;
-                [...select.options].forEach((opt) => {
-                    if (!opt.value) return;
-                    const ok = opt.dataset.mode === mode;
-                    opt.hidden = !ok; opt.disabled = !ok;
-                    if (ok) visible++;
-                    if (!ok && opt.selected) select.value = '';
-                });
-                const hint = form.querySelector('[data-barber-hint]');
-                if (hint) hint.textContent = visible ? (isCita ? 'Barberos que atienden con cita.' : 'Barberos que atienden por orden de llegada.') : (isCita ? 'No hay barberos activos que atiendan con cita.' : 'No hay barberos activos por orden de llegada.');
-            }
-        };
-        form.querySelectorAll('input[name="type"]').forEach((r) => r.addEventListener('change', sync));
-        sync();
-    })();
-
     // Al marcar como finalizado se pregunta el medio de pago antes de registrar el ingreso.
     function attendedChange(select) {
         const form = select.form;

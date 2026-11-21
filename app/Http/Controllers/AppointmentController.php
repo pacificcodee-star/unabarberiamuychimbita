@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\Service;
 use App\Models\User;
+use App\Services\WhatsApp\BookingMessenger;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
@@ -125,6 +126,9 @@ class AppointmentController extends Controller
         $appointment->load(['service', 'barber']);
         app(\App\Services\ClientNotifier::class)->appointmentBooked($appointment);
         app(\App\Services\ClientNotifier::class)->flush();
+
+        // Cita creada desde el panel: se le pide al cliente confirmar por WhatsApp igual que en la página.
+        app(BookingMessenger::class)->requestAppointmentConfirmation($appointment);
 
         return redirect()
             ->route('appointments.index', ['date' => $data['appointment_date']])

@@ -29,11 +29,17 @@
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     @php
         $brandName = $siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita';
         $pageTitle = trim($__env->yieldContent('title', $brandName.' · Más que un corte, una experiencia'));
         $metaDescription = trim($__env->yieldContent('meta_description', $siteSettings['footer_description'] ?? 'Cortes clásicos y modernos, barba, color y una experiencia pensada para ti.'));
         $logoUrl = !empty($siteSettings['logo_path']) ? asset('storage/'.$siteSettings['logo_path']) : asset('images/logo-una-barberia.png');
+        // Versión liviana (128 px, 11 KB) para el menú, el pie y la pantalla de carga.
+        $logoSmall = !empty($siteSettings['logo_path']) ? $logoUrl : asset('images/logo-una-barberia-128.webp');
+        $shareImage = trim($__env->yieldContent('og_image')) ?: asset('images/og-image.jpg');
+        $robots = trim($__env->yieldContent('robots', 'index, follow'));
+        $ga4Id = config('web.ga4_id');
         $cssVersion = file_exists(public_path('css/site.css')) ? filemtime(public_path('css/site.css')) : '1';
         $navItems = [
             ['route' => 'landing', 'label' => 'Inicio', 'icon' => 'bi-house-door'],
@@ -44,9 +50,13 @@
     @endphp
     <title>{{ $pageTitle }}</title>
     <meta name="description" content="{{ $metaDescription }}">
+    <meta name="robots" content="{{ $robots }}">
+    @if(config('web.google.site_verification'))<meta name="google-site-verification" content="{{ config('web.google.site_verification') }}">@endif
     <meta name="color-scheme" content="dark">
     <link rel="canonical" href="{{ url()->current() }}">
-    <link rel="icon" type="image/png" href="{{ asset('images/logo-una-barberia.png') }}">
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="48x48">
+    <link rel="icon" type="image/svg+xml" href="{{ asset('images/logo-una-barberia.svg') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('icons/favicon-32.png') }}">
     {{-- App instalable (PWA) --}}
     <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
     <meta name="theme-color" content="#0c0a08">
@@ -61,8 +71,14 @@
     <meta property="og:title" content="{{ $pageTitle }}">
     <meta property="og:description" content="{{ $metaDescription }}">
     <meta property="og:url" content="{{ url()->current() }}">
-    <meta property="og:image" content="{{ $logoUrl }}">
-    <meta name="twitter:card" content="summary">
+    <meta property="og:image" content="{{ $shareImage }}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="{{ $brandName }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ $pageTitle }}">
+    <meta name="twitter:description" content="{{ $metaDescription }}">
+    <meta name="twitter:image" content="{{ $shareImage }}">
     <link rel="sitemap" type="application/xml" href="{{ route('sitemap') }}">
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -81,10 +97,16 @@
         .nav-bell-badge { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--brand-red); color: #fff; font-size: .7rem; font-weight: 700; line-height: 20px; text-align: center; }
         .bell-panel { position: fixed; z-index: 1085; top: 76px; right: max(12px, calc((100vw - 1296px) / 2)); width: min(380px, calc(100vw - 24px)); max-height: min(72vh, 560px); display: flex; flex-direction: column; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, .55); color: var(--text); overflow: hidden; }
         .bell-panel[hidden] { display: none; }
+        .bell-item-top strong { min-width: 0; }
+        .bell-item-top strong, .bell-group-head strong, .bell-item p, .bell-detail { overflow-wrap: anywhere; }
+        @media (max-width: 575.98px) {
+            /* Márgenes fijos a ambos lados: el panel nunca es más ancho que la pantalla. */
+            .bell-panel { top: calc(env(safe-area-inset-top, 0px) + 72px); left: 12px; right: 12px; width: auto; }
+        }
         .bell-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
         .bell-panel-head h2 { margin: 0; font-size: 1rem; }
         .bell-panel-head button { border: 0; background: transparent; color: inherit; font-size: 1rem; padding: 4px 6px; cursor: pointer; }
-        .bell-panel-body { overflow-y: auto; padding: 6px 16px 14px; }
+        .bell-panel-body { overflow-y: auto; overscroll-behavior: contain; padding: 6px 16px 14px; }
         .bell-empty { padding: 26px 8px; text-align: center; opacity: .9; }
         .bell-empty i { font-size: 1.8rem; color: var(--gold); }
         .bell-empty p { margin: 8px 0 14px; }
@@ -119,7 +141,7 @@
         <div class="pl-count {{ !empty($siteSettings['loader_image_path']) ? 'has-img' : '' }}" @if(!empty($siteSettings['loader_image_path'])) style="--pl-img: url('{{ asset('storage/'.$siteSettings['loader_image_path']) }}')" @endif><span data-pl-num>00</span></div>
     </div>
     <div class="pl-foot" aria-hidden="true">
-        <span class="pl-brand"><img src="{{ $logoUrl }}" alt="" width="28" height="28">{{ $siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita' }}</span>
+        <span class="pl-brand"><img src="{{ $logoSmall }}" alt="" width="28" height="28">{{ $siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita' }}</span>
         <span class="pl-bar"><span data-pl-bar></span></span>
         <span class="pl-tag">{{ $siteSettings['tagline'] ?? '' }}</span>
     </div>
@@ -164,35 +186,70 @@
 </script>
 <a class="skip-link" href="#main-content">Saltar al contenido</a>
 @php
-    $businessSchema = [
+    // Datos estructurados (schema.org) para Google: negocio local con horario, ubicación y ficha.
+    $toTime = function (string $text): ?string {
+        // "9:00 a. m." → 09:00 · "8:00 p. m." → 20:00 · "18:30" → 18:30
+        if (! preg_match('/(\d{1,2})(?::(\d{2}))?\s*([ap])?/iu', $text, $m)) return null;
+        $hour = (int) $m[1];
+        $meridiem = strtolower($m[3] ?? '');
+        if ($meridiem === 'p' && $hour < 12) $hour += 12;
+        if ($meridiem === 'a' && $hour === 12) $hour = 0;
+        return $hour <= 23 ? sprintf('%02d:%02d', $hour, (int) ($m[2] ?? 0)) : null;
+    };
+    $schemaDays = ['mon' => 'Monday', 'tue' => 'Tuesday', 'wed' => 'Wednesday', 'thu' => 'Thursday', 'fri' => 'Friday', 'sat' => 'Saturday', 'sun' => 'Sunday'];
+    $openingHours = [];
+    foreach ($schemaDays as $key => $dayName) {
+        $text = (string) ($siteSettings['hours_'.$key] ?? '');
+        if (\App\Models\SiteSetting::isClosedText($text)) continue;
+        $parts = preg_split('/\s*[–—-]\s*(?=\d)/u', $text);
+        $opens = isset($parts[0]) ? $toTime($parts[0]) : null;
+        $closes = isset($parts[1]) ? $toTime($parts[1]) : null;
+        if ($opens && $closes) {
+            $openingHours[] = ['@type' => 'OpeningHoursSpecification', 'dayOfWeek' => 'https://schema.org/'.$dayName, 'opens' => $opens, 'closes' => $closes];
+        }
+    }
+    [$lat, $lng] = array_pad(array_map('trim', explode(',', (string) ($siteSettings['map_coords'] ?? ''))), 2, null);
+    // Se omiten los enlaces genéricos de redes (p. ej. https://www.instagram.com/ sin usuario).
+    $profileLinks = array_filter([
+        $siteSettings['instagram_url'] ?? null,
+        $siteSettings['facebook_url'] ?? null,
+        $siteSettings['tiktok_url'] ?? null,
+        config('web.google.business_url'),
+    ], fn ($link) => filled($link) && trim((string) parse_url($link, PHP_URL_PATH), '/') !== '');
+    $businessSchema = array_filter([
         '@context' => 'https://schema.org',
         '@type' => 'HairSalon',
+        '@id' => url('/').'#negocio',
         'name' => $brandName,
         'url' => url('/'),
-        'image' => $logoUrl,
+        'logo' => $logoUrl,
+        'image' => [asset('images/og-image.jpg'), $logoUrl],
         'description' => $siteSettings['footer_description'] ?? '',
         'telephone' => $siteSettings['phone'] ?? '',
         'email' => $siteSettings['email'] ?? '',
+        'priceRange' => '$$',
+        'currenciesAccepted' => 'COP',
         'address' => [
             '@type' => 'PostalAddress',
             'streetAddress' => $siteSettings['address'] ?? '',
-            'addressLocality' => $siteSettings['city'] ?? '',
+            'addressLocality' => trim(explode(',', (string) ($siteSettings['city'] ?? ''))[0]),
             'addressCountry' => 'CO',
         ],
-        'sameAs' => array_values(array_filter([
-            $siteSettings['instagram_url'] ?? null,
-            $siteSettings['facebook_url'] ?? null,
-            $siteSettings['tiktok_url'] ?? null,
-        ])),
-    ];
+        'geo' => is_numeric($lat) && is_numeric($lng) ? ['@type' => 'GeoCoordinates', 'latitude' => (float) $lat, 'longitude' => (float) $lng] : null,
+        'hasMap' => config('web.google.business_url') ?: 'https://www.google.com/maps/search/?api=1&query='.urlencode($brandName.' '.($siteSettings['address'] ?? '').' '.($siteSettings['city'] ?? '')),
+        'openingHoursSpecification' => $openingHours ?: null,
+        'potentialAction' => ['@type' => 'ReserveAction', 'target' => route('public.booking'), 'name' => 'Reservar cita o turno'],
+        'sameAs' => array_values($profileLinks) ?: null,
+    ]);
 @endphp
 <script type="application/ld+json">@json($businessSchema)</script>
+@stack('schema')
 
 <header class="site-nav" id="siteNav">
     <div class="container">
         <div class="nav-inner">
             <a href="{{ route('landing') }}" class="landing-brand" aria-label="{{ $brandName }} — Inicio">
-                <span class="mark"><img src="{{ $logoUrl }}" alt="" width="42" height="42"></span>
+                <span class="mark"><img src="{{ $logoSmall }}" alt="" width="42" height="42"></span>
                 <span class="min-w-0">
                     <span class="name">{{ $brandName }}</span>
                     @if(!empty($siteSettings['tagline']))<span class="tag">{{ $siteSettings['tagline'] }}</span>@endif
@@ -250,7 +307,7 @@
         <div class="footer-grid">
             <div>
                 <a href="{{ route('landing') }}" class="landing-brand">
-                    <span class="mark"><img src="{{ $logoUrl }}" alt="" width="42" height="42" loading="lazy"></span>
+                    <span class="mark"><img src="{{ $logoSmall }}" alt="" width="42" height="42" loading="lazy"></span>
                     <span class="min-w-0">
                         <span class="name">{{ $brandName }}</span>
                         @if(!empty($siteSettings['tagline']))<span class="tag">{{ $siteSettings['tagline'] }}</span>@endif
@@ -293,7 +350,13 @@
         </div>
         <div class="footer-bottom">
             <span>&copy; {{ now()->year }} {{ $brandName }}. Todos los derechos reservados.</span>
-            <span><a href="{{ route('login') }}" class="footer-staff-link">Acceso del equipo</a></span>
+            <nav class="footer-legal" aria-label="Información legal">
+                <a href="{{ route('legal.notice') }}">Aviso legal</a>
+                <a href="{{ route('legal.privacy') }}">Privacidad</a>
+                <a href="{{ route('legal.cookies') }}">Cookies</a>
+                <button type="button" class="footer-legal-btn" data-cookie-settings>Preferencias de cookies</button>
+                <a href="{{ route('login') }}" class="footer-staff-link">Acceso del equipo</a>
+            </nav>
         </div>
     </div>
 </footer>
@@ -304,6 +367,80 @@
         <span class="whatsapp-float-label">WhatsApp</span>
     </a>
 @endif
+
+{{-- Aviso de cookies: las necesarias siempre; la analítica solo si el visitante acepta. --}}
+<div class="cookie-banner" id="cookieBanner" role="region" aria-label="Aviso de cookies" hidden>
+    <p>Usamos cookies necesarias para que el sitio funcione{{ $ga4Id ? ' y, si aceptas, cookies de analítica para saber qué páginas se usan más' : '' }}. <a href="{{ route('legal.cookies') }}">Más información</a></p>
+    <div class="cookie-banner-actions">
+        @if($ga4Id)
+            <button type="button" class="cookie-btn cookie-btn--ghost" data-cookie-choice="rejected">Solo necesarias</button>
+            <button type="button" class="cookie-btn" data-cookie-choice="accepted">Aceptar</button>
+        @else
+            <button type="button" class="cookie-btn" data-cookie-choice="rejected">Entendido</button>
+        @endif
+    </div>
+</div>
+<script>
+(() => {
+    const KEY = 'cookie-consent';
+    const GA4 = @json($ga4Id);
+    const banner = document.getElementById('cookieBanner');
+    const read = () => { try { return localStorage.getItem(KEY); } catch (e) { return null; } };
+    const save = (v) => { try { localStorage.setItem(KEY, v); } catch (e) {} };
+
+    // Google Analytics 4: se carga solo con consentimiento. Sin ID en .env no se carga nunca.
+    let gaLoaded = false;
+    const loadAnalytics = () => {
+        if (!GA4 || gaLoaded) return;
+        gaLoaded = true;
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function () { dataLayer.push(arguments); };
+        gtag('js', new Date());
+        gtag('config', GA4, { anonymize_ip: true });
+        const s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(GA4);
+        document.head.appendChild(s);
+    };
+    // Las páginas pueden registrar eventos (p. ej. reserva hecha) sin saber si hay consentimiento.
+    window.trackEvent = (name, params) => { if (gaLoaded && window.gtag) gtag('event', name, params || {}); };
+
+    const show = () => {
+        // Espera a que termine la pantalla de carga para no taparla.
+        const wait = () => document.documentElement.classList.contains('is-loading') ? setTimeout(wait, 300) : (banner.hidden = false);
+        wait();
+    };
+    const choice = read();
+    if (choice === 'accepted') loadAnalytics();
+    else if (!choice) show();
+
+    banner.querySelectorAll('[data-cookie-choice]').forEach((btn) => btn.addEventListener('click', () => {
+        const value = btn.dataset.cookieChoice;
+        save(value);
+        banner.hidden = true;
+        if (value === 'accepted') loadAnalytics();
+        // Si retira el permiso, se borran las cookies de Google y se recarga sin analítica.
+        if (value === 'rejected' && gaLoaded) {
+            document.cookie.split(';').map((c) => c.split('=')[0].trim()).filter((n) => n.startsWith('_ga'))
+                .forEach((n) => { document.cookie = n + '=; Max-Age=0; path=/; domain=.' + location.hostname.replace(/^www\./, ''); document.cookie = n + '=; Max-Age=0; path=/'; });
+            location.reload();
+        }
+    }));
+    // Contactos directos como conversiones (solo llegan a Analytics si hubo consentimiento).
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+        const href = link.getAttribute('href');
+        if (href.startsWith('https://wa.me/')) window.trackEvent('whatsapp_click', { link_url: location.pathname });
+        else if (href.startsWith('tel:')) window.trackEvent('phone_click', { link_url: location.pathname });
+    });
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('[data-cookie-settings]')) return;
+        banner.hidden = false;
+        banner.querySelector('[data-cookie-choice]')?.focus();
+    });
+})();
+</script>
 
 {{-- Navegación inferior flotante (móvil): usa las mismas rutas públicas que el encabezado. --}}
 @include('public.partials.mobile-bottom-nav')
@@ -465,24 +602,48 @@
 <script>
 (() => {
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => navigator.serviceWorker.register('{{ asset('sw.js') }}', { scope: '/' }).catch(() => {}));
+        window.addEventListener('load', async () => {
+            try {
+                // updateViaCache: 'none' hace que el navegador revise sw.js en cada carga:
+                // así las mejoras de avisos y PWA llegan sin reinstalar la app.
+                const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' });
+                registration.update().catch(() => {});
+            } catch (e) {}
+        });
     }
+
     const box = document.getElementById('pwaPrompt');
     if (!box) return;
+
     const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    const KEY = 'pwa-dismissed-until';
-    let snoozed = false;
-    try { snoozed = Number(localStorage.getItem(KEY) || 0) > Date.now(); } catch (e) {}
-    if (standalone || snoozed) return;
-
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const installBtn = box.querySelector('[data-pwa-install]');
-    const msg = box.querySelector('[data-pwa-msg]');
-    let deferred = window.deferredPwaInstall || null;
-    if (deferred) installBtn.hidden = false;
+    const supported = 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+    const KEY = 'pwa-dismissed-until';
+    const KEY_PUSH = 'pwa-push-active';
+    const snoozedUntil = () => { try { return Number(localStorage.getItem(KEY) || 0) > Date.now(); } catch (e) { return false; } };
 
-    const show = () => {
-        const wait = () => document.documentElement.classList.contains('is-loading') ? setTimeout(wait, 250) : setTimeout(() => { box.hidden = false; requestAnimationFrame(() => box.classList.add('is-visible')); }, 250);
+    const installBtn = box.querySelector('[data-pwa-install]');
+    const notifyBtn = box.querySelector('[data-pwa-notify]');
+    const status = box.querySelector('[data-pwa-status]');
+    const msg = box.querySelector('[data-pwa-msg]');
+    const setStatus = (text) => { if (status) { status.textContent = text; status.hidden = !text; } };
+    let deferred = window.deferredPwaInstall || null;
+    let shown = false;
+
+    const bytes = (base64) => {
+        const padded = (base64 + '='.repeat((4 - (base64.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+        return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
+    };
+
+    const show = (force) => {
+        if (shown && !force) return;
+        if (standalone || snoozedUntil()) return;
+        const wait = () => document.documentElement.classList.contains('is-loading') ? setTimeout(wait, 250) : setTimeout(() => {
+            if (standalone || snoozedUntil()) return;
+            shown = true;
+            box.hidden = false;
+            requestAnimationFrame(() => box.classList.add('is-visible'));
+        }, force ? 0 : 250);
         wait();
     };
     const hide = (days) => {
@@ -491,33 +652,65 @@
         try { localStorage.setItem(KEY, String(Date.now() + days * 864e5)); } catch (e) {}
     };
 
+    // ¿Este dispositivo ya tiene los avisos activos? Entonces no se vuelven a pedir.
+    const currentSubscription = async () => {
+        if (!supported || Notification.permission !== 'granted') return null;
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            let subscription = await registration.pushManager.getSubscription();
+            if (!subscription) {
+                const vapid = @json(config('services.webpush.public_key'));
+                if (!vapid) return null;
+                subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(vapid) });
+            }
+            return subscription;
+        } catch (e) {
+            return null;
+        }
+    };
+
+    const markActive = () => {
+        notifyBtn.textContent = 'Avisos activos';
+        notifyBtn.disabled = true;
+        notifyBtn.hidden = true;
+        try { localStorage.setItem(KEY_PUSH, '1'); } catch (e) {}
+        try { localStorage.setItem(KEY, String(Date.now() + 365 * 864e5)); } catch (e) {}
+    };
+
+    const registerStaff = async (subscription) => {
+        const staffUrl = notifyBtn.dataset.staffPushUrl;
+        if (!staffUrl) return false;
+        const encodings = PushManager.supportedContentEncodings || ['aes128gcm'];
+        const payload = Object.assign(subscription.toJSON(), { contentEncoding: encodings.includes('aes128gcm') ? 'aes128gcm' : 'aesgcm' });
+        const response = await fetch(staffUrl, {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || 'No se pudo registrar este dispositivo.');
+        return true;
+    };
+
     window.addEventListener('beforeinstallprompt', (event) => {
         event.preventDefault();
         deferred = event;
         installBtn.hidden = false;
-        show();
+        if (shown) show(true);
     });
     installBtn.addEventListener('click', async () => {
         if (deferred) {
             deferred.prompt();
             const { outcome } = await deferred.userChoice;
             deferred = null;
-            hide(outcome === 'accepted' ? 365 : 7);
+            hide(outcome === 'accepted' ? 365 : 30);
         } else if (isIOS) {
-            hide(7);
+            hide(30);
         } else {
             setStatus('La instalación no está disponible en este navegador.');
         }
     });
-    const notifyBtn = box.querySelector('[data-pwa-notify]');
-    const status = box.querySelector('[data-pwa-status]');
-    const setStatus = (text) => { if (status) { status.textContent = text; status.hidden = !text; } };
-    const bytes = (base64) => {
-        const padded = (base64 + '='.repeat((4 - (base64.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/');
-        return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
-    };
     notifyBtn.addEventListener('click', async () => {
-        if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+        if (!supported) {
             setStatus('Este navegador no admite avisos push.');
             return;
         }
@@ -533,39 +726,39 @@
                 setStatus(permission === 'denied' ? 'Los avisos quedaron bloqueados en el navegador.' : 'Puedes activar los avisos cuando quieras.');
                 return;
             }
-            const staffUrl = notifyBtn.dataset.staffPushUrl;
-            if (staffUrl) {
-                const vapid = @json(config('services.webpush.public_key'));
-                if (!vapid) throw new Error('Falta configurar la clave pública de avisos.');
-                const registration = await navigator.serviceWorker.ready;
-                let subscription = await registration.pushManager.getSubscription();
-                if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(vapid) });
-                const encodings = PushManager.supportedContentEncodings || ['aes128gcm'];
-                const payload = Object.assign(subscription.toJSON(), { contentEncoding: encodings.includes('aes128gcm') ? 'aes128gcm' : 'aesgcm' });
-                const response = await fetch(staffUrl, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' }, body: JSON.stringify(payload) });
-                if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || 'No se pudo registrar este dispositivo.');
-                setStatus('Avisos activados para las notificaciones del equipo.');
-            } else {
-                setStatus('Listo. Al reservar, vincularemos los avisos a tu cita o turno.');
-            }
-            notifyBtn.textContent = 'Avisos activos';
+            const subscription = await currentSubscription();
+            if (!subscription) throw new Error('El navegador no pudo crear la suscripción de avisos.');
+            const saved = await registerStaff(subscription);
+            setStatus(saved ? 'Avisos activados para las notificaciones del equipo.' : 'Avisos activos en este dispositivo. Al reservar los vinculamos a tu cita.');
+            markActive();
+            setTimeout(() => hide(365), 2400);
         } catch (error) {
             setStatus(error.message || 'No se pudieron activar los avisos.');
         } finally {
             notifyBtn.removeAttribute('aria-disabled');
         }
     });
-    box.querySelector('[data-pwa-close]').addEventListener('click', () => hide(7));
+    box.querySelector('[data-pwa-close]').addEventListener('click', () => hide(30));
     window.addEventListener('appinstalled', () => hide(365));
 
-    // iPhone/iPad no avisan solos: se muestran las instrucciones de Safari.
-    if (isIOS) {
-        msg.innerHTML = 'En Safari, toca <i class="bi bi-box-arrow-up" aria-label="Compartir"></i> <strong>Compartir</strong> y elige <strong>“Agregar a inicio”</strong>.';
-        installBtn.textContent = 'Entendido';
-        installBtn.hidden = false;
-        show();
-    }
-    if (!standalone && !snoozed) show();
+    // Ya activos antes de entrar: se deja solo la opción de instalar (si el navegador la ofrece).
+    (async () => {
+        const existing = await currentSubscription();
+        if (existing) markActive();
+        if (standalone) return;
+
+        // El aviso se muestra con calma, cuando la página ya se disfrutó, y nunca si ya hay avisos activos
+        // sin nada que instalar.
+        if (!isIOS && !deferred && existing) return;
+
+        if (isIOS && !standalone) {
+            msg.innerHTML = 'En Safari, toca <i class="bi bi-box-arrow-up" aria-label="Compartir"></i> <strong>Compartir</strong> y elige <strong>“Agregar a inicio”</strong>.';
+            installBtn.textContent = 'Entendido';
+            installBtn.hidden = false;
+        }
+        if (snoozedUntil()) return;
+        setTimeout(() => show(true), isIOS ? 8000 : 12000);
+    })();
 })();
 </script>
 <script src="{{ asset('js/client-bell.js') }}?v={{ @filemtime(public_path('js/client-bell.js')) }}" defer></script>

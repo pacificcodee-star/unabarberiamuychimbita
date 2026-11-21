@@ -76,10 +76,38 @@
             @php
                 $serviceRates = $editing ? $barber->serviceCommissions->pluck('pivot.percentage', 'id') : collect();
                 $supplyRates = $editing ? $barber->supplyPercentages->pluck('pivot.percentage', 'id') : collect();
+                $offered = $editing ? $barber->offeredServices->pluck('id')->map(fn ($id) => (int) $id)->all() : [];
+                $offersAll = $offered === []; // sin configuración = ofrece todo el catálogo
             @endphp
+            <input type="hidden" name="offered_services_present" value="1">
             <div class="row g-4 mt-1">
                 <div class="col-lg-6">
-                    <h3 class="h6 fw-bold mb-1"><i class="bi bi-scissors text-warning me-1"></i> Comisión por servicio</h3>
+                    <h3 class="h6 fw-bold mb-1"><i class="bi bi-scissors text-warning me-1"></i> Servicios que ofrece</h3>
+                    <p class="small text-muted mb-2">Marca los servicios que este barbero puede realizar. Se usan en la página de reservas y en el bot de WhatsApp. Si no marcas ninguno, se entenderá que ofrece todo el catálogo.</p>
+                    @if(($services ?? collect())->isEmpty())
+                        <div class="small text-muted border rounded p-3">Primero crea servicios en el módulo <a href="{{ route('services.index') }}">Servicios</a>.</div>
+                    @else
+                        <div class="table-responsive border rounded rate-table">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead><tr><th>Servicio</th><th class="text-end">Precio</th><th style="width:96px" class="text-center">¿Lo ofrece?</th></tr></thead>
+                                <tbody>
+                                @foreach($services as $service)
+                                    @php $checked = old('offered_services_present') ? old('offered_services.'.$service->id) !== null : ($offersAll || in_array((int) $service->id, $offered, true)); @endphp
+                                    <tr>
+                                        <td>{{ $service->name }} @unless($service->active)<span class="badge-soft red ms-1">Inactivo</span>@endunless</td>
+                                        <td class="text-end small text-muted">{{ format_money($service->price) }}</td>
+                                        <td class="text-center">
+                                            <input class="form-check-input" type="checkbox" name="offered_services[{{ $service->id }}]" value="{{ $service->id }}" id="offeredService{{ $service->id }}" @checked($checked) aria-label="¿{{ $editing ? $barber->name : 'El barbero' }} ofrece {{ $service->name }}?">
+                                        </td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+                <div class="col-lg-6">
+                    <h3 class="h6 fw-bold mb-1"><i class="bi bi-cash-coin text-warning me-1"></i> Comisión por servicio</h3>
                     <p class="small text-muted mb-2">Cuánto gana el barbero (en %) en cada servicio.</p>
                     @if(($services ?? collect())->isEmpty())
                         <div class="small text-muted border rounded p-3">Primero crea servicios en el módulo <a href="{{ route('services.index') }}">Servicios</a>.</div>
@@ -105,7 +133,9 @@
                         </div>
                     @endif
                 </div>
-                <div class="col-lg-6">
+            </div>
+            <div class="row g-4 mt-1">
+                <div class="col-12">
                     <h3 class="h6 fw-bold mb-1"><i class="bi bi-box-seam text-warning me-1"></i> Lo que gana por insumos</h3>
                     <p class="small text-muted mb-2">Qué % del valor de cada insumo gana el barbero. Vacío = el % general del insumo.</p>
                     @if(($supplies ?? collect())->isEmpty())

@@ -1,56 +1,24 @@
 services:
   - type: web
-    name: barberia-muychimbita
-    runtime: docker
+    name: evolution-api
+    runtime: image
     plan: free
-    region: oregon
-    dockerfilePath: ./deploy/Dockerfile.render
-    dockerContext: .
-    healthCheckPath: /login
-    autoDeploy: true
+    region: ohio
+    image:
+      url: docker.io/evoapicloud/evolution-api:v2.3.1
+    healthCheckPath: /
+    autoDeploy: false
     envVars:
-      - key: APP_ENV
-        value: production
-      - key: APP_DEBUG
-        value: "false"
-      - key: APP_TIMEZONE
-        value: America/Bogota
-      - key: APP_LOCALE
-        value: es
-      - key: APP_FALLBACK_LOCALE
-        value: es
-      - key: APP_FAKER_LOCALE
-        value: es_CO
-      - key: LOG_CHANNEL
-        value: stderr
-      - key: DB_CONNECTION
-        value: pgsql
-      - key: DB_SSLMODE
-        value: require
-      - key: SESSION_DRIVER
-        value: database
-      - key: SESSION_LIFETIME
-        value: "120"
-      - key: SESSION_ENCRYPT
-        value: "false"
-      - key: QUEUE_CONNECTION
-        value: sync
-      - key: CACHE_STORE
-        value: database
-      - key: FILESYSTEM_DISK
-        value: local
-      - key: MAIL_MAILER
-        value: log
-      - key: WHATSAPP_DRIVER
-        value: evolution
-      - key: EVOLUTION_INSTANCE
-        value: barberia
-      - key: WHATSAPP_BOT_ENABLED
-        value: "true"
-      - key: WHATSAPP_DEFAULT_COUNTRY
-        value: "57"
+      - key: SERVER_PORT
+        value: "10000"
+      - key: SERVER_URL
+        sync: false
+      - key: AUTHENTICATION_API_KEY
+        sync: false
       - key: DATABASE_PROVIDER
         value: postgresql
+      - key: DATABASE_CONNECTION_URI
+        sync: false
       - key: DATABASE_SAVE_DATA_INSTANCE
         value: "true"
       - key: DATABASE_SAVE_DATA_NEW_MESSAGE
@@ -65,37 +33,23 @@ services:
         value: "false"
       - key: CACHE_LOCAL_ENABLED
         value: "true"
-      - key: AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES
-        value: "false"
       - key: LANGUAGE
         value: es
+      - key: LOG_LEVEL
+        value: ERROR
+      - key: LOG_COLOR
+        value: "false"
+      - key: DEL_INSTANCE
+        value: "false"
+      - key: QRCODE_LIMIT
+        value: "30"
       - key: CONFIG_SESSION_PHONE_CLIENT
         value: Una Barberia Muy Chimbita
       - key: CONFIG_SESSION_PHONE_NAME
         value: Chrome
-      - key: QRCODE_LIMIT
-        value: "30"
+      - key: TELEMETRY
+        value: "false"
       - key: WEBHOOK_GLOBAL_ENABLED
         value: "false"
-      - key: DEL_INSTANCE
-        value: "false"
-      - key: TELEMETRY_ENABLED
-        value: "false"
-      - key: LOG_COLOR
-        value: "false"
       - key: NODE_OPTIONS
-        value: --max-old-space-size=192
-      - key: APP_KEY
-        sync: false
-      - key: APP_URL
-        sync: false
-      - key: EVOLUTION_URL
-        sync: false
-      - key: EVOLUTION_APIKEY
-        sync: false
-      - key: EVOLUTION_WEBHOOK_SECRET
-        sync: false
-      - key: DB_URL
-        sync: false
-      - key: DATABASE_CONNECTION_URI
-        sync: false
+        value: --max-old-space-size=384

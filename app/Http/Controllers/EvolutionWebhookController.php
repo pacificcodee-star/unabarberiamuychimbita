@@ -61,15 +61,22 @@ class EvolutionWebhookController extends Controller
      */
     protected function authorized(Request $request): bool
     {
-        $given = (string) ($request->input('apikey') ?: $request->header('apikey', ''));
+        $given = array_filter([
+            (string) $request->header('apikey', ''),
+            (string) $request->input('apikey', ''),
+        ]);
 
-        if ($given === '') {
+        if ($given === []) {
             return false;
         }
 
         foreach ([config('services.evolution.webhook_secret'), config('services.evolution.apikey')] as $expected) {
-            if (filled($expected) && hash_equals((string) $expected, $given)) {
-                return true;
+            if (filled($expected)) {
+                foreach ($given as $candidate) {
+                    if (hash_equals((string) $expected, $candidate)) {
+                        return true;
+                    }
+                }
             }
         }
 

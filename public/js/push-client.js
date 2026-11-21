@@ -12,8 +12,8 @@
     const errorEl = box.querySelector('[data-push-error]');
     const setError = (text) => { if (errorEl) { errorEl.textContent = text || ''; errorEl.hidden = !text; } };
     const flag = { // '1' = activados, '0' = el cliente los desactivó a propósito (no se reactivan solos)
-        get: () => { try { return localStorage.getItem(flagKey); } catch (e) { return null; } },
-        set: (value) => { try { localStorage.setItem(flagKey, value); } catch (e) {} },
+        get: (suffix) => { try { return localStorage.getItem(flagKey + (suffix || '')); } catch (e) { return null; } },
+        set: (value, suffix) => { try { localStorage.setItem(flagKey + (suffix || ''), value); } catch (e) {} },
     };
 
     // Se recuerda la reserva en este dispositivo para mostrarla en la campana de la página.
@@ -75,8 +75,7 @@
         }
     };
 
-    const register = async () => {
-        const subscription = await getSubscription(true);
+    const save = async (subscription) => {
         const encodings = (window.PushManager && PushManager.supportedContentEncodings) || ['aes128gcm'];
         const payload = Object.assign(subscription.toJSON(), { contentEncoding: encodings.includes('aes128gcm') ? 'aes128gcm' : 'aesgcm' });
         const response = await send('POST', payload);
@@ -85,12 +84,18 @@
             throw new Error(data.message || 'No pudimos guardar tu dispositivo. Inténtalo de nuevo.');
         }
         flag.set('1');
+        flag.set(subscription.endpoint, ':endpoint');
     };
 
-    const activate = async () => {
-        show('working');
+    // Con el permiso ya concedido no se vuelve a preguntar nada: se reutiliza la suscripción
+    // (o se crea en silencio) y solo se avisa al servidor si cambió el dispositivo.
+    const activate = async (silent) => {
+        const known = flag.get(':endpoint');
+        if (!silent || !known) show('working');
         try {
-            await register();
+            const subscription = await getSubscription(true);
+            if (known === subscription.endpoint && flag.get() === '1') { show('on'); return; }
+            await save(subscription);
             show('on');
         } catch (error) {
             show('ask');
@@ -98,7 +103,6 @@
         }
     };
 
-    let autoAsked = false;
     const refresh = async () => {
         setError('');
         if (cfg.open !== '1') { box.hidden = true; return; }
@@ -107,16 +111,16 @@
         if (!supported) return show('unsupported');
         if (Notification.permission === 'denied') return show('denied');
         if (flag.get() === '0') return show('ask'); // el cliente los apagó: se respeta
-        if (Notification.permission === 'granted') return activate(); // ya hay permiso: se activan solos
+        if (Notification.permission === 'granted') return activate(true); // ya hay permiso: se activan solos, sin preguntar
 
-        // Sin permiso todavía: se le pide al navegador que pregunte, sin esperar a que el cliente busque un botón.
+        // Sin permiso todavía: se le pide al navegador que pregunte una sola vez por dispositivo.
         // Chrome y Edge muestran la pregunta de inmediato; Firefox y Safari exigen un toque, y ahí queda el botón.
-        if (cfg.auto === '1' && !autoAsked) {
-            autoAsked = true;
+        if (cfg.auto === '1' && !flag.get(':asked')) {
+            flag.set('1', ':asked');
             show('working');
             let permission = 'default';
             try { permission = await Notification.requestPermission(); } catch (e) {}
-            if (permission === 'granted') return activate();
+            if (permission === 'granted') return activate(false);
             return show(permission === 'denied' ? 'denied' : 'ask');
         }
         show('ask');
@@ -127,12 +131,12 @@
         button.disabled = true;
         setError('');
         try {
-            const permission = await Notification.requestPermission();
+            const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
             if (permission !== 'granted') {
                 show(permission === 'denied' ? 'denied' : 'ask');
                 return;
             }
-            await activate();
+            await activate(false);
         } finally {
             button.disabled = false;
         }
@@ -141,10 +145,15 @@
     box.querySelector('[data-push-disable]')?.addEventListener('click', async (event) => {
         const button = event.currentTarget;
         button.disabled = true;
+        setError('');
         try {
             const subscription = await getSubscription(false);
-            if (subscription) await send('DELETE', { endpoint: subscription.endpoint });
+            if (subscription) {
+                await send('DELETE', { endpoint: subscription.endpoint }).catch(() => {});
+                await subscription.unsubscribe().catch(() => {});
+            }
             flag.set('0');
+            flag.set('', ':endpoint');
             show('ask');
         } catch (error) {
             setError('No se pudieron desactivar los avisos. Inténtalo de nuevo.');

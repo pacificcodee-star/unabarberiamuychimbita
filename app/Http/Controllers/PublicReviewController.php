@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 
 /**
  * Opiniones que dejan los clientes desde la página pública de Reseñas.
- * Llegan SIN publicar: el administrador las revisa y las aprueba en el panel (Reseñas).
+ * Se guardan sin publicar.
  */
 class PublicReviewController extends Controller
 {

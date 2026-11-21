@@ -1,0 +1,30 @@
+User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /logout
+Disallow: /dashboard
+Disallow: /seguimiento/
+Disallow: /reservar/horarios
+Disallow: /webhook/
+Disallow: /push/
+Disallow: /evolution/
+Disallow: /notificaciones
+Disallow: /sales
+Disallow: /turns
+Disallow: /appointments
+Disallow: /cash
+Disallow: /expenses
+Disallow: /barbers
+Disallow: /services
+Disallow: /insumos
+Disallow: /disponibilidad
+Disallow: /nomina
+Disallow: /commissions
+Disallow: /pos
+Disallow: /reports
+Disallow: /reviews
+Disallow: /home-slides
+Disallow: /site-settings
+Disallow: /whatsapp
+
+Sitemap: {{ route('sitemap') }}

@@ -1,10 +1,12 @@
 {{-- Redes y contacto con los logos oficiales (SVG en public/images/redes). $class: clase del contenedor. --}}
 @php
+    // Solo se muestran las redes con un perfil real: un enlace a la portada de Instagram o Facebook no lleva a ningún lado.
+    $isProfile = fn ($url) => filled($url) && trim((string) parse_url($url, PHP_URL_PATH), '/') !== '';
     $socials = array_filter([
         !empty($siteSettings['whatsapp']) ? ['WhatsApp', 'https://wa.me/'.$siteSettings['whatsapp'], 'whatsapp'] : null,
-        ['Instagram', $siteSettings['instagram_url'] ?: 'https://www.instagram.com/', 'instagram'],
-        ['Facebook', $siteSettings['facebook_url'] ?: 'https://www.facebook.com/', 'facebook'],
-        ['TikTok', $siteSettings['tiktok_url'] ?: 'https://www.tiktok.com/', 'tiktok'],
+        $isProfile($siteSettings['instagram_url'] ?? null) ? ['Instagram', $siteSettings['instagram_url'], 'instagram'] : null,
+        $isProfile($siteSettings['facebook_url'] ?? null) ? ['Facebook', $siteSettings['facebook_url'], 'facebook'] : null,
+        $isProfile($siteSettings['tiktok_url'] ?? null) ? ['TikTok', $siteSettings['tiktok_url'], 'tiktok'] : null,
     ]);
 @endphp
 <div class="{{ $class ?? 'social-links' }} social-brand">

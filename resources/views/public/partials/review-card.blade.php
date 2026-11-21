@@ -1,4 +1,3 @@
-{{-- Tarjeta de opinión de un cliente (solo se muestran las aprobadas en el panel). --}}
 @php
     $initial = mb_strtoupper(mb_substr(trim($review->client_name), 0, 1));
     $hue = (crc32($review->client_name) % 360);

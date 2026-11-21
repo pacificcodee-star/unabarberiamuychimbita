@@ -1,6 +1,6 @@
 @extends('layouts.public')
 
-@section('title', 'Inicio · '.($siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita'))
+@section('title', ($siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita').' · Barbería en '.trim(explode(',', $siteSettings['city'] ?? 'Colombia')[0]))
 @section('meta_description', $siteSettings['home_description'] ?? $siteSettings['footer_description'])
 
 @section('content')
@@ -9,7 +9,7 @@
         $heroParts = preg_split('/(?<=[,.;:])\s+/u', $heroTitle, 2);
         // Fondo de portada: el que sube el admin (Animaciones) → la primera imagen del inicio → la foto del local por defecto.
         $heroBg = !empty($siteSettings['hero_image_path']) ? asset('storage/'.$siteSettings['hero_image_path'])
-            : ($slides->first() ? asset('storage/'.$slides->first()->image_path) : asset('images/portada-barberia.jpg'));
+            : ($slides->first() ? asset('storage/'.$slides->first()->image_path) : asset('images/portada-barberia.webp'));
         // Texto detrás del objeto: solo si hay una figura sin fondo fija en el código (public/images/portada-figura.png).
         // Los barberos ya no aparecen en el inicio.
         $heroCut = file_exists(public_path('images/portada-figura.png')) ? ['image_url' => asset('images/portada-figura.png')] : null;
@@ -36,7 +36,7 @@
         <div class="cx-hero-body" data-cx-in>
             <p class="cx-hero-desc"><strong>{{ $siteSettings['brand_name'] }}</strong> — {{ $siteSettings['home_description'] }}</p>
             <div class="cx-hero-actions">
-                <a href="{{ route('public.booking') }}" class="xbtn"><span>Reservar cita</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                <a href="{{ route('public.booking') }}" class="xbtn"><span>Reservar cita o turno</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                 <a href="{{ route('public.services') }}" class="xlink">Ver servicios</a>
             </div>
         </div>
@@ -103,7 +103,7 @@
                     @else
                         @foreach($filmFrames as $frame)
                             <figure class="cx-frame" data-cx-frame style="--r: {{ $loop->first ? 1 : 0 }}">
-                                <img src="{{ $frame }}" alt="" width="1400" height="934" loading="lazy" decoding="async">
+                                <img src="{{ $frame }}" alt="Ambiente de {{ $siteSettings['brand_name'] }} ({{ $loop->iteration }} de {{ count($filmFrames) }})" width="1400" height="934" loading="lazy" decoding="async">
                             </figure>
                         @endforeach
                     @endif
@@ -197,7 +197,7 @@
     </section>
     </div>
 
-    {{-- Opiniones de clientes reales aprobadas en el panel, en una fila que se desplaza sola.
+    {{-- Opiniones publicadas, en una fila que se desplaza sola.
          Si no hay ninguna aprobada, la sección completa no aparece. --}}
     @php
         $proofReviews = \App\Models\Review::approved()->latest()->take(12)->get();

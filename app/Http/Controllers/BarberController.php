@@ -60,7 +60,7 @@ class BarberController extends Controller
             $data['video_path'] = $request->file('video')->store('barbers/videos', 'public');
             $this->storeAlphaVideo($request, $data['video_path']);
         }
-        unset($data['photo'], $data['video'], $data['video_alpha'], $data['cuts'], $data['remove_cuts']);
+        unset($data['photo'], $data['video'], $data['video_alpha'], $data['cuts'], $data['remove_cuts'], $data['offered_services']);
 
         $barber = User::create($data);
         $this->syncRates($request, $barber);
@@ -74,7 +74,7 @@ class BarberController extends Controller
     public function edit(User $barber)
     {
         abort_if($barber->role !== 'barbero', 404);
-        $barber->load(['serviceCommissions', 'supplyPercentages']);
+        $barber->load(['serviceCommissions', 'supplyPercentages', 'offeredServices']);
 
         return view('barbers.edit', ['barber' => $barber] + $this->formOptions());
     }
@@ -105,7 +105,7 @@ class BarberController extends Controller
             Storage::disk('public')->delete([$barber->video_path, $this->alphaPathFor($barber->video_path)]);
             $data['video_path'] = null;
         }
-        unset($data['photo'], $data['video'], $data['video_alpha'], $data['cuts'], $data['remove_cuts']);
+        unset($data['photo'], $data['video'], $data['video_alpha'], $data['cuts'], $data['remove_cuts'], $data['offered_services']);
 
         $barber->update($data);
         $this->syncRates($request, $barber);
@@ -196,6 +196,13 @@ class BarberController extends Controller
             ->all();
         $barber->serviceCommissions()->sync($services);
         $barber->supplyPercentages()->sync($clean($request->input('supply_percentages')));
+
+        // Servicios que ofrece: las casillas marcadas. Si no se envía el bloque, se dejan como estaban.
+        if ($request->has('offered_services_present')) {
+            $barber->offeredServices()->sync(collect($request->input('offered_services', []))
+                ->mapWithKeys(fn ($value, $id) => [(int) $id => []])
+                ->all());
+        }
     }
 
     private function validatedData(Request $request, ?User $user = null): array
@@ -205,6 +212,8 @@ class BarberController extends Controller
             'service_commissions.*' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'supply_percentages' => ['nullable', 'array'],
             'supply_percentages.*' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'offered_services' => ['nullable', 'array'],
+            'offered_services.*' => ['integer', 'exists:services,id'],
         ], [
             'service_commissions.*.max' => 'Cada porcentaje por servicio debe estar entre 0 y 100.',
             'supply_percentages.*.max' => 'Cada porcentaje de insumo debe estar entre 0 y 100.',

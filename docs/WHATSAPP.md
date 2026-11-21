@@ -53,7 +53,10 @@ php artisan migrate        # crea whatsapp_conversations y whatsapp_messages
    (WhatsApp → Dispositivos vinculados → Vincular dispositivo).
 3. Cuando el badge diga **Conectado**, ya está el número enlazado.
 
-El botón **Desvincular número** sirve para cambiar de número o si el QR caducó.
+Si el QR caducó, basta con pulsar otra vez **Conectar / ver QR**: genera uno nuevo.
+Para cambiar de número, cierra la sesión desde el teléfono (WhatsApp → Dispositivos vinculados →
+tocar la sesión → Cerrar sesión) y luego pulsa **Conectar / ver QR** para escanear con el número nuevo.
+(El botón «Desvincular número» se quitó del panel.)
 
 ### 1.4 Dar de alta el webhook
 

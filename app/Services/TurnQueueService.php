@@ -184,6 +184,44 @@ class TurnQueueService
         return $estimates;
     }
 
+    /**
+     * Avisa a los clientes cuyo turno empieza dentro de la ventana (15 minutos por defecto).
+     * Se recalcula en cada pasada, así que si la fila se mueve el aviso se actualiza.
+     */
+    public function remindUpcoming(?int $windowMinutes = null): int
+    {
+        $windowMinutes = $windowMinutes ?? (int) config('notificaciones.turn_reminder_minutes', 15);
+        $now = now();
+        $sent = 0;
+
+        $barberIds = Turn::query()
+            ->where('status', 'esperando')
+            ->whereDate('turn_date', $now->toDateString())
+            ->distinct()
+            ->pluck('barber_id');
+
+        foreach ($barberIds as $barberId) {
+            foreach ($this->estimates((int) $barberId) as $turnId => $estimate) {
+                $minutes = (int) floor($now->diffInMinutes($estimate['start_at'], false));
+
+                if ($minutes < 1 || $minutes > $windowMinutes) {
+                    continue;
+                }
+
+                $turn = Turn::with(['barber', 'service'])->find($turnId);
+
+                if (! $turn || $turn->status !== 'esperando') {
+                    continue;
+                }
+
+                $this->notifier->turnStartingSoon($turn, $estimate['start_at'], $minutes);
+                $sent++;
+            }
+        }
+
+        return $sent;
+    }
+
     private function openTurns(int $barberId)
     {
         return Turn::query()
@@ -203,7 +241,8 @@ class TurnQueueService
             $url = route('turns.index', [], false);
             foreach ($events as [$kind, $turn, $afterPrevious]) {
                 if ($kind === 'finished') {
-                    // Aviso para el equipo: el turno se cerró solo al cumplirse su tiempo.
+                    // Al cliente: gracias por la visita. Al equipo: el turno se cerró solo al cumplirse su tiempo.
+                    $this->notifier->serviceThanks($turn);
                     StaffNotification::record('turn_finished', "Turno #{$turn->turn_number} finalizado automáticamente", "{$turn->client_name}: se cumplió el tiempo del servicio".($turn->sale_id ? ' y se registró el ingreso.' : '.').' Si el cliente no llegó, anula el turno.', $url, $barberId);
                 } elseif ($kind === 'called') {
                     $this->notifier->turnCalled($turn, $afterPrevious);

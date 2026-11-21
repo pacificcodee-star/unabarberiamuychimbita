@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Appointment;
 use App\Models\Service;
 use App\Models\Turn;
 use App\Models\User;
@@ -47,90 +46,40 @@ class TurnController extends Controller
         }
 
         $turns = $query->get();
+        // Este módulo es solo de turnos (orden de llegada): las citas con hora viven en el módulo Citas.
         $barbers = $user->isAdmin()
-            ? User::barbers()->where('active', true)->orderBy('name')->get()
+            ? User::barbers()->where('active', true)->where('attention_mode', 'llegada')->orderBy('name')->get()
             : collect([$user]);
         $services = Service::active()->orderBy('name')->get();
 
-        // Citas del mismo día, para ver todo (llegada y citas) en un solo panel.
-        $appointments = Appointment::query()
-            ->with(['barber', 'service'])
-            ->whereDate('appointment_date', $date)
-            ->when(! $user->isAdmin(), fn ($q) => $q->where('barber_id', $user->id))
-            ->when($user->isAdmin() && $request->filled('barber_id'), fn ($q) => $q->where('barber_id', $request->input('barber_id')))
-            ->orderBy('appointment_time')
-            ->get();
-
-        return view('turns.index', compact('turns', 'barbers', 'services', 'date', 'counts', 'appointments'));
+        return view('turns.index', compact('turns', 'barbers', 'services', 'date', 'counts'));
     }
 
     public function store(Request $request, TurnService $turnService)
     {
         $user = $request->user();
 
-        $isAppointment = $request->input('type') === 'cita';
-
         $data = $request->validate([
-            'type' => ['nullable', 'in:llegada,cita'],
             'barber_id' => [$user->isAdmin() ? 'required' : 'nullable', 'exists:users,id'],
             'service_id' => ['nullable', 'exists:services,id'],
             'client_name' => ['required', 'string', 'max:120'],
             'client_phone' => ['nullable', 'string', 'max:30'],
             'turn_date' => ['nullable', 'date'],
-            'appointment_date' => [$isAppointment ? 'required' : 'nullable', 'date', 'after_or_equal:today'],
-            'appointment_time' => [$isAppointment ? 'required' : 'nullable', 'date_format:H:i'],
             'notes' => ['nullable', 'string', 'max:500'],
-        ], [
-            'appointment_date.required' => 'Elige la fecha de la cita.',
-            'appointment_date.after_or_equal' => 'La cita no puede ser en una fecha pasada.',
-            'appointment_time.required' => 'Elige la hora de la cita.',
         ]);
 
         $barberId = $user->isAdmin() ? (int) $data['barber_id'] : $user->id;
-        // La modalidad del barbero (citas u orden de llegada) se toma de la base de datos.
+        // Solo barberos que atienden por orden de llegada (la modalidad viene de la base de datos).
         $barber = User::barbers()
             ->where('active', true)
-            ->where('attention_mode', $isAppointment ? 'citas' : 'llegada')
+            ->where('attention_mode', 'llegada')
             ->find($barberId);
 
         if (! $barber) {
             throw ValidationException::withMessages([
-                'barber_id' => $isAppointment ? 'Ese barbero no atiende con cita. Elige uno que trabaje por citas.' : 'Ese barbero no atiende por orden de llegada. Elige uno que trabaje por llegada.',
+                'barber_id' => 'Ese barbero atiende con cita, no por orden de llegada. Agenda su cita en el módulo Citas.',
             ]);
         }
-
-        // Cita: se agenda con fecha y hora (se ve aquí y en el módulo Citas).
-        if ($isAppointment) {
-            $taken = Appointment::query()
-                ->where('barber_id', $barber->id)
-                ->whereDate('appointment_date', $data['appointment_date'])
-                ->where('appointment_time', 'like', $data['appointment_time'].'%')
-                ->where('status', '!=', 'cancelada')
-                ->exists();
-            if ($taken) {
-                throw ValidationException::withMessages(['appointment_time' => "{$barber->name} ya tiene una cita a esa hora. Elige otra."]);
-            }
-
-            $appointment = Appointment::create([
-                'barber_id' => $barber->id,
-                'service_id' => $data['service_id'] ?? null,
-                'client_name' => $data['client_name'],
-                'client_phone' => $data['client_phone'] ?? null,
-                'appointment_date' => $data['appointment_date'],
-                'appointment_time' => $data['appointment_time'],
-                'status' => 'confirmada',
-                'notes' => $data['notes'] ?? null,
-            ]);
-            $appointment->load(['service', 'barber']);
-            app(ClientNotifier::class)->appointmentBooked($appointment);
-            app(ClientNotifier::class)->flush();
-
-            return redirect()
-                ->route('turns.index', ['date' => $data['appointment_date']])
-                ->with('success', 'Cita agendada para '.$data['client_name'].' con '.$barber->name.' el '.\Carbon\Carbon::parse($data['appointment_date'])->format('d/m/Y').' a las '.\Carbon\Carbon::parse($data['appointment_time'])->format('h:i A').'.');
-        }
-
-        unset($data['type'], $data['appointment_date'], $data['appointment_time']);
 
         $turn = $turnService->createFor($barber, $data);
 
@@ -177,8 +126,7 @@ class TurnController extends Controller
         $turn->loadMissing(['barber', 'service']);
         if ($previousStatus !== $turn->status) {
             if ($turn->status === 'cancelado') {
-                $notifier->cancelPending($turn);
-                $notifier->turnCancelledByStaff($turn);
+                $notifier->turnCancelled($turn);
             } elseif ($previousStatus === 'esperando' && in_array($turn->status, ['llamado', 'atendiendo'], true)) {
                 $notifier->turnCalled($turn, false);
             }

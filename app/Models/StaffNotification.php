@@ -15,7 +15,9 @@ class StaffNotification extends Model
     public const ICONS = [
         'turn_new' => 'bi-person-plus',
         'appt_new' => 'bi-calendar-plus',
+        'appt_rescheduled' => 'bi-calendar-event',
         'client_cancelled' => 'bi-x-circle',
+        'client_confirmed' => 'bi-check2-circle',
         'turn_called' => 'bi-megaphone',
         'turn_finished' => 'bi-check2-circle',
     ];
@@ -53,7 +55,7 @@ class StaffNotification extends Model
             $recipients = User::query()
                 ->where(function ($query) use ($barberId) {
                     $query->where('role', 'admin');
-                    if ($barberId) $query->orWhereKey($barberId);
+                    if ($barberId) $query->orWhere('id', $barberId);
                 })
                 ->with('pushSubscriptions')
                 ->get();

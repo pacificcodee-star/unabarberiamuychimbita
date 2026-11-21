@@ -614,7 +614,13 @@ textarea.form-control { min-height: 96px; }
    para no depender solo del color. */
 .site-footer { --footer-bg: var(--surface); padding: clamp(22px, 2.6vw, 32px) 0 calc(14px + env(safe-area-inset-bottom)); background: var(--footer-bg); border-top: 1px solid rgba(var(--accent-rgb), .28); color: #fff; }
 .footer-grid { display: grid; grid-template-columns: 1.4fr 1.1fr 1.2fr; gap: clamp(16px, 2vw, 24px); }
+/* Las columnas pueden encogerse: sin esto, el nombre del negocio (sin saltos de línea)
+   empuja el pie más allá del ancho en pantallas de 320 px. */
+.footer-grid > * { min-width: 0; }
 .site-footer p { margin: 8px 0 10px; font-size: .85rem; line-height: 1.5; max-width: 52ch; }
+/* En el pie el logo va como bloque (no inline-flex): así el nombre largo se recorta
+   con puntos suspensivos en vez de empujar el contenido fuera de la pantalla. */
+.site-footer .landing-brand { display: flex; width: 100%; max-width: 100%; }
 .footer-title { margin-bottom: 8px; color: #fff; font-size: .68rem; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; }
 .footer-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
 .footer-list li { display: flex; gap: 12px; font-size: .85rem; line-height: 1.4; padding: 2px 0; overflow-wrap: anywhere; }
@@ -691,7 +697,8 @@ html.js .reveal.visible { opacity: 1; transform: none; }
 }
 @media (max-width: 767.98px) {
     .service-grid, .review-grid { grid-template-columns: 1fr; }
-    .footer-grid { grid-template-columns: 1fr; gap: 16px; }
+    .footer-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .landing-brand { min-width: 0; }
     .hero-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 20px; }
     .hero-facts strong { font-size: 1.6rem; }
     .hero-facts span { font-size: .6rem; letter-spacing: .1em; }
@@ -717,6 +724,11 @@ html.js .reveal.visible { opacity: 1; transform: none; }
     .home-step { grid-template-columns: 44px minmax(0, 1fr); gap: 14px; }
     .home-step-num { font-size: 1.8rem; }
     .booking-summary li { font-size: .85rem; }
+}
+
+@media (max-width: 991.98px) {
+    /* En tablet el lema no cabe junto al logo y los botones: se oculta en vez de cortarse. */
+    .site-nav .landing-brand .tag { display: none; }
 }
 
 @media print {
@@ -1749,7 +1761,7 @@ html.is-loading .pl, .pl.is-done { display: block; }
 .pwa-prompt-text { display: grid; gap: 3px; min-width: 0; }
 .pwa-prompt-text strong { font-size: .92rem; color: var(--text); line-height: 1.25; }
 .pwa-prompt-text span { font-size: .8rem; color: rgba(var(--text-rgb),.72); line-height: 1.4; }
-.pwa-prompt-actions { display: flex; align-items: center; gap: 6px; }
+.pwa-prompt-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
 .pwa-btn { min-height: 44px; padding: 0 16px; border: 0; border-radius: 8px; background: var(--gold); color: var(--ink); font-weight: 700; font-size: .74rem; letter-spacing: .12em; text-transform: uppercase; }
 .pwa-btn:hover { background: var(--gold-hover); }
 .pwa-close { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: rgba(var(--text-rgb),.7); }
@@ -1757,7 +1769,8 @@ html.is-loading .pl, .pl.is-done { display: block; }
 .pwa-btn:focus-visible, .pwa-close:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 @media (max-width: 575.98px) {
     .pwa-prompt { bottom: 12px; grid-template-columns: auto 1fr; }
-    .pwa-prompt-actions { grid-column: 1 / -1; justify-content: flex-end; }
+    .pwa-prompt-actions { grid-column: 1 / -1; justify-content: flex-end; flex-wrap: nowrap; }
+    .pwa-btn { flex: 1 1 0; min-width: 0; padding: 0 10px; font-size: .7rem; letter-spacing: .08em; }
 }
 @media (prefers-reduced-motion: reduce) { .pwa-prompt { transition: opacity .2s ease; } }
 /* No tapar el botón de WhatsApp mientras el aviso está visible */

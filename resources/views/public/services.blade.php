@@ -1,6 +1,6 @@
 @extends('layouts.public')
 
-@section('title', 'Servicios · '.($siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita'))
+@section('title', 'Servicios y precios · '.($siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita'))
 @section('meta_description', $siteSettings['services_hero_description'] ?? $siteSettings['footer_description'])
 
 @section('content')
@@ -56,7 +56,7 @@
                                 <div class="svc-visual" aria-hidden="true">
                                     @unless($service->image_path)
                                         {{-- Sin imagen: se muestra el logo del negocio --}}
-                                        <img class="is-logo" src="{{ !empty($siteSettings['logo_path']) ? asset('storage/'.$siteSettings['logo_path']) : asset('images/logo-una-barberia.png') }}" alt="" width="800" height="800" loading="{{ $loop->index < 2 ? 'eager' : 'lazy' }}" decoding="async">
+                                        <img class="is-logo" src="{{ !empty($siteSettings['logo_path']) ? asset('storage/'.$siteSettings['logo_path']) : asset('images/logo-una-barberia-512.webp') }}" alt="" width="512" height="512" loading="{{ $loop->index < 2 ? 'eager' : 'lazy' }}" decoding="async">
                                     @endunless
                                 </div>
 

@@ -80,8 +80,8 @@ class WhatsAppBotTest extends TestCase
 
         $this->assertSame('confirmada', $cita->fresh()->status);
 
-        // El bot contesta y, por el mismo canal, ClientNotifier manda el aviso formal.
-        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'confirmada'));
+        // El bot agradece la confirmación por el mismo canal.
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'gracias por confirmar'));
 
         $conversation = WhatsAppConversation::query()->firstOrFail();
         $this->assertSame(1, $conversation->unread_count); // pendiente para el equipo (el bot no borra el aviso)
@@ -90,23 +90,31 @@ class WhatsAppBotTest extends TestCase
 
     public function test_el_bot_cancela_una_cita_y_avisa_al_equipo(): void
     {
-        $cita = $this->cita(['status' => 'confirmada']);
+        $cita = $this->cita(['status' => 'confirmada', 'client_name' => 'Ana Gómez']);
 
+        // El bot pide el nombre para encontrar la reserva y luego confirmar la cancelación.
         $this->escribir('hola, no podre ir')->assertOk();
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'nombre y apellido'));
+        $this->escribir('ana gomez')->assertOk();
+        $this->assertSame('confirmada', $cita->fresh()->status);
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'Confirmas que deseas cancelar'));
+
+        $this->escribir('1')->assertOk();
 
         $this->assertSame('cancelada', $cita->fresh()->status);
 
         $this->assertDatabaseHas('staff_notifications', [
             'type' => 'client_cancelled',
-            'title' => 'Cliente anuló su cita (WhatsApp)',
+            'title' => 'Cliente canceló su cita (WhatsApp)',
         ]);
 
-        // Como la cancelación la pidió el cliente, no se le manda un aviso extra de cancelación.
-        $this->assertDatabaseMissing('client_notifications', [
+        // La cancelación siempre se confirma al cliente (la pida él o la barbería), con los datos de la página.
+        $this->assertDatabaseHas('client_notifications', [
             'notifiable_type' => 'appointment',
             'notifiable_id' => $cita->id,
             'type' => 'appt_cancelled',
         ]);
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'Confirmación de cancelación de cita'));
     }
 
     public function test_el_bot_informa_el_estado_del_turno(): void
@@ -122,7 +130,7 @@ class WhatsAppBotTest extends TestCase
 
         $this->escribir('como voy?')->assertOk();
 
-        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'turno #'.str_pad((string) $turno->turn_number, 3, '0', STR_PAD_LEFT)));
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], '#'.str_pad((string) $turno->turn_number, 3, '0', STR_PAD_LEFT)));
 
         // Informar no cambia el turno (la fila la mueve solo el avance automático).
         $this->assertSame($turno->fresh()->status, $turno->status);
@@ -207,6 +215,61 @@ class WhatsAppBotTest extends TestCase
         $this->actingAs($admin)->get(route('whatsapp.index'))->assertOk();
         $this->actingAs($admin)->get(route('whatsapp.chat.index'))->assertOk();
         $this->actingAs($admin)->get(route('whatsapp.chat.show', $conversation))->assertOk();
+    }
+
+    public function test_el_equipo_puede_eliminar_un_chat_de_la_bandeja(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+
+        // El cliente escribe y el bot le contesta: quedan mensajes de entrada y de salida.
+        $this->escribir('hola', '573001111222@s.whatsapp.net')->assertOk();
+        $conversation = WhatsAppConversation::query()->firstOrFail();
+        $this->assertGreaterThan(1, $conversation->messages()->count());
+
+        $this->actingAs($admin)
+            ->delete(route('whatsapp.chat.destroy', $conversation))
+            ->assertRedirect(route('whatsapp.chat.index'))
+            ->assertSessionHas('success');
+
+        $this->assertDatabaseCount('whatsapp_conversations', 0);
+        $this->assertDatabaseCount('whatsapp_messages', 0);
+
+        // Si vuelve a escribir, aparece como chat nuevo y el bot empieza desde el menú.
+        $this->escribir('hola', '573001111222@s.whatsapp.net')->assertOk();
+        $this->assertDatabaseCount('whatsapp_conversations', 1);
+    }
+
+    public function test_conectar_deja_el_webhook_registrado_aunque_la_instancia_sea_nueva(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        config(['services.evolution.webhook_url' => 'http://127.0.0.1:8000/webhook/evolution']);
+
+        $this->actingAs($admin)->postJson(route('whatsapp.connect'))->assertOk();
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://evolution.test/webhook/set/barberia'
+            && $request['webhook']['url'] === 'http://127.0.0.1:8000/webhook/evolution'
+            && $request['webhook']['headers']['apikey'] === 'global-key');
+    }
+
+    public function test_desvincular_numero_borra_la_instancia_y_la_deja_lista_para_un_qr_nuevo(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        config(['services.evolution.webhook_url' => 'http://127.0.0.1:8000/webhook/evolution']);
+
+        $this->actingAs($admin)
+            ->post(route('whatsapp.logout'))
+            ->assertRedirect(route('whatsapp.index'))
+            ->assertSessionHas('success');
+
+        Http::assertSent(fn ($request) => $request->method() === 'DELETE'
+            && $request->url() === 'https://evolution.test/instance/delete/barberia');
+        Http::assertSent(fn ($request) => $request->method() === 'POST'
+            && $request->url() === 'https://evolution.test/instance/create'
+            && $request['instanceName'] === 'barberia');
+        // El webhook se vuelve a registrar con la cabecera que exige este sitio.
+        Http::assertSent(fn ($request) => $request->url() === 'https://evolution.test/webhook/set/barberia'
+            && $request['webhook']['url'] === 'http://127.0.0.1:8000/webhook/evolution'
+            && $request['webhook']['headers']['apikey'] === 'global-key');
     }
 
     // ------------------------------------------------------------------------------------------

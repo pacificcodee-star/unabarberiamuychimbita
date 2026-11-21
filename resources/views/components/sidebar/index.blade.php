@@ -79,8 +79,6 @@
                 </x-sidebar.section>
 
                 <x-sidebar.section title="Configuración">
-                    @php($pendingReviews = \App\Models\Review::where('approved', false)->count())
-                    <x-sidebar.item route="reviews.index" active="reviews.*" icon="fa-solid fa-star" :label="$pendingReviews ? 'Reseñas ('.$pendingReviews.' por aprobar)' : 'Reseñas'" />
                     @php($waUnread = \App\Models\WhatsAppConversation::unreadTotal())
                     <x-sidebar.item route="whatsapp.index" active="whatsapp.*" icon="fa-brands fa-whatsapp" :label="$waUnread ? 'WhatsApp ('.$waUnread.' sin leer)' : 'WhatsApp'" />
                     <x-sidebar.item route="site-settings.edit" active="site-settings.*" icon="fa-solid fa-gear" label="Configuración del negocio" />

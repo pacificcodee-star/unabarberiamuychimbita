@@ -116,6 +116,23 @@
         let pausedByVisitor = reduced.matches; // con "reducir movimiento" el video no arranca solo
         let visible = true;
 
+        // En móvil (y tablets) los barberos se pasan solos cada pocos segundos. Cualquier toque,
+        // deslizamiento o tecla toma el control y detiene el pase automático un rato.
+        const autoScreen = window.matchMedia('(max-width: 1099.98px)');
+        const AUTO_MS = 7000;
+        let autoTimer = 0;
+        let userPauseUntil = 0;
+        let touching = false;
+        const holdAuto = () => { userPauseUntil = Date.now() + 15000; };
+        const scheduleAuto = () => {
+            window.clearTimeout(autoTimer);
+            if (!autoScreen.matches || reduced.matches) return;
+            autoTimer = window.setTimeout(function tick() {
+                if (!document.hidden && !touching && Date.now() > userPauseUntil) go(current + 1, 1);
+                scheduleAuto();
+            }, AUTO_MS);
+        };
+
         root.classList.add('is-enhanced');
 
         // Nombre: se parte en letras para que entren una por una (accesible: el lector de pantalla lee el nombre completo).
@@ -194,13 +211,13 @@
             showGallery();
         };
 
-        root.querySelector('[data-bx-prev]')?.addEventListener('click', () => go(current - 1, -1));
-        root.querySelector('[data-bx-next]')?.addEventListener('click', () => go(current + 1, 1));
-        dots.forEach((dot) => dot.addEventListener('click', () => go(Number(dot.dataset.bxGo))));
+        root.querySelector('[data-bx-prev]')?.addEventListener('click', () => { holdAuto(); go(current - 1, -1); });
+        root.querySelector('[data-bx-next]')?.addEventListener('click', () => { holdAuto(); go(current + 1, 1); });
+        dots.forEach((dot) => dot.addEventListener('click', () => { holdAuto(); go(Number(dot.dataset.bxGo)); }));
         root.addEventListener('keydown', (event) => {
             if (event.target.closest('input, textarea, select')) return;
-            if (event.key === 'ArrowRight') go(current + 1, 1);
-            if (event.key === 'ArrowLeft') go(current - 1, -1);
+            if (event.key === 'ArrowRight') { holdAuto(); go(current + 1, 1); }
+            if (event.key === 'ArrowLeft') { holdAuto(); go(current - 1, -1); }
         });
 
         // Arrastrar con el mouse o deslizar con el dedo (izquierda → siguiente, derecha → anterior).
@@ -214,11 +231,11 @@
             startX = null;
             viewport.classList.remove('is-dragging');
             viewport.style.removeProperty('--drag');
-            if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.2) { dragged = true; go(current + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1); }
+            if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 1.2) { dragged = true; holdAuto(); go(current + (dx < 0 ? 1 : -1), dx < 0 ? 1 : -1); }
         };
-        viewport.addEventListener('touchstart', (e) => { if (e.touches.length === 1) { startX = e.touches[0].clientX; startY = e.touches[0].clientY; } }, { passive: true });
-        viewport.addEventListener('touchend', (e) => finish(e.changedTouches[0].clientX, e.changedTouches[0].clientY), { passive: true });
-        viewport.addEventListener('touchcancel', () => { startX = null; }, { passive: true });
+        viewport.addEventListener('touchstart', (e) => { touching = true; if (e.touches.length === 1) { startX = e.touches[0].clientX; startY = e.touches[0].clientY; } }, { passive: true });
+        viewport.addEventListener('touchend', (e) => { touching = false; finish(e.changedTouches[0].clientX, e.changedTouches[0].clientY); }, { passive: true });
+        viewport.addEventListener('touchcancel', () => { touching = false; startX = null; }, { passive: true });
         viewport.addEventListener('pointerdown', (e) => {
             if (e.pointerType === 'touch' || e.button !== 0 || e.target.closest('a, button')) return;
             startX = e.clientX; startY = e.clientY; dragged = false;
@@ -252,6 +269,10 @@
         if (document.readyState === 'complete') syncVideos(); else window.addEventListener('load', syncVideos, { once: true });
         document.addEventListener('DOMContentLoaded', () => { updatePauseButton(); syncVideos(); });
         if (hasVideo) updatePauseButton();
+
+        autoScreen.addEventListener?.('change', scheduleAuto);
+        reduced.addEventListener?.('change', scheduleAuto);
+        scheduleAuto();
     })();
 </script>
 @endpush

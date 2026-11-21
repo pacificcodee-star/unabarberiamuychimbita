@@ -4,12 +4,14 @@ namespace App\Services;
 
 use App\Models\Turn;
 use App\Models\User;
+use App\Services\WhatsApp\BookingMessenger;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class TurnService
 {
-    public function createFor(User $barber, array $data): Turn
+    /** $notify = false cuando el bot ya responde en el chat (evita mensajes duplicados). */
+    public function createFor(User $barber, array $data, bool $notify = true): Turn
     {
         abort_unless(
             $barber->role === 'barbero' && $barber->attention_mode === 'llegada' && $barber->active,
@@ -44,7 +46,12 @@ class TurnService
 
         // Confirmación al cliente y, si el barbero está libre, se le llama de una vez (la fila avanza sola).
         $turn->load(['service', 'barber']);
-        app(ClientNotifier::class)->turnConfirmed($turn);
+
+        if ($notify) {
+            app(BookingMessenger::class)->announceTurn($turn);
+            app(ClientNotifier::class)->turnConfirmed($turn);
+        }
+
         if (Carbon::parse($turnDate)->isToday()) {
             app(TurnQueueService::class)->advance($barber->id);
         } else {

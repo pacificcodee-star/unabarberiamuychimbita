@@ -9,6 +9,7 @@ use App\Models\StaffNotification;
 use App\Models\Turn;
 use App\Services\ClientNotifier;
 use App\Services\TurnQueueService;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -93,7 +94,7 @@ class TrackController extends Controller
                 return $back->with('track_error', $message);
             }
 
-            $notifier->cancelPending($subject);
+            $notifier->turnCancelled($subject);
             StaffNotification::record(
                 'client_cancelled',
                 'Turno #'.$subject->turn_number.' cancelado por el cliente',
@@ -117,12 +118,12 @@ class TrackController extends Controller
             return $back->with('track_error', 'Esta cita ya no se puede cancelar desde aquí. Si necesitas ayuda, escríbenos.');
         }
 
-        $notifier->appointmentChanged($subject->fresh(), $before, byClient: true);
+        $notifier->appointmentChanged($subject->fresh(), $before);
         $notifier->flush();
         StaffNotification::record(
             'client_cancelled',
             'Cita cancelada por el cliente',
-            $subject->client_name.' canceló su cita del '.$before['starts_at']->format('d/m').' a las '.$before['starts_at']->format('g:i A').'. El horario quedó libre.',
+            $subject->client_name.' canceló su cita del '.$before['starts_at']->format('d/m').' a las '.$this->time($before['starts_at']).' El horario quedó libre.',
             route('appointments.index', ['date' => $before['starts_at']->toDateString()], false),
             $subject->barber_id,
         );
@@ -240,7 +241,7 @@ class TrackController extends Controller
                 'esperando' => $estimate
                     ? ($estimate['ahead'] === 0 ? 'Eres el siguiente.' : ($estimate['ahead'] === 1 ? 'Hay 1 persona antes de ti.' : "Hay {$estimate['ahead']} personas antes de ti."))
                     : 'Estás en la fila.',
-                'llamado' => "¡Es tu turno! Puedes pasar. Tienes {$grace} minutos para llegar".($subject->called_at ? ' (hasta las '.$subject->called_at->copy()->addMinutes($grace)->format('g:i A').').' : '.'),
+                'llamado' => "¡Es tu turno! Puedes pasar. Tienes {$grace} minutos para llegar".($subject->called_at ? ' (hasta las '.$this->time($subject->called_at->copy()->addMinutes($grace)).').' : '.'),
                 'atendiendo' => 'Tu servicio está en curso.',
                 'atendido' => 'Tu servicio ya terminó. ¡Gracias por tu visita!',
                 default => 'Este turno fue cancelado.',
@@ -251,7 +252,7 @@ class TrackController extends Controller
                 'label' => $subject->statusLabel(),
                 'detail' => $detail,
                 'ahead' => $estimate['ahead'] ?? null,
-                'call_at' => isset($estimate['call_at']) ? $estimate['call_at']->format('g:i A') : null,
+                'call_at' => isset($estimate['call_at']) ? $this->time($estimate['call_at']) : null,
                 'can_cancel' => in_array($subject->status, ['esperando', 'llamado'], true),
                 'open' => $this->isOpen($subject),
                 'notifications' => $this->inbox($subject),
@@ -293,9 +294,16 @@ class TrackController extends Controller
                 'id' => $n->id,
                 'title' => $n->title,
                 'body' => $n->body,
-                'at' => $n->scheduled_for->isToday() ? $n->scheduled_for->format('g:i A') : $n->scheduled_for->format('d/m g:i A'),
+                'at' => $this->time($n->scheduled_for, withDate: ! $n->scheduled_for->isToday()),
             ])
             ->all();
+    }
+
+    private function time(Carbon $moment, bool $withDate = false): string
+    {
+        $time = $moment->format('g:i').' '.((int) $moment->format('G') >= 12 ? 'p. m.' : 'a. m.');
+
+        return $withDate ? $moment->format('d/m').' '.$time : $time;
     }
 
     private function validatedSubscription(Request $request, string $prefix = ''): array

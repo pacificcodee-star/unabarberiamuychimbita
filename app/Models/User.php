@@ -76,6 +76,26 @@ class User extends Authenticatable
             ->withPivot('percentage')->withTimestamps();
     }
 
+    /** Servicios que ofrece este barbero. Sin filas configuradas se asume que ofrece todo el catálogo. */
+    public function offeredServices(): BelongsToMany
+    {
+        return $this->belongsToMany(Service::class, 'barber_services', 'barber_id', 'service_id')->withTimestamps();
+    }
+
+    public function offersService(int $serviceId): bool
+    {
+        $offered = $this->relationLoaded('offeredServices')
+            ? $this->offeredServices
+            : $this->offeredServices()->get();
+
+        return $offered->isEmpty() || $offered->contains('id', $serviceId);
+    }
+
+    public function offeredServiceIds(): array
+    {
+        return $this->offeredServices->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
     /** % del costo de cada insumo que se le descuenta a este barbero (si no está, se usa el % del insumo). */
     public function supplyPercentages(): BelongsToMany
     {

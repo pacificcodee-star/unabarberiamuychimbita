@@ -92,7 +92,7 @@ class DatabaseSeeder extends Seeder
         foreach ($reviewsData as $review) {
             Review::updateOrCreate(
                 ['client_name' => $review['client_name'], 'comment' => $review['comment']],
-                // Reseñas de ejemplo: se cargan OCULTAS. En la web solo se publican opiniones reales aprobadas en el panel.
+                // Las reseñas de ejemplo se guardan sin publicar.
                 ['rating' => 5, 'approved' => false]
             );
         }

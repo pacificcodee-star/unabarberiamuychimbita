@@ -10,7 +10,6 @@
         'description' => $siteSettings['reviews_hero_description'],
     ])
 
-    {{-- Opiniones publicadas: solo las de clientes reales aprobadas en el panel. Si no hay, esta parte no aparece. --}}
     @if($reviews->isNotEmpty())
         <section class="rv-section" aria-labelledby="rv-list-title">
             <div class="container rv-head">
@@ -30,21 +29,23 @@
         </section>
     @endif
 
-    {{-- Formulario: el cliente deja su opinión. Llega sin publicar y el administrador la aprueba en el panel. --}}
     <section class="rv-form-section" id="opinar" aria-labelledby="rv-form-title">
         <div class="container">
             <div class="rv-form-grid">
                 <div class="rv-form-intro">
                     <div class="section-kicker">Tu opinión</div>
                     <h2 class="rv-title" id="rv-form-title">¿Cómo te fue <em>en tu visita?</em></h2>
-                    <p>Cuéntanos tu experiencia. Leemos cada opinión y la publicamos después de revisarla.</p>
+                    <p>Cuéntanos tu experiencia.</p>
+                    @if(config('web.google.review_url'))
+                        <a href="{{ config('web.google.review_url') }}" class="xlink" target="_blank" rel="noopener">También puedes calificarnos en Google</a>
+                    @endif
                 </div>
 
                 @if(session('review_sent'))
                     <div class="rv-thanks" role="status">
                         <span class="rv-thanks-icon" aria-hidden="true"><i class="bi bi-check2"></i></span>
                         <h3>¡Gracias por tu opinión!</h3>
-                        <p>La recibimos y la publicaremos en cuanto la revisemos.</p>
+                        <p>Recibimos tu opinión.</p>
                         <a href="{{ route('public.booking') }}" class="xbtn"><span>Reservar de nuevo</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                     </div>
                 @else
@@ -80,6 +81,7 @@
                         </div>
 
                         <button type="submit" class="btn btn-gold btn-lg rv-submit"><i class="bi bi-send" aria-hidden="true"></i> Enviar mi opinión</button>
+                        <p class="form-legal-note">Tu opinión se revisa antes de publicarse. Al enviarla aceptas la <a href="{{ route('legal.privacy') }}">política de privacidad</a>.</p>
                     </form>
                 @endif
             </div>

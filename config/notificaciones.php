@@ -15,10 +15,16 @@ return [
 
     // Recordatorios de citas: minutos antes de la hora => minutos de vigencia del aviso.
     'appointment_reminders' => [
-        60 => 30,
-        15 => 10,
-        0 => 10,
+        30 => 20,
     ],
+
+    // Minutos antes del inicio estimado del turno en que se avisa al cliente.
+    'turn_reminder_minutes' => (int) env('TURN_REMINDER_MINUTES', 15),
+
+    // Minutos que tiene el cliente para confirmar después del recordatorio por WhatsApp.
+    // Si no confirma, la cita o el turno se cancela y se le avisa. Además, una cita agendada
+    // faltando menos de este tiempo queda confirmada sola.
+    'confirm_window_minutes' => (int) env('CONFIRM_WINDOW_MINUTES', 15),
 
     // Vigencia (minutos) de los avisos inmediatos. Pasado ese tiempo ya no se entregan.
     'ttl_minutes' => [

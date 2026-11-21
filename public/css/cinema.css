@@ -1472,6 +1472,10 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
     body { padding-bottom: calc(var(--mnav-clear) + 16px); }
     html { scroll-padding-bottom: calc(var(--mnav-clear) + 16px); }
 
+    /* La portada y el carrusel de barberos ocupan toda la pantalla: su contenido
+       se sube para que los botones no queden debajo de la barra inferior. */
+    .cx-hero, .bx { padding-bottom: calc(var(--mnav-clear) + 16px); }
+
     .mnav {
         display: block;
         position: fixed;
@@ -2020,3 +2024,76 @@ main p { line-height: 1.65; }
         box-shadow: 0 4px 16px rgba(var(--accent-rgb), .24) !important;
     }
 }
+
+/* =====================================================================
+   40. Lanzamiento: aviso de cookies, enlaces legales, páginas legales y 404
+   ===================================================================== */
+.footer-legal { display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; }
+.footer-legal a, .footer-legal-btn { display: inline-flex; align-items: center; min-height: 44px; color: rgba(255,255,255,.92); font: inherit; }
+.footer-legal-btn { padding: 0; border: 0; background: none; cursor: pointer; text-decoration: none; }
+.footer-legal-btn:hover { color: #fff; text-decoration: underline; }
+
+.cookie-banner {
+    position: fixed; z-index: 2600; left: max(20px, env(safe-area-inset-left)); bottom: max(20px, env(safe-area-inset-bottom));
+    width: min(440px, calc(100vw - 40px)); padding: 18px 18px 16px;
+    background: rgba(20, 17, 13, .97); color: var(--text);
+    border: 1px solid var(--gold-line); border-radius: var(--radius-lg); box-shadow: 0 24px 60px rgba(0,0,0,.55);
+    animation: rise-in .4s var(--ease-out) both;
+}
+.cookie-banner[hidden] { display: none; }
+.cookie-banner p { margin: 0 0 14px; font-size: .88rem; line-height: 1.55; color: var(--text-muted); }
+.cookie-banner a { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; }
+.cookie-banner-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.cookie-btn {
+    min-height: 44px; padding: 0 18px; border: 1px solid var(--gold); border-radius: 8px;
+    background: var(--gold); color: var(--ink); font-weight: 700; font-size: .74rem; letter-spacing: .12em; text-transform: uppercase; cursor: pointer;
+}
+.cookie-btn:hover { background: var(--gold-hover); border-color: var(--gold-hover); }
+.cookie-btn--ghost { background: transparent; color: var(--text); border-color: var(--line-strong); }
+.cookie-btn--ghost:hover { background: rgba(var(--text-rgb), .08); border-color: var(--text-muted); }
+.cookie-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* Mientras se decide sobre las cookies no aparece el aviso de instalar la app (se apilarían). */
+body:has(.cookie-banner:not([hidden])) .pwa-prompt { visibility: hidden; }
+@media (max-width: 767.98px) {
+    .cookie-banner { left: 12px; right: 12px; width: auto; bottom: calc(var(--mnav-clear) + 12px); }
+    .cookie-btn { flex: 1 1 0; }
+    body:has(.cookie-banner:not([hidden])) .whatsapp-float { visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) { .cookie-banner { animation: none; } }
+
+.legal-doc { padding: calc(var(--section-y) * .9) 0 var(--section-y); }
+.legal-head { max-width: 760px; margin-bottom: clamp(32px, 5vw, 56px); }
+.legal-head h1 { font-size: var(--fs-h2); font-weight: 420; margin-bottom: 14px; }
+.legal-updated { color: var(--text-subtle); font-size: var(--fs-small); margin: 0; }
+.legal-body { max-width: 760px; color: var(--text-muted); line-height: 1.75; }
+.legal-body h2 { font-family: var(--font-body); font-size: 1.15rem; font-weight: 700; color: var(--text); margin: 2.2em 0 .6em; }
+.legal-body p, .legal-body ul { margin-bottom: 1em; }
+.legal-body ul { padding-left: 1.2rem; }
+.legal-body li { margin-bottom: .4em; }
+.legal-body li::marker { color: var(--gold); }
+.legal-body strong { color: var(--text); }
+.legal-body a:not(.xbtn) { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.legal-lead { font-size: var(--fs-lead); color: var(--text); }
+.legal-table-wrap { overflow-x: auto; margin-bottom: 1.2em; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); }
+.legal-table { width: 100%; min-width: 480px; border-collapse: collapse; font-size: .9rem; }
+.legal-table th, .legal-table td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.legal-table th { color: var(--text); font-weight: 700; background: var(--surface-2); }
+.legal-table tr:last-child td { border-bottom: 0; }
+.legal-table code { color: var(--gold); font-size: .85em; }
+.legal-body .xbtn { border: 0; cursor: pointer; }
+
+.form-legal-note { margin: 10px 0 0; font-size: .8rem; line-height: 1.5; color: var(--text-subtle); }
+.form-legal-note a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.form-legal-note a:hover { color: var(--gold); }
+.hp-field { position: absolute !important; left: -10000px !important; width: 1px; height: 1px; overflow: hidden; }
+
+.err-page { min-height: 72vh; display: grid; align-items: center; padding: calc(var(--section-y) * .8) 0; }
+.err-code { font-family: var(--font-display); font-size: var(--fs-mega); line-height: .9; color: var(--gold); margin: 0 0 12px; font-weight: 380; }
+.err-page h1 { font-size: var(--fs-h2); font-weight: 420; margin-bottom: 16px; }
+.err-page p { max-width: 560px; color: var(--text-muted); font-size: var(--fs-lead); margin-bottom: 28px; }
+.err-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; }
+.err-links { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 36px; padding: 0; list-style: none; }
+.err-links a { display: inline-flex; min-height: 44px; align-items: center; color: var(--text-muted); text-decoration: underline; text-underline-offset: 3px; }
+.err-links a:hover { color: var(--gold); }
+/* Contraste: el día elegido en reservar es dorado; su etiqueta ("Hoy") va en tinta, no en blanco (2.4:1 → 8:1). */
+.booking-layout .date-chip.is-selected small { color: var(--ink); }

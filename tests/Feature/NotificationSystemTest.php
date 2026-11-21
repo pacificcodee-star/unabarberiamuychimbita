@@ -268,7 +268,9 @@ class NotificationSystemTest extends TestCase
 
         $this->post(route('track.cancel', ['type' => 'cita', 'token' => $appointment->public_token]))->assertSessionHas('track_success');
         $this->assertSame('cancelada', $appointment->fresh()->status);
-        $this->assertSame(0, $appointment->clientNotifications()->where('status', ClientNotification::PENDING)->count());
+        // Se cancelan los recordatorios viejos; queda solo la confirmación de cancelación.
+        $this->assertSame(0, $appointment->clientNotifications()->where('status', ClientNotification::PENDING)->whereIn('type', ClientNotifier::REMINDER_TYPES)->count());
+        $this->assertSame(1, $appointment->clientNotifications()->where('type', 'appt_cancelled')->count());
     }
 
     public function test_invalid_subscriptions_are_removed(): void

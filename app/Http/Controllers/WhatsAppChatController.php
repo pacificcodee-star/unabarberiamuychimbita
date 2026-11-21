@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\WhatsAppConversation;
 use App\Models\WhatsAppMessage;
 use App\Services\WhatsApp\WhatsAppInbox;
+use App\Services\WhatsApp\WhatsappBotService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -102,6 +103,22 @@ class WhatsAppChatController extends Controller
                 ? 'Mensaje enviado.'
                 : 'No se pudo enviar. Revisa la conexión de WhatsApp (menú WhatsApp) y que Evolution API esté en línea.'
         );
+    }
+
+    /**
+     * Elimina el chat de la bandeja del panel con todos sus mensajes.
+     * No borra nada del teléfono ni de WhatsApp: si el cliente vuelve a escribir, aparece como chat nuevo.
+     */
+    public function destroy(WhatsAppConversation $conversation, WhatsappBotService $bot): RedirectResponse
+    {
+        $name = $conversation->client_name ?: $conversation->phone;
+
+        $bot->forgetConversation((string) $conversation->phone);
+        $conversation->delete(); // los mensajes se borran en cascada
+
+        return redirect()
+            ->route('whatsapp.chat.index')
+            ->with('success', 'Chat con '.$name.' eliminado de la bandeja.');
     }
 
     /** Pausa o reanuda el bot automático para este chat (útil cuando responde el equipo). */

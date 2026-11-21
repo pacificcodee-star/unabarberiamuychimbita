@@ -65,6 +65,31 @@ class PushSender
         }
     }
 
+    /**
+     * Certificados para hablar por HTTPS con los servicios push (Google, Microsoft, Mozilla, Apple).
+     * El PHP de XAMPP en Windows no trae ninguno configurado y todos los envíos fallaban con
+     * "cURL error 60": si PHP no tiene curl.cainfo, se usa WEBPUSH_CA_BUNDLE o el que trae XAMPP.
+     */
+    private function caBundle(): string|bool
+    {
+        $configured = (string) config('services.webpush.ca_bundle', '');
+        if ($configured !== '' && is_file($configured)) {
+            return $configured;
+        }
+
+        if (filled(ini_get('curl.cainfo')) || filled(ini_get('openssl.cafile'))) {
+            return true;
+        }
+
+        foreach (['C:/xampp/apache/bin/curl-ca-bundle.crt', '/etc/ssl/certs/ca-certificates.crt', '/etc/pki/tls/certs/ca-bundle.crt'] as $path) {
+            if (is_file($path)) {
+                return $path;
+            }
+        }
+
+        return true;
+    }
+
     private function client()
     {
         if ($this->client === null) {
@@ -74,7 +99,9 @@ class PushSender
                     'publicKey' => (string) config('services.webpush.public_key'),
                     'privateKey' => (string) config('services.webpush.private_key'),
                 ],
-            ], [], 10);
+            ], [], new \GuzzleHttp\Client(['timeout' => 10, 'connect_timeout' => 5, 'verify' => $this->caBundle()]));
+            // web-push v11 recibe un cliente HTTP (PSR-18), ya no un número de segundos:
+            // con el entero de antes cada envío fallaba y ningún aviso push salía.
             $this->client->setReuseVAPIDHeaders(true);
         }
 

@@ -257,6 +257,31 @@ class WhatsAppInbox
         return $ok;
     }
 
+    /** Escribe a un número aunque todavía no exista conversación (avisos de agenda, sin que el cliente escriba primero). */
+    public function sendToPhone(string $phone, string $body, ?string $name = null): bool
+    {
+        $phone = $this->whatsApp->normalizePhone($phone);
+
+        if ($phone === '') {
+            return false;
+        }
+
+        $conversation = WhatsAppConversation::query()->firstOrCreate(
+            ['phone' => $phone],
+            ['jid' => $phone.'@s.whatsapp.net', 'bot_active' => true],
+        );
+
+        if (blank($conversation->client_name) && filled($name)) {
+            $conversation->fill(['client_name' => Str::limit((string) $name, 120, '')])->save();
+        }
+
+        $ok = $this->whatsApp->sendText($phone, $body);
+
+        $this->recordOutgoing($conversation, $body, $ok ? 'sent' : 'failed');
+
+        return $ok;
+    }
+
     public function evolution(): EvolutionClient
     {
         return $this->evolution;

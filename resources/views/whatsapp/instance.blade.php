@@ -45,7 +45,6 @@
                             <i class="bi bi-sliders2"></i>
                             Falta configurar Evolution API en el archivo <code>.env</code>:
                             <code>EVOLUTION_URL</code> y <code>EVOLUTION_APIKEY</code>.
-                            Abajo tienes los pasos.
                         </div>
                     @else
                         <div id="wa-qr-box" class="text-center" @if(($state ?? '') !== 'open') style="display:none" @endif>
@@ -63,76 +62,19 @@
                             <button type="button" id="wa-connect" class="btn btn-gold">
                                 <i class="bi bi-qr-code-scan me-1"></i> {{ ($state ?? '') === 'open' ? 'Actualizar estado' : 'Conectar / ver QR' }}
                             </button>
-                            <form method="POST" action="{{ route('whatsapp.logout') }}" onsubmit="return confirm('¿Desvincular el número? Habrá que escanear el QR de nuevo.');">
-                                @csrf
-                                <button type="submit" class="btn btn-outline-dark"><i class="bi bi-box-arrow-right me-1"></i> Desvincular número</button>
-                            </form>
+                            {{-- El botón "Desvincular número" se quitó del panel a pedido del negocio.
+                                 Para cambiar de número: WhatsApp del teléfono → Dispositivos vinculados → cerrar sesión,
+                                 y luego "Conectar / ver QR" aquí. --}}
                         </div>
                         <div id="wa-alert" class="alert alert-danger mt-3 d-none"></div>
                     @endif
                 </div>
             </div>
 
-            <div class="card">
-                <div class="card-header"><i class="bi bi-hdd-stack me-1 text-warning"></i> Datos del servicio</div>
-                <div class="card-body small">
-                    <dl class="row mb-0">
-                        <dt class="col-5">URL de Evolution</dt>
-                        <dd class="col-7 text-break">{{ $baseUrl !== '' ? $baseUrl : '— sin configurar —' }}</dd>
-                        <dt class="col-5">Instancia</dt>
-                        <dd class="col-7"><code>{{ $instance }}</code></dt>
-                        <dt class="col-5">Webhook (entrada)</dt>
-                        <dd class="col-7 text-break">
-                            <span id="wa-hook-url">{{ $webhookUrl }}</span>
-                            <button type="button" class="btn btn-sm btn-outline-dark ms-1" id="wa-copy" title="Copiar URL">
-                                <i class="bi bi-clipboard"></i>
-                            </button>
-                        </dd>
-                        <dt class="col-5">Estado del webhook</dt>
-                        <dd class="col-7">
-                            @if(! empty($webhook['enabled']))
-                                <span class="badge-soft green">Activo</span>
-                            @else
-                                <span class="badge-soft red">Inactivo</span>
-                            @endif
-                        </dd>
-                    </dl>
-                </div>
-                <div class="card-footer">
-                    <form method="POST" action="{{ route('whatsapp.webhook') }}">
-                        @csrf
-                        <button type="submit" class="btn btn-outline-dark w-100">
-                            <i class="bi bi-plug me-1"></i> {{ empty($webhook['enabled']) ? 'Conectar webhook automático' : 'Reconectar webhook' }}
-                        </button>
-                    </form>
-                </div>
-            </div>
         </div>
 
-        {{-- Configuración y bot --}}
+        {{-- Bot --}}
         <div class="col-lg-6">
-            <div class="card mb-3">
-                <div class="card-header"><i class="bi bi-list-check me-1 text-warning"></i> Cómo ponerlo en marcha</div>
-                <div class="card-body small">
-                    <ol class="mb-3">
-                        <li>En <strong>Northflank</strong> (proyecto Pacificcodes Team) copia la <strong>URL pública</strong> del servicio de Evolution API
-                            y la variable <code>AUTHENTICATION_API_KEY</code>.</li>
-                        <li>Pega ambas en el <code>.env</code> de esta página:
-                            <pre class="bg-dark text-light rounded p-2 mt-2 mb-2">EVOLUTION_URL=https://tu-servicio.northflank.app
-EVOLUTION_APIKEY=la-api-key
-EVOLUTION_INSTANCE={{ $instance }}</pre>
-                        </li>
-                        <li>Guarda y ejecuta <code>php artisan config:clear</code>.</li>
-                        <li>Presiona <strong>Conectar / ver QR</strong> y escanea con el WhatsApp de la barbería
-                            (WhatsApp → Dispositivos vinculados → Vincular dispositivo).</li>
-                        <li>Presiona <strong>Conectar webhook automático</strong> para que los mensajes entrantes lleguen al bot y a la bandeja.</li>
-                    </ol>
-                    <p class="mb-0 text-muted">
-                        <i class="bi bi-clock me-1"></i> Cron necesario (avisos y fila): <code>* * * * * php artisan schedule:run</code>
-                    </p>
-                </div>
-            </div>
-
             <div class="card">
                 <div class="card-header"><i class="bi bi-robot me-1 text-warning"></i> Bot automático</div>
                 <div class="card-body small">
@@ -144,19 +86,42 @@ EVOLUTION_INSTANCE={{ $instance }}</pre>
                         @endif
                     </p>
                     <div class="d-flex flex-wrap gap-2">
+                        <span class="badge-soft">agendar cita paso a paso</span>
+                        <span class="badge-soft">tomar turno</span>
                         <span class="badge-soft">confirmar cita</span>
                         <span class="badge-soft">cancelar cita o turno</span>
+                        <span class="badge-soft">modificar fecha u hora</span>
                         <span class="badge-soft">estado en la fila</span>
                         <span class="badge-soft">precios</span>
+                        <span class="badge-soft">barberos</span>
+                        <span class="badge-soft">historial de visitas</span>
+                        <span class="badge-soft">promociones</span>
                         <span class="badge-soft">horarios</span>
                         <span class="badge-soft">ubicación</span>
-                        <span class="badge-soft">reservar</span>
                     </div>
                     <p class="mt-3 mb-0">
                         <i class="bi bi-hand-index-thumb me-1"></i>
                         El equipo puede responder a mano desde la
                         <a href="{{ route('whatsapp.chat.index') }}">bandeja de chat</a> y pausar el bot chat por chat.
                     </p>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header"><i class="bi bi-megaphone me-1 text-warning"></i> Enviar promoción a clientes</div>
+                <div class="card-body small">
+                    <p class="mb-2 text-muted">
+                        Se envía por WhatsApp a los clientes que escribieron en los últimos 30 días (máx. 50).
+                        Revisa el texto antes de enviarlo.
+                    </p>
+                    <form method="POST" action="{{ route('whatsapp.promotion') }}" onsubmit="return confirm('¿Enviar este mensaje a los clientes recientes?');">
+                        @csrf
+                        <textarea name="message" rows="4" maxlength="600" class="form-control mb-2" required
+                            placeholder="Ej: Esta semana 2x1 en corte + barba solo por WhatsApp ✂️"></textarea>
+                        <button type="submit" class="btn btn-gold w-100">
+                            <i class="bi bi-send me-1"></i> Enviar promoción
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -203,9 +168,26 @@ EVOLUTION_INSTANCE={{ $instance }}</pre>
                     } catch (e) { /* se reintenta en el próximo ciclo */ }
                 }
 
-                async function connect() {
-                    if (alertBox) { alertBox.classList.add('d-none'); }
-                    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Conectando…'; }
+                let qrRefresh = null;
+
+                function showQr(data) {
+                    qrImg.src = data.qr.startsWith('data:') ? data.qr : 'data:image/png;base64,' + data.qr;
+                    qrBox.style.display = '';
+                    if (connected) connected.style.display = 'none';
+                    pairing.textContent = data.pairing_code ? 'Código de emparejamiento: ' + data.pairing_code : '';
+                    paint('connecting');
+                }
+
+                // Pide el QR vigente sin tocar el botón (no reinicia nada en Evolution).
+                function refreshQr() {
+                    if (lastState === 'open') { clearInterval(qrRefresh); qrRefresh = null; return; }
+                    connect(true);
+                }
+
+                async function connect(silent = false) {
+                    if (silent instanceof Event) { silent = false; }
+                    if (!silent && alertBox) { alertBox.classList.add('d-none'); }
+                    if (!silent && btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando QR… (unos segundos)'; }
                     try {
                         const res = await fetch(@json(route('whatsapp.connect')), {
                             method: 'POST',
@@ -219,27 +201,21 @@ EVOLUTION_INSTANCE={{ $instance }}</pre>
                         if (data.state === 'open') { location.reload(); return; }
 
                         if (data.qr) {
-                            qrImg.src = data.qr.startsWith('data:') ? data.qr : 'data:image/png;base64,' + data.qr;
-                            qrBox.style.display = '';
-                            if (connected) connected.style.display = 'none';
-                            pairing.textContent = data.pairing_code ? 'Código de emparejamiento: ' + data.pairing_code : '';
-                            paint('connecting');
+                            showQr(data);
                             if (!poll) poll = setInterval(status, 3000);
+                            // WhatsApp cambia el QR cada 20-40 s: se pide el vigente para no escanear uno vencido.
+                            if (!qrRefresh) qrRefresh = setInterval(refreshQr, 15000);
+                        } else if (!silent) {
+                            throw new Error('Evolution API aún no genera el QR. Espera unos segundos y vuelve a pulsar «Conectar / ver QR».');
                         }
                     } catch (e) {
-                        if (alertBox) { alertBox.textContent = e.message || 'No se pudo conectar con Evolution API.'; alertBox.classList.remove('d-none'); }
+                        if (!silent && alertBox) { alertBox.textContent = e.message || 'No se pudo conectar con Evolution API.'; alertBox.classList.remove('d-none'); }
                     } finally {
-                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-qr-code-scan me-1"></i> Conectar / ver QR'; }
+                        if (!silent && btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-qr-code-scan me-1"></i> Conectar / ver QR'; }
                     }
                 }
 
                 btn?.addEventListener('click', connect);
-
-                document.getElementById('wa-copy')?.addEventListener('click', function () {
-                    navigator.clipboard?.writeText(document.getElementById('wa-hook-url').textContent.trim());
-                    this.innerHTML = '<i class="bi bi-check2"></i>';
-                    setTimeout(() => { this.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 1500);
-                });
 
                 // Refresco del estado mientras se espera el escaneo.
                 if (lastState !== 'open') { poll = setInterval(status, 5000); }

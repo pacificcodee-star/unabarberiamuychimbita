@@ -258,7 +258,7 @@
     <script>(function(r){r.classList.add('sidebar-preload');try{var t=localStorage.getItem('admin:theme')||localStorage.getItem('sidebar:theme')||localStorage.getItem('sidebarTheme');if(t==='dark'){r.classList.add('admin-dark');r.setAttribute('data-bs-theme','dark')}}catch(e){}})(document.documentElement)</script>
     <style>
         .staff-bell-menu { width: min(380px, calc(100vw - 24px)); }
-        .staff-bell-list { max-height: min(60vh, 460px); overflow-y: auto; }
+        .staff-bell-list { max-height: min(60vh, 460px); overflow-y: auto; overscroll-behavior: contain; }
         .staff-bell-item { display: flex; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--bs-border-color); color: inherit; text-decoration: none; }
         .staff-bell-item:last-child { border-bottom: 0; }
         .staff-bell-item:hover { background: rgba(127, 127, 127, .10); color: inherit; }
@@ -267,6 +267,23 @@
         .staff-bell-item strong { display: block; font-size: .88rem; }
         .staff-bell-item span { display: block; font-size: .8rem; opacity: .75; }
         .staff-bell-item time { display: block; font-size: .72rem; opacity: .6; margin-top: 2px; }
+        .staff-bell-item > div { min-width: 0; }
+        .staff-bell-item strong, .staff-bell-item span { overflow-wrap: anywhere; }
+        /* En el teléfono la campana se abre como hoja inferior: así nunca se sale de la pantalla. */
+        @media (max-width: 575.98px) {
+            .staff-bell-menu {
+                position: fixed !important;
+                inset: auto 12px 12px 12px !important;
+                transform: none !important;
+                width: auto !important;
+                max-width: none;
+                max-height: min(75vh, 620px);
+                overflow: hidden;
+                border-radius: 16px;
+                z-index: 1310;
+            }
+            .staff-bell-list { max-height: calc(min(75vh, 620px) - 52px); }
+        }
     </style>
     @stack('styles')
 </head>
@@ -483,37 +500,53 @@
     const snooze = () => { try { localStorage.setItem(key, String(Date.now() + 7 * 864e5)); } catch (e) {} box.hidden = true; };
 
     if (dismissed()) return;
-    if (!('Notification' in window) || !('PushManager' in window) || !('serviceWorker' in navigator)) {
+    if (!('Notification' in window) || !('PushManager' in window) || !('serviceWorker' in navigator) || !box.dataset.vapid) {
         setStatus('Este navegador no admite avisos push.');
         enable.hidden = true;
-        box.hidden = false;
         return;
     }
-    box.hidden = false;
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(async (registration) => {
-        const existing = await registration.pushManager.getSubscription();
-        if (Notification.permission === 'granted' && existing) box.hidden = true;
-    }).catch(() => {});
+
+    const swReady = navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
+        .then((registration) => { registration.update().catch(() => {}); return navigator.serviceWorker.ready; })
+        .catch(() => null);
+
+    const saveSubscription = async (subscription) => {
+        const encodings = PushManager.supportedContentEncodings || ['aes128gcm'];
+        const payload = Object.assign(subscription.toJSON(), { contentEncoding: encodings.includes('aes128gcm') ? 'aes128gcm' : 'aesgcm' });
+        const response = await fetch(box.dataset.store, {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || 'No se pudo registrar este dispositivo.');
+    };
+
+    // Si el navegador ya dio permiso, este dispositivo se registra solo (o se vuelve a
+    // registrar si el servidor lo perdió) y el aviso no aparece: nunca se pide dos veces.
+    const syncIfGranted = async () => {
+        if (Notification.permission !== 'granted') return false;
+        try {
+            const registration = await swReady;
+            if (!registration) throw new Error('El navegador no pudo iniciar el servicio de avisos.');
+            let subscription = await registration.pushManager.getSubscription();
+            if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(box.dataset.vapid) });
+            await saveSubscription(subscription);
+            box.hidden = true;
+            return true;
+        } catch (error) {
+            setStatus('Este dispositivo tiene permiso, pero no se pudo conectar con el servidor de avisos.');
+            return false;
+        }
+    };
+
     close.addEventListener('click', snooze);
     enable.addEventListener('click', async () => {
         enable.setAttribute('aria-disabled', 'true');
         setStatus('Conectando los avisos a este dispositivo…');
         try {
-            if (!box.dataset.vapid) throw new Error('Falta configurar la clave pública de avisos.');
             const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
             if (permission !== 'granted') throw new Error(permission === 'denied' ? 'Los avisos están bloqueados en la configuración del navegador.' : 'Permite las notificaciones para continuar.');
-            const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-            await navigator.serviceWorker.ready;
-            let subscription = await registration.pushManager.getSubscription();
-            if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(box.dataset.vapid) });
-            const encodings = PushManager.supportedContentEncodings || ['aes128gcm'];
-            const payload = Object.assign(subscription.toJSON(), { contentEncoding: encodings.includes('aes128gcm') ? 'aes128gcm' : 'aesgcm' });
-            const response = await fetch(box.dataset.store, {
-                method: 'POST', credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' },
-                body: JSON.stringify(payload),
-            });
-            if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || 'No se pudo registrar este dispositivo.');
+            await syncIfGranted();
             setStatus('Avisos activados. Este dispositivo recibirá las notificaciones del equipo.');
             enable.textContent = 'Avisos activos';
             window.setTimeout(snooze, 2400);
@@ -523,6 +556,17 @@
             enable.removeAttribute('aria-disabled');
         }
     });
+
+    (async () => {
+        if (Notification.permission === 'denied') {
+            setStatus('Los avisos están bloqueados en este navegador. Actívalos desde el candado de la barra de direcciones.');
+            enable.hidden = true;
+            box.hidden = false;
+            return;
+        }
+        // Oculto mientras se comprueba: si ya estaban activos, no llega a mostrarse.
+        if (!(await syncIfGranted())) box.hidden = false;
+    })();
 })();
 </script>
 @stack('scripts')

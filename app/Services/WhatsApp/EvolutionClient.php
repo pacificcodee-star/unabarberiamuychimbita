@@ -125,10 +125,100 @@ class EvolutionClient
         ];
     }
 
-    /** Desvincula el número (hay que escanear el QR de nuevo). */
+    /**
+     * Desvincula el número (hay que escanear el QR de nuevo).
+     *
+     * Evolution devuelve 400 "instance is not connected" si la instancia está cerrada:
+     * en ese caso el número ya quedó fuera, así que se da por desvinculado en vez de
+     * fallar (antes eso se traducía en un 500 en el panel).
+     */
     public function logout(): bool
     {
-        return $this->request('DELETE', '/instance/logout/'.$this->instance()) !== null;
+        if ($this->request('DELETE', '/instance/logout/'.$this->instance()) !== null) {
+            return true;
+        }
+
+        return in_array($this->state(), ['close', null], true);
+    }
+
+    /**
+     * Desvincula el número de verdad y deja la instancia lista para un QR nuevo.
+     *
+     * El logout de Evolution falla si la instancia está a medio vincular ("connecting") y, si la
+     * conexión con WhatsApp ya estaba rota, puede no borrar las credenciales viejas: el QR nuevo
+     * no funciona. Por eso aquí se borra la instancia completa, se espera a que Evolution termine
+     * de limpiarla, se crea de nuevo y se vuelve a registrar el webhook.
+     * La bandeja del panel (whatsapp_conversations / whatsapp_messages) no se toca.
+     */
+    public function resetInstance(?string $webhookUrl = null): bool
+    {
+        if (! $this->isConfigured() || ($this->state() === null && ! $this->reachable())) {
+            return false;
+        }
+
+        $name = $this->instance();
+
+        if (in_array($this->state(), ['open', 'connecting'], true)) {
+            $this->request('DELETE', '/instance/logout/'.$name); // si falla, el borrado lo resuelve
+        }
+
+        $this->request('DELETE', '/instance/delete/'.$name);
+
+        if (! $this->waitUntilGone()) {
+            // El borrado falla cuando la sesión vieja no deja cerrar: se reinicia y se intenta otra vez.
+            $this->request('POST', '/instance/restart/'.$name);
+            $this->request('DELETE', '/instance/logout/'.$name);
+            $this->request('DELETE', '/instance/delete/'.$name);
+
+            if (! $this->waitUntilGone()) {
+                Log::warning('Evolution API: no se pudo borrar la instancia para desvincular', ['instance' => $name]);
+
+                return false;
+            }
+        }
+
+        if (! $this->ensureInstance()) {
+            return false;
+        }
+
+        if (filled($webhookUrl)) {
+            $this->setWebhook((string) $webhookUrl, enabled: true);
+        }
+
+        return true;
+    }
+
+    /** ¿Responde Evolution API? */
+    protected function reachable(): bool
+    {
+        return $this->request('GET', '/instance/fetchInstances') !== null;
+    }
+
+    /**
+     * Evolution borra en segundo plano: espera (máx. ~15 s) a que la instancia desaparezca.
+     * Primero mira el estado (rápido, en memoria) y al final confirma en la base de datos.
+     */
+    protected function waitUntilGone(int $attempts = 30): bool
+    {
+        for ($i = 0; $i < $attempts; $i++) {
+            if ($this->state() === null) {
+                break;
+            }
+            usleep(500_000);
+        }
+
+        for ($i = 0; $i < 10; $i++) {
+            $list = $this->request('GET', '/instance/fetchInstances');
+
+            if (is_array($list) && ! collect($list)->contains(fn ($item) => is_array($item)
+                && (($item['name'] ?? ($item['instanceName'] ?? null)) === $this->instance()))) {
+                return true;
+            }
+
+            usleep(500_000);
+        }
+
+        return false;
     }
 
     /**
@@ -144,9 +234,29 @@ class EvolutionClient
                 'events' => self::WEBHOOK_EVENTS,
                 'byEvents' => false,
                 'base64' => false,
-                'headers' => [],
+                'headers' => filled(config('services.evolution.apikey'))
+                    ? ['apikey' => (string) config('services.evolution.apikey')]
+                    : [],
             ],
         ]) !== null;
+    }
+
+    /**
+     * Deja el webhook como debe estar (URL, activo, eventos y cabecera apikey).
+     * Solo escribe si falta o difiere, así se puede llamar en cada conexión sin costo.
+     */
+    public function ensureWebhook(string $url): bool
+    {
+        $current = $this->findWebhook();
+        $apikey = (string) config('services.evolution.apikey');
+
+        $ok = is_array($current)
+            && ($current['url'] ?? null) === $url
+            && (bool) ($current['enabled'] ?? false)
+            && ($apikey === '' || (($current['headers']['apikey'] ?? null) === $apikey))
+            && array_diff(self::WEBHOOK_EVENTS, (array) ($current['events'] ?? [])) === [];
+
+        return $ok || $this->setWebhook($url, enabled: true);
     }
 
     /** Configuración actual del webhook (para el panel). */

@@ -10,6 +10,7 @@ use App\Models\StaffNotification;
 use App\Models\User;
 use App\Services\ClientNotifier;
 use App\Services\TurnService;
+use App\Services\WhatsApp\BookingMessenger;
 use App\Services\WhatsAppService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -67,11 +68,13 @@ class PublicBookingController extends Controller
         $appointmentBarbers = User::barbers()
             ->where('active', true)
             ->where('attention_mode', 'citas')
+            ->with('offeredServices')
             ->orderBy('name')
             ->get();
         $turnBarbers = User::barbers()
             ->where('active', true)
             ->where('attention_mode', 'llegada')
+            ->with('offeredServices')
             ->orderBy('name')
             ->get();
 
@@ -96,6 +99,11 @@ class PublicBookingController extends Controller
     public function storeAppointment(Request $request, WhatsAppService $whatsApp)
     {
         $settings = SiteSetting::currentData();
+        // Anti-spam: el campo oculto "website" solo lo llenan los robots. Se simula éxito sin guardar nada.
+        if (filled($request->input('website'))) {
+            return redirect()->route('public.booking');
+        }
+
         $enabled = array_keys($this->enabledPaymentMethods($settings));
 
         $data = $request->validate([
@@ -124,6 +132,12 @@ class PublicBookingController extends Controller
         if (! $barber) {
             throw ValidationException::withMessages([
                 'barber_id' => 'El barbero seleccionado no atiende por citas. Elige otro barbero.',
+            ]);
+        }
+
+        if (! empty($data['service_id']) && ! $barber->offersService((int) $data['service_id'])) {
+            throw ValidationException::withMessages([
+                'service_id' => 'Ese barbero no ofrece el servicio seleccionado. Elige otro servicio u otro barbero.',
             ]);
         }
 
@@ -198,10 +212,13 @@ class PublicBookingController extends Controller
         $notifier->appointmentBooked($appointment);
         $notifier->flush();
 
+        // Pide la confirmación por WhatsApp: el cliente responde "sí" y la cita pasa a confirmada.
+        app(BookingMessenger::class)->requestAppointmentConfirmation($appointment);
+
         StaffNotification::record(
             'appt_new',
             'Nueva cita: '.$appointment->client_name,
-            Carbon::parse($appointment->appointment_date)->locale('es')->translatedFormat('l j \d\e F').' a las '.Carbon::parse($appointment->appointment_time)->format('g:i A').' con '.$barber->name.($appointment->service ? ' · '.$appointment->service->name : '').'. Pendiente de confirmar.',
+            Carbon::parse($appointment->appointment_date)->locale('es')->translatedFormat('l j \d\e F').' a las '.$this->timeLabel($appointment->appointment_time).' con '.$barber->name.($appointment->service ? ' · '.$appointment->service->name : '').'. Pendiente de confirmar.',
             route('appointments.index', ['date' => $appointmentDate], false),
             $barber->id,
         );
@@ -215,7 +232,7 @@ class PublicBookingController extends Controller
                 'barber' => $barber->name,
                 'service' => $appointment->service?->name,
                 'date' => Carbon::parse($appointment->appointment_date)->locale('es')->translatedFormat('l, d \d\e F'),
-                'time' => Carbon::parse($appointment->appointment_time)->format('h:i A'),
+                'time' => $this->timeLabel($appointment->appointment_time),
                 'status' => 'Pendiente de confirmación',
                 'payment' => $this->enabledPaymentMethods($settings)[$data['payment_method']] ?? $data['payment_method'],
                 'code' => 'CITA-'.$appointment->id,
@@ -228,6 +245,11 @@ class PublicBookingController extends Controller
     public function storeTurn(Request $request, TurnService $turnService, WhatsAppService $whatsApp)
     {
         $settings = SiteSetting::currentData();
+        // Anti-spam: el campo oculto "website" solo lo llenan los robots. Se simula éxito sin guardar nada.
+        if (filled($request->input('website'))) {
+            return redirect()->route('public.booking');
+        }
+
         $enabled = array_keys($this->enabledPaymentMethods($settings));
 
         $data = $request->validate([
@@ -260,6 +282,12 @@ class PublicBookingController extends Controller
         if (! $barber) {
             throw ValidationException::withMessages([
                 'barber_id' => 'El barbero seleccionado atiende por citas. Elige un barbero de llegada.',
+            ]);
+        }
+
+        if (! empty($data['service_id']) && ! $barber->offersService((int) $data['service_id'])) {
+            throw ValidationException::withMessages([
+                'service_id' => 'Ese barbero no ofrece el servicio seleccionado. Elige otro servicio u otro barbero.',
             ]);
         }
 
@@ -318,6 +346,13 @@ class PublicBookingController extends Controller
             $methods['efectivo'] = Sale::PAYMENT_METHODS['efectivo'];
         }
         return $methods;
+    }
+
+    private function timeLabel(string $time): string
+    {
+        $moment = Carbon::parse($time);
+
+        return $moment->format('g:i').' '.($moment->hour >= 12 ? 'p. m.' : 'a. m.');
     }
 
     private function isBusinessOpenNow(array $settings): bool

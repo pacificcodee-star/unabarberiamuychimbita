@@ -40,6 +40,8 @@ return [
         'public_key' => env('VAPID_PUBLIC_KEY'),
         'private_key' => env('VAPID_PRIVATE_KEY'),
         'subject' => env('VAPID_SUBJECT', 'mailto:'.env('MAIL_FROM_ADDRESS', 'hola@example.com')),
+        // Ruta a un archivo de certificados (cacert.pem) si PHP no tiene uno configurado. Opcional.
+        'ca_bundle' => env('WEBPUSH_CA_BUNDLE'),
     ],
 
     // WhatsApp: el canal activo por defecto es Evolution API (número normal, QR, sin plantillas de Meta).
@@ -74,6 +76,10 @@ return [
         'timeout' => (int) env('EVOLUTION_TIMEOUT', 20),
         // Secreto que se exige en cada webhook entrante (campo "apikey" del cuerpo).
         'webhook_secret' => env('EVOLUTION_WEBHOOK_SECRET'),
+        // URL a la que Evolution envía los mensajes entrantes. Vacío = APP_URL/webhook/evolution.
+        // Si Evolution corre en el mismo equipo o red que Laravel, conviene la dirección interna
+        // (p. ej. http://127.0.0.1:8000/webhook/evolution): no depende de túneles ni de HTTPS públicos.
+        'webhook_url' => env('EVOLUTION_WEBHOOK_URL'),
         // Bot automático: responde confirmaciones, cancelaciones y consultas frecuentes.
         'bot_enabled' => (bool) env('WHATSAPP_BOT_ENABLED', true),
     ],

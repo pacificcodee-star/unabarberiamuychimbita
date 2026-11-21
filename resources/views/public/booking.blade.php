@@ -1,6 +1,6 @@
 @extends('layouts.public')
 
-@section('title', 'Reservar · '.($siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita'))
+@section('title', 'Reservar cita o turno · '.($siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita'))
 @section('meta_description', $siteSettings['booking_hero_description'] ?? $siteSettings['footer_description'])
 
 @section('content')
@@ -139,6 +139,7 @@
                                 <form method="POST" action="{{ route('public.booking.appointment') }}" data-booking-slots="{{ route('public.booking.slots') }}" data-booking-form="cita" novalidate>
                                     @csrf
                                     <input type="hidden" name="_form" value="cita">
+                                    <div class="hp-field" aria-hidden="true"><label>No llenar este campo <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 
                                     <fieldset class="booking-step">
                                         <legend class="booking-step-title"><span>1</span> Barbero y servicio</legend>
@@ -148,7 +149,7 @@
                                                 <select name="barber_id" id="appointmentBarber" class="form-select {{ $fieldError('cita', 'barber_id') ? 'is-invalid' : '' }}" required @if($fieldError('cita', 'barber_id')) aria-invalid="true" aria-describedby="appointmentBarberError" @endif>
                                                     <option value="">Selecciona un barbero</option>
                                                     @foreach($appointmentBarbers as $barber)
-                                                        <option value="{{ $barber->id }}" @selected($citaBarber == $barber->id)>{{ $barber->name }}</option>
+                                                        <option value="{{ $barber->id }}" data-services="{{ implode(',', $barber->offeredServiceIds()) }}" @selected($citaBarber == $barber->id)>{{ $barber->name }}</option>
                                                     @endforeach
                                                 </select>
                                                 @if($fieldError('cita', 'barber_id'))<div class="invalid-feedback" id="appointmentBarberError"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>{{ $fieldError('cita', 'barber_id') }}</div>@endif
@@ -247,6 +248,7 @@
                                     <button type="submit" class="btn btn-gold btn-lg w-100 mt-4" data-submit-label="Confirmar cita">
                                         <i class="bi bi-calendar2-check" aria-hidden="true"></i> Confirmar cita
                                     </button>
+                                    <p class="form-legal-note text-center">Al confirmar aceptas el tratamiento de tus datos según la <a href="{{ route('legal.privacy') }}">política de privacidad</a>.</p>
                                     <p class="form-text text-center mt-2 mb-0" data-push-hint hidden><i class="bi bi-bell" aria-hidden="true"></i> Al enviar, tu navegador te preguntará si permites los avisos. Elige <strong>Permitir</strong> para que te avisemos al celular.</p>
                                 </form>
                             @endif
@@ -282,6 +284,7 @@
                                 <form method="POST" action="{{ route('public.booking.turn') }}" data-booking-form="turno" novalidate>
                                     @csrf
                                     <input type="hidden" name="_form" value="turno">
+                                    <div class="hp-field" aria-hidden="true"><label>No llenar este campo <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 
                                     <fieldset class="booking-step">
                                         <legend class="booking-step-title"><span>1</span> Barbero y servicio</legend>
@@ -291,7 +294,7 @@
                                                 <select name="barber_id" id="turnBarber" class="form-select {{ $fieldError('turno', 'barber_id') ? 'is-invalid' : '' }}" required>
                                                     <option value="">Selecciona un barbero</option>
                                                     @foreach($turnBarbers as $barber)
-                                                        <option value="{{ $barber->id }}" @selected($turnoBarber == $barber->id)>{{ $barber->name }}</option>
+                                                        <option value="{{ $barber->id }}" data-services="{{ implode(',', $barber->offeredServiceIds()) }}" @selected($turnoBarber == $barber->id)>{{ $barber->name }}</option>
                                                     @endforeach
                                                 </select>
                                                 @if($fieldError('turno', 'barber_id'))<div class="invalid-feedback"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>{{ $fieldError('turno', 'barber_id') }}</div>@endif
@@ -359,6 +362,7 @@
                                     <button type="submit" class="btn btn-gold btn-lg w-100 mt-4" data-submit-label="Tomar turno">
                                         <i class="bi bi-person-walking" aria-hidden="true"></i> Tomar turno
                                     </button>
+                                    <p class="form-legal-note text-center">Al confirmar aceptas el tratamiento de tus datos según la <a href="{{ route('legal.privacy') }}">política de privacidad</a>.</p>
                                     <p class="form-text text-center mt-2 mb-0" data-push-hint hidden><i class="bi bi-bell" aria-hidden="true"></i> Al enviar, tu navegador te preguntará si permites los avisos. Elige <strong>Permitir</strong> para que te avisemos al celular.</p>
                                 </form>
                             @endif
@@ -397,6 +401,9 @@
 @endsection
 
 @push('scripts')
+@if($success)
+<script>window.addEventListener('load', () => window.trackEvent?.('generate_lead', { booking_type: @json($success['type'] ?? 'reserva') }));</script>
+@endif
 <script src="{{ asset('js/push-client.js') }}?v={{ @filemtime(public_path('js/push-client.js')) }}" defer></script>
 <script>
     // Avisos automáticos: el permiso del navegador se pide en el mismo toque de "Confirmar", sin pasos extra.
@@ -484,6 +491,26 @@
         };
         document.querySelectorAll('[data-booking-form]').forEach((form) => form.addEventListener('change', updateSummary));
         document.querySelectorAll('#cita-tab, #turno-tab').forEach((tab) => tab.addEventListener('shown.bs.tab', updateSummary));
+
+        // Cada barbero muestra solo los servicios que ofrece (sin datos configurados = todo el catálogo).
+        const syncServices = (barberSelect, serviceSelect) => {
+            if (!barberSelect || !serviceSelect) return;
+            const ids = (barberSelect.selectedOptions[0]?.dataset.services || '').split(',').filter(Boolean);
+            [...serviceSelect.options].forEach((option) => {
+                if (!option.value) return;
+                const allowed = ids.length === 0 || ids.includes(option.value);
+                option.hidden = !allowed;
+                option.disabled = !allowed;
+            });
+            if (serviceSelect.selectedOptions[0]?.disabled) serviceSelect.value = '';
+        };
+        [['appointmentBarber', 'appointmentService'], ['turnBarber', 'turnService']].forEach(([barberId, serviceId]) => {
+            const barberSelect = document.getElementById(barberId);
+            const serviceSelect = document.getElementById(serviceId);
+            if (!barberSelect || !serviceSelect) return;
+            syncServices(barberSelect, serviceSelect);
+            barberSelect.addEventListener('change', () => syncServices(barberSelect, serviceSelect));
+        });
 
         // Horarios disponibles.
         const form = document.querySelector('[data-booking-slots]');
