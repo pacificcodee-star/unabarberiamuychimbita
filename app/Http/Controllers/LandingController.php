@@ -132,7 +132,7 @@ class LandingController extends Controller
 
     public function reviews()
     {
-        $reviews = Review::approved()->latest()->get();
+        $reviews = Review::approved()->with('service')->latest()->get();
         $reviewCount = $reviews->count();
         $averageRating = $reviewCount > 0 ? round((float) $reviews->avg('rating'), 1) : 5.0;
 

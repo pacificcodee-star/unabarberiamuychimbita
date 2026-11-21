@@ -2114,3 +2114,63 @@ html.cx-failed main :is([data-cx-line], [data-cx-in], .reveal) { transform: none
 .booking-feedback-action { min-height: 44px; padding: 0 16px; border: 1px solid var(--gold); border-radius: 8px; background: transparent; color: var(--gold); font-weight: 700; font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
 .booking-feedback-action:hover { background: var(--gold); color: var(--ink); }
 .booking-feedback-action:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* =====================================================================
+   41. Encuesta de satisfacción (una pregunta por pantalla)
+   ===================================================================== */
+.sv { min-height: calc(100svh - 80px); display: grid; align-items: center; padding: clamp(96px, 12vw, 140px) 0 clamp(56px, 8vw, 96px); }
+.sv-wrap { max-width: 760px; }
+.sv-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; margin-bottom: clamp(28px, 5vw, 48px); }
+.sv-head .section-kicker { margin: 0; }
+.sv-progress { flex: 1 1 200px; max-width: 280px; height: 3px; border-radius: 3px; background: var(--line-strong); overflow: hidden; }
+.sv-progress span { display: block; height: 100%; width: var(--p, 0%); background: var(--gold); transition: width .5s var(--ease-out); }
+.sv-stage { position: relative; display: grid; }
+.sv-card { grid-area: 1 / 1; opacity: 0; transform: translateX(28px); transition: opacity .32s ease, transform .42s var(--ease-out); }
+.sv-card.from-left { transform: translateX(-28px); }
+.sv-card.is-in { opacity: 1; transform: none; }
+.sv-card.to-left { opacity: 0; transform: translateX(-28px); pointer-events: none; }
+.sv-card.to-right { opacity: 0; transform: translateX(28px); pointer-events: none; }
+.sv-step { font-family: var(--font-mono); font-size: .74rem; letter-spacing: .16em; text-transform: uppercase; color: var(--text-muted); margin: 0 0 14px; }
+.sv-title { font-size: clamp(1.9rem, 4.6vw, 3.1rem); font-weight: 420; line-height: 1.12; margin: 0 0 14px; outline: none; }
+.sv-word { display: inline-block; opacity: 0; transform: translateY(.35em); animation: sv-word .55s var(--ease-out) forwards; animation-delay: calc(var(--i) * 45ms + 80ms); white-space: pre; }
+@keyframes sv-word { to { opacity: 1; transform: none; } }
+.sv-lead { color: var(--gold); font-size: var(--fs-lead); margin: 0 0 10px; }
+.sv-help { color: var(--text-muted); font-size: var(--fs-lead); line-height: 1.6; max-width: 600px; margin: 0 0 28px; }
+.sv-field { margin-bottom: 22px; }
+.sv-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; margin-top: 8px; }
+.sv-actions .xbtn { border: 0; cursor: pointer; }
+
+.sv-stars { display: flex; gap: clamp(6px, 2vw, 14px); }
+.sv-star { width: clamp(52px, 13vw, 68px); height: clamp(52px, 13vw, 68px); display: grid; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface-2); color: var(--text-subtle); cursor: pointer; transition: transform .2s var(--ease-out), color .2s ease, border-color .2s ease, background .2s ease; }
+.sv-star svg { width: 60%; height: 60%; fill: currentColor; }
+.sv-star.is-on { color: var(--gold); border-color: var(--gold-line); background: var(--gold-soft); }
+.sv-star:hover { transform: translateY(-2px); }
+.sv-star:focus-visible, .sv-option:focus-visible, .sv-textarea:focus-visible, .sv-link:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.sv-star-word { min-height: 1.5em; margin: 12px 0 0; color: var(--gold); font-weight: 600; }
+
+.sv-options { display: grid; gap: 10px; max-width: 520px; }
+.sv-option { display: flex; align-items: center; gap: 14px; min-height: 56px; padding: 10px 16px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface-2); color: var(--text); font: inherit; font-size: 1.02rem; text-align: left; cursor: pointer; transition: border-color .2s ease, background .2s ease, transform .2s var(--ease-out); }
+.sv-option:hover { border-color: var(--gold-line); transform: translateX(3px); }
+.sv-option.is-selected { border-color: var(--gold); background: var(--gold-soft); }
+.sv-option-key { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--line-strong); border-radius: 6px; font-family: var(--font-mono); font-size: .78rem; color: var(--text-muted); flex: 0 0 auto; }
+.sv-option.is-selected .sv-option-key { border-color: var(--gold); color: var(--gold); }
+
+.sv-textarea { width: 100%; max-width: 620px; min-height: 140px; padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface-2); color: var(--text); font: inherit; font-size: 1.02rem; line-height: 1.55; resize: vertical; }
+.sv-counter { margin: 6px 0 14px; font-size: .8rem; color: var(--text-subtle); }
+
+.sv-nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 18px; max-width: 620px; }
+.sv-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 4px; border: 0; background: none; color: var(--text-muted); font: inherit; font-size: .9rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.sv-link:hover { color: var(--gold); }
+.sv-retry { margin-top: 12px; color: var(--gold); }
+.sv-status { min-height: 1.5em; margin: 18px 0 0; color: var(--text-muted); font-size: .9rem; }
+.sv-end-icon { display: grid; place-items: center; width: 56px; height: 56px; margin-bottom: 18px; border-radius: 50%; background: var(--gold); color: var(--ink); font-size: 1.6rem; font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+    .sv-card, .sv-card.from-left, .sv-card.to-left, .sv-card.to-right { transform: none; transition: opacity .15s ease; }
+    .sv-word { animation: none; opacity: 1; transform: none; }
+    .sv-star:hover, .sv-option:hover { transform: none; }
+}
+
+/* Opiniones verificadas */
+.rv-verified { display: inline-flex; align-items: center; gap: 4px; font-size: .72rem; font-weight: 600; letter-spacing: .04em; color: var(--gold); }
+.rv-service { font-size: .8rem; color: var(--text-subtle); }

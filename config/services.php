@@ -64,6 +64,8 @@ return [
             'appt_reminder_0' => env('WHATSAPP_TPL_APPT_REMINDER'),
             'appt_cancelled' => env('WHATSAPP_TPL_CANCELLED'),
             'appt_rescheduled' => env('WHATSAPP_TPL_APPT_BOOKED'),
+            // Invitación a la encuesta (plantilla de categoría utility aprobada por Meta).
+            'survey_invite' => env('WHATSAPP_TPL_SURVEY_INVITE'),
         ],
     ],
 

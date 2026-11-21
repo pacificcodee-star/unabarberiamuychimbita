@@ -41,6 +41,16 @@
                     <div class="alert alert-danger mb-4" role="alert"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i> {{ session('track_error') }}</div>
                 @endif
 
+                {{-- Encuesta de satisfacción: aparece cuando el servicio terminó y ya se puede responder. --}}
+                @php($surveyInvitation = app(\App\Services\Surveys\SurveyService::class)->invitationFor($type === 'turno' ? 'turno' : 'cita', $subject->public_token))
+                @if($surveyInvitation && $surveyInvitation->status !== 'completada')
+                    <div class="track-push" role="region" aria-label="Encuesta de satisfacción">
+                        <h2><i class="bi bi-star" aria-hidden="true"></i> ¿Cómo te fue?</h2>
+                        <p>Cuéntanos en menos de un minuto. Tu comentario solo se publica si tú lo autorizas.</p>
+                        <a href="{{ route('survey.show', ['type' => $type === 'turno' ? 'turno' : 'cita', 'token' => $subject->public_token]) }}" class="btn btn-gold">Responder la encuesta</a>
+                    </div>
+                @endif
+
                 <div class="track-status" id="trackLive" data-status="{{ $state['status'] }}" aria-live="polite">
                     <small>Estado</small>
                     <strong data-live="label">{{ $state['label'] }}</strong>

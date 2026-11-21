@@ -42,6 +42,7 @@ class ProcessQueueAndNotifications extends Command
         $step('recordatorios_turnos', fn () => $queue->remindUpcoming());
         // Sin confirmación 15 min después del recordatorio → cancelar; cita confirmada y terminada → atendida + gracias.
         $result = $step('asistencia', fn () => $attendance->run(), ['cancelled' => 0, 'attended' => 0]);
+        $step('encuestas', fn () => app(\App\Services\Surveys\SurveyService::class)->tick());
         $sent = $step('avisos', fn () => $notifier->processDue(), 0);
 
         // Latido: /salud avisa si la tarea dejó de correr (scheduler o worker caído).

@@ -91,6 +91,11 @@ class WhatsappBotService
             return $this->optOut($conversation);
         }
 
+        // Encuesta de satisfacción en curso: solo toma el mensaje si es una respuesta válida.
+        if (($surveyReply = app(\App\Services\Surveys\SurveyConversation::class)->handle($conversation->phone, $text)) !== null) {
+            return $surveyReply;
+        }
+
         $numeric = preg_match('/^\s*(\d{1,3})\s*$/u', $text, $match) ? (int) $match[1] : null;
         $flow = $this->flow($conversation->phone);
 

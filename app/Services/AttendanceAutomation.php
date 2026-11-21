@@ -176,6 +176,8 @@ class AttendanceAutomation
 
                 $appointment->refresh();
                 $this->recorder->sync($appointment, $appointment->payment_method);
+                // Se marcó con una actualización directa (sin eventos): se programa la encuesta a mano.
+                app(\App\Services\Surveys\SurveyService::class)->statusChanged($appointment, 'confirmada');
 
                 return true;
             });

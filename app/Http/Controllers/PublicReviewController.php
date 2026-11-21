@@ -38,6 +38,10 @@ class PublicReviewController extends Controller
             'rating' => (int) $data['rating'],
             'comment' => trim(strip_tags($data['comment'])),
             'approved' => false,
+            // Sin servicio verificado: siempre la revisa el equipo antes de publicarse.
+            'source' => 'formulario_web',
+            'moderation_status' => 'pendiente',
+            'moderation_reason' => \App\Support\ReviewModerator::check((string) $data['comment']),
         ]);
         \App\Models\ConsentRecord::grant($review, 'publicacion_resena', 'formulario_web');
 

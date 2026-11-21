@@ -1,6 +1,8 @@
 @php
-    $initial = mb_strtoupper(mb_substr(trim($review->client_name), 0, 1));
-    $hue = (crc32($review->client_name) % 360);
+    // Nombre autorizado por el cliente ("Andrés G." o anónimo); nunca el nombre completo.
+    $publicName = $review->publicName();
+    $initial = mb_strtoupper(mb_substr($publicName, 0, 1));
+    $hue = (crc32($publicName) % 360);
 @endphp
 <figure class="rv-card {{ $revealClass ?? '' }}">
     <div class="rv-top">
@@ -15,8 +17,12 @@
     <figcaption class="rv-author">
         <span class="rv-avatar" aria-hidden="true" style="--h: {{ $hue }}">{{ $initial }}</span>
         <span class="rv-who">
-            <strong>{{ $review->client_name }}</strong>
-            <small>Cliente verificado · {{ $review->created_at?->locale('es')->translatedFormat('F Y') }}</small>
+            <strong>{{ $publicName }}</strong>
+            <small>
+                @if($review->isVerified())<span class="rv-verified" title="Respondió la encuesta después de atenderse"><i class="bi bi-patch-check-fill" aria-hidden="true"></i> Servicio verificado</span> · @endif
+                @if($review->service)<span class="rv-service">{{ $review->service->name }}</span> · @endif
+                {{ ($review->published_at ?? $review->created_at)?->locale('es')->translatedFormat('F Y') }}
+            </small>
         </span>
     </figcaption>
 </figure>

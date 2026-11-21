@@ -367,7 +367,7 @@ class ClientNotifier
      * Guarda el aviso (push siempre; WhatsApp solo si el cliente lo autorizó y dejó teléfono).
      * $stamp distingue avisos del mismo tipo que sí deben repetirse (p. ej. recordatorios tras reprogramar).
      */
-    public function queue(Model $subject, string $type, string $title, string $body, ?Carbon $at = null, int $ttlMinutes = 60, string $stamp = ''): void
+    public function queue(Model $subject, string $type, string $title, string $body, ?Carbon $at = null, int $ttlMinutes = 60, string $stamp = '', ?string $url = null): void
     {
         $at = $at ?: now();
         $channels = ['push'];
@@ -384,7 +384,7 @@ class ClientNotifier
                 'channel' => $channel,
                 'title' => Str::limit($title, 140, ''),
                 'body' => $body,
-                'url' => $this->trackUrl($subject),
+                'url' => $url ?? $this->trackUrl($subject),
                 'scheduled_for' => $at,
                 'expires_at' => $at->copy()->addMinutes(max(1, $ttlMinutes)),
                 'status' => ClientNotification::PENDING,

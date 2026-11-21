@@ -23,6 +23,8 @@ use App\Http\Controllers\SiteSettingController;
 use App\Http\Controllers\StaffNotificationController;
 use App\Http\Controllers\StaffPushController;
 use App\Http\Controllers\SupplyController;
+use App\Http\Controllers\SurveyAdminController;
+use App\Http\Controllers\SurveyController;
 use App\Http\Controllers\TrackController;
 use App\Http\Controllers\TurnController;
 use App\Http\Controllers\WhatsAppChatController;
@@ -88,6 +90,15 @@ Route::prefix('seguimiento/{type}/{token}')
         Route::post('/push', [TrackController::class, 'subscribe'])->middleware('throttle:20,1')->name('track.push.store');
         Route::delete('/push', [TrackController::class, 'unsubscribe'])->middleware('throttle:20,1')->name('track.push.destroy');
     });
+// Encuesta de satisfacción: mismo enlace secreto del seguimiento (sin cuenta, sin ids adivinables).
+Route::prefix('encuesta/{type}/{token}')
+    ->where(['type' => 'turno|cita', 'token' => '[A-Za-z0-9]{40}'])
+    ->group(function () {
+        Route::get('/', [SurveyController::class, 'show'])->middleware('throttle:60,1')->name('survey.show');
+        Route::get('/estado', [SurveyController::class, 'state'])->middleware('throttle:60,1')->name('survey.state');
+        Route::post('/respuesta', [SurveyController::class, 'answer'])->middleware('throttle:40,1')->name('survey.answer');
+    });
+
 // Renovación automática de la suscripción desde el Service Worker (sin página abierta, por eso va sin CSRF).
 Route::post('/push/renovar', [TrackController::class, 'renew'])->middleware('throttle:20,1')->name('push.renew');
 
@@ -149,6 +160,18 @@ Route::middleware(['panel-desktop', 'auth'])->group(function () {
         Route::resource('insumos', SupplyController::class)->except(['show'])->names('supplies')->parameters(['insumos' => 'supply']);
         Route::patch('/barbers/{barber}/toggle', [BarberController::class, 'toggle'])->name('barbers.toggle');
         Route::resource('barbers', BarberController::class)->except(['show']);
+        // Encuestas de satisfacción y opiniones
+        Route::get('/encuestas', [SurveyAdminController::class, 'index'])->name('surveys.index');
+        Route::get('/encuestas/respuestas/{session}', [SurveyAdminController::class, 'show'])->name('surveys.show');
+        Route::get('/encuestas/preguntas', [SurveyAdminController::class, 'questions'])->name('surveys.questions');
+        Route::get('/encuestas/preguntas/nueva', [SurveyAdminController::class, 'createQuestion'])->name('surveys.questions.create');
+        Route::post('/encuestas/preguntas', [SurveyAdminController::class, 'storeQuestion'])->name('surveys.questions.store');
+        Route::get('/encuestas/preguntas/{question}/editar', [SurveyAdminController::class, 'editQuestion'])->name('surveys.questions.edit');
+        Route::put('/encuestas/preguntas/{question}', [SurveyAdminController::class, 'updateQuestion'])->name('surveys.questions.update');
+        Route::post('/encuestas/preguntas/{question}/mover', [SurveyAdminController::class, 'moveQuestion'])->name('surveys.questions.move');
+        Route::get('/encuestas/opiniones', [SurveyAdminController::class, 'reviews'])->name('surveys.reviews');
+        Route::post('/encuestas/opiniones/{review}', [SurveyAdminController::class, 'moderate'])->name('surveys.reviews.moderate');
+
         Route::get('/disponibilidad', [AvailabilityController::class, 'index'])->name('availability.index');
         Route::post('/disponibilidad', [AvailabilityController::class, 'store'])->name('availability.store');
         Route::delete('/disponibilidad/{availability}', [AvailabilityController::class, 'destroy'])->name('availability.destroy');

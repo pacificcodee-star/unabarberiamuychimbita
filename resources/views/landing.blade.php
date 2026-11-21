@@ -200,7 +200,7 @@
     {{-- Opiniones publicadas, en una fila que se desplaza sola.
          Si no hay ninguna aprobada, la sección completa no aparece. --}}
     @php
-        $proofReviews = \App\Models\Review::approved()->latest()->take(12)->get();
+        $proofReviews = \App\Models\Review::approved()->with('service')->latest()->take(12)->get();
         $proofCount = \App\Models\Review::approved()->count();
         $proofAverage = $proofCount ? round((float) \App\Models\Review::approved()->avg('rating'), 1) : null;
     @endphp

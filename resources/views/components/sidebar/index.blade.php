@@ -73,6 +73,10 @@
                     <x-sidebar.item route="commissions.index" active="commissions.*" icon="fa-solid fa-wallet" label="Nómina" />
                 </x-sidebar.section>
 
+                <x-sidebar.section title="Clientes">
+                    <x-sidebar.item route="surveys.index" active="surveys.*" icon="fa-solid fa-star-half-stroke" label="Satisfacción y opiniones" />
+                </x-sidebar.section>
+
                 <x-sidebar.section title="Finanzas y reportes">
                     <x-sidebar.item route="expenses.index" active="expenses.*" icon="fa-solid fa-money-bill-wave" label="Gastos" />
                     <x-sidebar.item route="reports.index" active="reports.*" icon="fa-solid fa-square-poll-vertical" label="Informes" />

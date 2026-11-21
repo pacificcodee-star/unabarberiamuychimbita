@@ -20,6 +20,8 @@ class StaffNotification extends Model
         'client_confirmed' => 'bi-check2-circle',
         'turn_called' => 'bi-megaphone',
         'turn_finished' => 'bi-check2-circle',
+        'survey_attention' => 'bi-chat-square-heart',
+        'survey_review' => 'bi-shield-exclamation',
     ];
 
     protected $fillable = ['barber_id', 'type', 'title', 'body', 'url'];

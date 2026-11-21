@@ -35,6 +35,18 @@ class AppServiceProvider extends ServiceProvider
             'review' => \App\Models\Review::class,
         ]);
 
+        // Encuesta de satisfacción: se programa cuando un servicio queda atendido y se cancela si se revierte.
+        foreach ([Appointment::class, Turn::class] as $model) {
+            $model::created(function ($subject): void {
+                app(\App\Services\Surveys\SurveyService::class)->statusChanged($subject, null);
+            });
+            $model::updated(function ($subject): void {
+                if ($subject->wasChanged('status')) {
+                    app(\App\Services\Surveys\SurveyService::class)->statusChanged($subject, $subject->getOriginal('status'));
+                }
+            });
+        }
+
         View::composer(['layouts.public', 'landing', 'public.*'], function ($view): void {
             $view->with('siteSettings', SiteSetting::currentData());
         });

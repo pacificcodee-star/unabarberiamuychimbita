@@ -4,6 +4,7 @@ Disallow: /login
 Disallow: /logout
 Disallow: /dashboard
 Disallow: /seguimiento/
+Disallow: /encuesta/
 Disallow: /reservar/horarios
 Disallow: /webhook/
 Disallow: /push/
@@ -30,5 +31,6 @@ Disallow: /reviews
 Disallow: /home-slides
 Disallow: /site-settings
 Disallow: /whatsapp
+Disallow: /encuestas
 
 Sitemap: {{ route('sitemap') }}
