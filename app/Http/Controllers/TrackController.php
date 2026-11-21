@@ -89,7 +89,7 @@ class TrackController extends Controller
             if (! $cancelled) {
                 $message = $subject->fresh()->status === 'atendiendo'
                     ? 'Tu servicio ya comenzó, así que no se puede cancelar desde aquí. Habla directamente con tu barbero.'
-                    : 'Este turno ya no se puede cancelar.';
+                    : ($subject->fresh()->status === 'cancelado' ? 'Tu turno ya estaba cancelado.' : 'Este turno ya no se puede cancelar.');
 
                 return $back->with('track_error', $message);
             }
@@ -115,7 +115,9 @@ class TrackController extends Controller
             : 0;
 
         if (! $cancelled) {
-            return $back->with('track_error', 'Esta cita ya no se puede cancelar desde aquí. Si necesitas ayuda, escríbenos.');
+            return $back->with('track_error', $subject->fresh()->status === 'cancelada'
+                ? 'Tu cita ya estaba cancelada.'
+                : 'Esta cita ya no se puede cancelar desde aquí. Si necesitas ayuda, escríbenos.');
         }
 
         $notifier->appointmentChanged($subject->fresh(), $before);
@@ -217,7 +219,14 @@ class TrackController extends Controller
     {
         $model = $type === 'turno' ? Turn::class : Appointment::class;
 
-        return $model::with(['barber', 'service'])->where('public_token', $token)->firstOrFail();
+        $subject = $model::with(['barber', 'service'])->where('public_token', $token)->firstOrFail();
+
+        // Vencimiento: el enlace deja de funcionar 30 días después de la fecha del turno o la cita,
+        // así un enlace viejo reenviado o filtrado no muestra datos para siempre.
+        $date = $subject instanceof Turn ? $subject->turn_date : $subject->appointment_date;
+        abort_if($date && $date->copy()->addDays((int) config('notificaciones.track_link_days', 30))->endOfDay()->isPast(), 404);
+
+        return $subject;
     }
 
     private function isOpen(Model $subject): bool

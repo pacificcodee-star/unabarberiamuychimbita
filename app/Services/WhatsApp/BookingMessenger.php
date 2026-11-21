@@ -56,7 +56,7 @@ class BookingMessenger
         try {
             return $this->inbox->sendToPhone($phone, $body, $name);
         } catch (Throwable $e) {
-            Log::warning('WhatsApp: no se pudo enviar el aviso de agenda', ['to' => $phone, 'error' => $e->getMessage()]);
+            Log::warning('WhatsApp: no se pudo enviar el aviso de agenda', ['to' => \App\Support\Pii::phone($phone), 'error' => $e->getMessage()]);
 
             return false;
         }

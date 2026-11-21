@@ -583,7 +583,7 @@ class ClientNotifier
         }
 
         if (! $this->whatsApp->isConfigured()) {
-            Log::info('WhatsApp (simulado, sin API configurada)', ['to' => $subject->client_phone, 'message' => $notification->body]);
+            Log::info('WhatsApp (simulado, sin API configurada)', ['to' => \App\Support\Pii::phone($subject->client_phone), 'caracteres' => mb_strlen((string) $notification->body)]);
             $notification->update(['status' => ClientNotification::FAILED, 'last_error' => 'WhatsApp Business no está configurado.']);
 
             return false;

@@ -42,6 +42,9 @@ class Turn extends Model
     protected function casts(): array
     {
         return [
+            'barber_id' => 'integer',
+            'service_id' => 'integer',
+            'turn_number' => 'integer',
             'turn_date' => 'date',
             'called_at' => 'datetime',
             'started_at' => 'datetime',

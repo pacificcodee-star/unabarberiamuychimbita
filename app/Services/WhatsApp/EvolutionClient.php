@@ -287,7 +287,7 @@ class EvolutionClient
             return false;
         }
 
-        Log::info('WhatsApp (Evolution) enviado', ['to' => $number]);
+        Log::info('WhatsApp (Evolution) enviado', ['to' => \App\Support\Pii::phone($number)]);
 
         return true;
     }

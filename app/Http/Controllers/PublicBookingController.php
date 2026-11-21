@@ -14,6 +14,9 @@ use App\Services\WhatsApp\BookingMessenger;
 use App\Services\WhatsAppService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -98,6 +101,16 @@ class PublicBookingController extends Controller
 
     public function storeAppointment(Request $request, WhatsAppService $whatsApp)
     {
+        return $this->idempotent($request, fn () => $this->createAppointment($request, $whatsApp));
+    }
+
+    public function storeTurn(Request $request, TurnService $turnService, WhatsAppService $whatsApp)
+    {
+        return $this->idempotent($request, fn () => $this->createTurn($request, $turnService, $whatsApp));
+    }
+
+    private function createAppointment(Request $request, WhatsAppService $whatsApp)
+    {
         $settings = SiteSetting::currentData();
         // Anti-spam: el campo oculto "website" solo lo llenan los robots. Se simula éxito sin guardar nada.
         if (filled($request->input('website'))) {
@@ -177,20 +190,8 @@ class PublicBookingController extends Controller
             ]);
         }
 
-        $slotTaken = Appointment::query()
-            ->where('barber_id', $barber->id)
-            ->whereDate('appointment_date', $data['appointment_date'])
-            ->whereTime('appointment_time', $data['appointment_time'])
-            ->where('status', '!=', 'cancelada')
-            ->exists();
-
-        if ($slotTaken) {
-            throw ValidationException::withMessages([
-                'appointment_time' => 'Ese horario ya está ocupado. Elige otra hora o intenta con otro barbero.',
-            ]);
-        }
-
-        $appointment = Appointment::create([
+        // Se vuelve a comprobar el horario en el servidor, con bloqueo, al momento de guardar.
+        $appointment = Appointment::reserveSlot([
             'barber_id' => $barber->id,
             'service_id' => $data['service_id'] ?? null,
             'client_name' => $data['client_name'],
@@ -242,7 +243,7 @@ class PublicBookingController extends Controller
             ]);
     }
 
-    public function storeTurn(Request $request, TurnService $turnService, WhatsAppService $whatsApp)
+    private function createTurn(Request $request, TurnService $turnService, WhatsAppService $whatsApp)
     {
         $settings = SiteSetting::currentData();
         // Anti-spam: el campo oculto "website" solo lo llenan los robots. Se simula éxito sin guardar nada.
@@ -322,6 +323,95 @@ class PublicBookingController extends Controller
     }
 
     /** Teléfono: entre 7 y 15 dígitos; se permiten espacios, guiones, paréntesis y el + inicial. */
+    /**
+     * ¿Ya se procesó la reserva con esta clave? Lo consulta el navegador cuando se perdió la respuesta
+     * (sin internet, tiempo agotado). Si quedó hecha, vuelve a dejar lista la confirmación y responde
+     * a dónde ir. La clave es un UUID aleatorio que solo conoce quien llenó el formulario.
+     */
+    public function bookingStatus(Request $request, string $key)
+    {
+        abort_unless(Str::isUuid($key), 404);
+
+        $stored = Cache::get(self::IDEMPOTENCY_PREFIX.$key);
+        if ($stored) {
+            $request->session()->flash('booking_success', $stored['success']);
+
+            return response()->json(['status' => 'done', 'redirect' => $stored['redirect']]);
+        }
+
+        // Todavía se está procesando (la otra petición tiene el candado).
+        $lock = Cache::lock(self::lockName($key), 30);
+        if (! $lock->get()) {
+            return response()->json(['status' => 'processing']);
+        }
+        $lock->release();
+
+        return response()->json(['status' => 'none']);
+    }
+
+    private const IDEMPOTENCY_PREFIX = 'reserva:';
+
+    private static function lockName(string $key): string
+    {
+        return 'reserva-candado:'.$key;
+    }
+
+    /**
+     * Reserva idempotente: si llega dos veces la misma clave (doble clic, reintento tras perder la
+     * conexión, reenvío del formulario), la segunda no crea nada y devuelve la reserva ya hecha.
+     * Con fetch (Accept: JSON) responde {redirect}; sin JavaScript, la redirección de siempre.
+     */
+    private function idempotent(Request $request, \Closure $create)
+    {
+        $key = (string) $request->input('idempotency_key', '');
+        if (! Str::isUuid($key)) {
+            return $this->asBookingResponse($request, $create());
+        }
+
+        $cacheKey = self::IDEMPOTENCY_PREFIX.$key;
+        $lock = Cache::lock(self::lockName($key), 30);
+
+        try {
+            $lock->block(15); // si hay otra petición con la misma clave en curso, se espera su resultado
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+            Log::warning('reservas.idempotencia_ocupada');
+
+            return response()->json(['message' => 'Tu reserva se está procesando. Espera un momento.'], 409);
+        }
+
+        try {
+            if ($stored = Cache::get($cacheKey)) {
+                Log::info('reservas.reintento_sin_duplicar');
+                $request->session()->flash('booking_success', $stored['success']);
+
+                return $this->asBookingResponse($request, redirect()->to($stored['redirect']));
+            }
+
+            $response = $create();
+
+            // Solo se recuerda una reserva hecha de verdad (no errores ni el campo trampa).
+            $success = in_array('booking_success', $request->session()->get('_flash.new', []), true)
+                ? $request->session()->get('booking_success')
+                : null;
+            if ($success && $response instanceof \Illuminate\Http\RedirectResponse) {
+                Cache::put($cacheKey, ['success' => $success, 'redirect' => $response->getTargetUrl()], now()->addDay());
+            }
+
+            return $this->asBookingResponse($request, $response);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function asBookingResponse(Request $request, $response)
+    {
+        if ($request->expectsJson() && $response instanceof \Illuminate\Http\RedirectResponse) {
+            return response()->json(['status' => 'done', 'redirect' => $response->getTargetUrl()]);
+        }
+
+        return $response;
+    }
+
     private function phoneRules(): array
     {
         return ['required', 'string', 'max:30', 'regex:/^\+?(?:[\s\-().]*\d){7,15}[\s\-().]*$/'];

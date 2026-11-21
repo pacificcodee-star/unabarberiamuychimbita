@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\AvailabilityController;
 use App\Http\Controllers\BarberController;
 use App\Http\Controllers\CashSessionController;
+use App\Http\Controllers\ClientErrorController;
 use App\Http\Controllers\CommissionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EvolutionWebhookController;
@@ -35,6 +36,26 @@ Route::get('/robots.txt', function () {
     return response()->view('robots')->header('Content-Type', 'text/plain; charset=UTF-8');
 })->name('robots');
 
+// Salud para monitores externos (UptimeRobot, Better Stack…): base de datos y tarea programada.
+// Responde 503 si algo falla, sin detalles técnicos. /up (Laravel) solo dice que PHP responde.
+Route::get('/salud', function () {
+    $checks = ['base_de_datos' => false, 'tarea_programada' => false];
+    try {
+        \Illuminate\Support\Facades\DB::select('select 1');
+        $checks['base_de_datos'] = true;
+        $last = \Illuminate\Support\Facades\Cache::get('salud:tick');
+        $checks['tarea_programada'] = $last && \Illuminate\Support\Carbon::parse($last)->gt(now()->subMinutes(5));
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::critical('salud.fallo', ['error' => class_basename($e)]);
+    }
+    $ok = ! in_array(false, $checks, true);
+
+    return response()->json(['ok' => $ok] + $checks, $ok ? 200 : 503)->header('Cache-Control', 'no-store');
+})->middleware('throttle:60,1')->name('health');
+
+// Errores de JavaScript de los visitantes (sendBeacon, sin CSRF; ver public/js/error-guard.js).
+Route::post('/errores-cliente', ClientErrorController::class)->middleware('throttle:20,1')->name('client-errors');
+
 // Páginas legales
 Route::view('/aviso-legal', 'public.legal.aviso-legal')->name('legal.notice');
 Route::view('/politica-de-privacidad', 'public.legal.privacidad')->name('legal.privacy');
@@ -49,6 +70,11 @@ Route::get('/reservar', [PublicBookingController::class, 'index'])->name('public
 Route::get('/reservar/horarios', [PublicBookingController::class, 'availableTimes'])->name('public.booking.slots');
 Route::post('/reservar/cita', [PublicBookingController::class, 'storeAppointment'])->middleware('throttle:10,1')->name('public.booking.appointment');
 Route::post('/reservar/turno', [PublicBookingController::class, 'storeTurn'])->middleware('throttle:10,1')->name('public.booking.turn');
+// ¿Ya quedó hecha la reserva con esta clave? (cuando se perdió la respuesta por falta de conexión)
+Route::get('/reservar/estado/{key}', [PublicBookingController::class, 'bookingStatus'])->middleware('throttle:30,1')->name('public.booking.status');
+// Token CSRF nuevo para seguir un formulario cuya sesión se venció (error 419) sin perder lo escrito.
+Route::get('/sesion/token', fn () => response()->json(['token' => csrf_token()])->header('Cache-Control', 'no-store'))
+    ->middleware('throttle:30,1')->name('session.token');
 
 // Seguimiento del cliente sin cuenta: se entra con el enlace secreto del turno o cita.
 Route::prefix('seguimiento/{type}/{token}')

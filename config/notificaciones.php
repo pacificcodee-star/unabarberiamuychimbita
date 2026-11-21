@@ -27,6 +27,9 @@ return [
     'confirm_window_minutes' => (int) env('CONFIRM_WINDOW_MINUTES', 15),
 
     // Vigencia (minutos) de los avisos inmediatos. Pasado ese tiempo ya no se entregan.
+    // Días después de la fecha de la cita o turno en que vence el enlace de seguimiento del cliente.
+    'track_link_days' => (int) env('TRACK_LINK_DAYS', 30),
+
     'ttl_minutes' => [
         'confirmation' => 120,
         'turn_next' => 30,

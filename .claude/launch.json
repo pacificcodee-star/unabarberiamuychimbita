@@ -1,11 +1,25 @@
 {
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "barberia",
-      "runtimeExecutable": "php",
-      "runtimeArgs": ["artisan", "serve", "--host=127.0.0.1", "--port=8123"],
-      "port": 8123
-    }
-  ]
+    "version": "0.0.1",
+    "configurations": [
+        {
+            "name": "barberia",
+            "runtimeExecutable": "php",
+            "runtimeArgs": [
+                "artisan",
+                "serve",
+                "--host=127.0.0.1",
+                "--port=8123"
+            ],
+            "port": 8123
+        },
+        {
+            "name": "barberia-pruebas",
+            "runtimeExecutable": "cmd",
+            "runtimeArgs": [
+                "/c",
+                "set DB_DATABASE=barberia_concurrencia&& php artisan serve --host=127.0.0.1 --port=8125"
+            ],
+            "port": 8125
+        }
+    ]
 }

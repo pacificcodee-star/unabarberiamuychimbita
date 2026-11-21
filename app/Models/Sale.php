@@ -32,6 +32,7 @@ class Sale extends Model
     protected function casts(): array
     {
         return [
+            'barber_id' => 'integer',
             'total' => 'decimal:2',
             'commission_percentage' => 'decimal:2',
             'commission_amount' => 'decimal:2',

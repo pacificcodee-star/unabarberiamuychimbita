@@ -100,11 +100,14 @@
                 </button>
             </form>
 
+            {{-- Solo en el equipo local: en producción jamás se muestran credenciales. --}}
+            @if(app()->environment('local'))
             <div class="demo-box">
                 <strong>Acceso de prueba</strong><br>
                 Administrador: <code>admin@barberia.com</code> / <code>password</code><br>
                 Barbero: <code>carlos@barberia.com</code> / <code>password</code>
             </div>
+            @endif
         </div>
     </section>
 </main>

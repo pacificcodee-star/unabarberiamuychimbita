@@ -17,6 +17,14 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // Los datos de demostración crean usuarios con la contraseña "password".
+        // En producción eso sería una puerta abierta al panel: se exige confirmarlo a propósito.
+        if (app()->environment('production') && ! env('ALLOW_DEMO_SEED')) {
+            $this->command?->error('No se cargan datos de demostración en producción (contraseñas débiles). Crea tu administrador a mano o usa ALLOW_DEMO_SEED=true bajo tu responsabilidad.');
+
+            return;
+        }
+
         $admin = User::updateOrCreate(
             ['email' => 'admin@barberia.com'],
             [

@@ -7,6 +7,10 @@ Disallow: /seguimiento/
 Disallow: /reservar/horarios
 Disallow: /webhook/
 Disallow: /push/
+Disallow: /salud
+Disallow: /errores-cliente
+Disallow: /sesion/
+Disallow: /reservar/estado/
 Disallow: /evolution/
 Disallow: /notificaciones
 Disallow: /sales

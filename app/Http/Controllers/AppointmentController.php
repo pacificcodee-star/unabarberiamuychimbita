@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\Service;
 use App\Models\User;
 use App\Services\WhatsApp\BookingMessenger;
+use App\Support\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
@@ -119,9 +120,9 @@ class AppointmentController extends Controller
         }
 
         $this->ensureBarberHandlesAppointments((int) $data['barber_id']);
-        $this->ensureSlotIsAvailable($data);
 
-        $appointment = Appointment::create($data);
+        $appointment = Appointment::reserveSlot($data, message: 'Ese horario ya está ocupado para el barbero seleccionado. Elige otra hora.');
+        AuditLog::record('cita.creada', $appointment, ['barber_id' => $appointment->barber_id]);
         app(\App\Services\AttendedServiceRecorder::class)->sync($appointment, $request->input('payment_method'));
         $appointment->load(['service', 'barber']);
         app(\App\Services\ClientNotifier::class)->appointmentBooked($appointment);
@@ -175,10 +176,10 @@ class AppointmentController extends Controller
         }
 
         $this->ensureBarberHandlesAppointments((int) $data['barber_id']);
-        $this->ensureSlotIsAvailable($data, $appointment->id);
 
         $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
-        $appointment->update($data);
+        Appointment::reserveSlot($data, $appointment, 'Ese horario ya está ocupado para el barbero seleccionado. Elige otra hora.');
+        AuditLog::record('cita.editada', $appointment, ['antes' => ['estado' => $before['status'], 'inicio' => (string) $before['starts_at']], 'estado' => $appointment->status]);
         $note = app(\App\Services\AttendedServiceRecorder::class)->sync($appointment, $request->input('payment_method'));
         // Si cambió la fecha, la hora o el estado: se cancelan los recordatorios viejos y se crean los nuevos.
         $appointment->load(['service', 'barber']);
@@ -205,6 +206,7 @@ class AppointmentController extends Controller
 
         $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
         $appointment->update(['status' => $data['status']]);
+        AuditLog::record('cita.estado', $appointment, ['de' => $before['status'], 'a' => $data['status']]);
         $note = app(\App\Services\AttendedServiceRecorder::class)->sync($appointment, $request->input('payment_method'));
         $appointment->loadMissing(['service', 'barber']);
         app(\App\Services\ClientNotifier::class)->appointmentChanged($appointment, $before);
@@ -217,6 +219,7 @@ class AppointmentController extends Controller
     {
         $this->authorizeAppointment($request, $appointment);
         // Si la cita ya había generado ingreso, también se elimina ese registro.
+        AuditLog::record('cita.eliminada', $appointment, ['tenia_ingreso' => (bool) $appointment->sale_id]);
         $appointment->sale?->delete();
         $appointment->delete();
 
@@ -248,24 +251,6 @@ class AppointmentController extends Controller
         }
     }
 
-    private function ensureSlotIsAvailable(array $data, ?int $ignoreAppointmentId = null): void
-    {
-        $query = Appointment::query()
-            ->where('barber_id', $data['barber_id'])
-            ->whereDate('appointment_date', $data['appointment_date'])
-            ->whereTime('appointment_time', $data['appointment_time'])
-            ->where('status', '!=', 'cancelada');
-
-        if ($ignoreAppointmentId) {
-            $query->where('id', '!=', $ignoreAppointmentId);
-        }
-
-        if ($query->exists()) {
-            throw ValidationException::withMessages([
-                'appointment_time' => 'Ese horario ya está ocupado para el barbero seleccionado. Elige otra hora.',
-            ]);
-        }
-    }
 
     private function authorizeAppointment(Request $request, Appointment $appointment): void
     {

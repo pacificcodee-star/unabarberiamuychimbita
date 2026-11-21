@@ -49,7 +49,7 @@ class WhatsAppService
 
         if ($this->driver() === 'evolution') {
             if (! $this->evolution->isConfigured()) {
-                Log::info('WhatsApp (simulado, Evolution API sin configurar)', ['to' => $to, 'message' => $message]);
+                Log::info('WhatsApp (simulado, Evolution API sin configurar)', ['to' => \App\Support\Pii::phone($to), 'caracteres' => mb_strlen((string) $message)]);
                 return false;
             }
 
@@ -60,7 +60,7 @@ class WhatsAppService
         $phoneNumberId = config('services.whatsapp.phone_number_id') ?: env('WHATSAPP_PHONE_NUMBER_ID');
 
         if (! $token || ! $phoneNumberId) {
-            Log::info('WhatsApp (simulado, sin API configurada)', ['to' => $to, 'message' => $message]);
+            Log::info('WhatsApp (simulado, sin API configurada)', ['to' => \App\Support\Pii::phone($to), 'caracteres' => mb_strlen((string) $message)]);
             return false;
         }
 
@@ -74,11 +74,11 @@ class WhatsAppService
         ]);
 
         if (! $response->successful()) {
-            Log::error('WhatsApp API error', ['to' => $to, 'status' => $response->status(), 'body' => $response->body()]);
+            Log::error('WhatsApp API error', ['to' => \App\Support\Pii::phone($to), 'status' => $response->status(), 'body' => \Illuminate\Support\Str::limit($response->body(), 300)]);
             return false;
         }
 
-        Log::info('WhatsApp enviado', ['to' => $to]);
+        Log::info('WhatsApp enviado', ['to' => \App\Support\Pii::phone($to)]);
         return true;
     }
 
@@ -113,7 +113,7 @@ class WhatsAppService
         }
 
         if (! $this->isConfigured()) {
-            Log::info('WhatsApp plantilla (simulada, sin API configurada)', ['to' => $to, 'template' => $template, 'parameters' => $parameters]);
+            Log::info('WhatsApp plantilla (simulada, sin API configurada)', ['to' => \App\Support\Pii::phone($to), 'template' => $template]);
             return false;
         }
 
@@ -139,11 +139,11 @@ class WhatsAppService
         $response = Http::withToken($token)->timeout(10)->post("https://graph.facebook.com/v20.0/{$phoneNumberId}/messages", $payload);
 
         if (! $response->successful()) {
-            Log::error('WhatsApp API error (plantilla)', ['to' => $to, 'template' => $template, 'status' => $response->status(), 'body' => $response->body()]);
+            Log::error('WhatsApp API error (plantilla)', ['to' => \App\Support\Pii::phone($to), 'template' => $template, 'status' => $response->status(), 'body' => \Illuminate\Support\Str::limit($response->body(), 300)]);
             return false;
         }
 
-        Log::info('WhatsApp plantilla enviada', ['to' => $to, 'template' => $template]);
+        Log::info('WhatsApp plantilla enviada', ['to' => \App\Support\Pii::phone($to), 'template' => $template]);
         return true;
     }
 

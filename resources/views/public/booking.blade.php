@@ -139,6 +139,7 @@
                                 <form method="POST" action="{{ route('public.booking.appointment') }}" data-booking-slots="{{ route('public.booking.slots') }}" data-booking-form="cita" novalidate>
                                     @csrf
                                     <input type="hidden" name="_form" value="cita">
+                                    <input type="hidden" name="idempotency_key" value="{{ (string) \Illuminate\Support\Str::uuid() }}" data-idempotency-key>
                                     <div class="hp-field" aria-hidden="true"><label>No llenar este campo <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 
                                     <fieldset class="booking-step">
@@ -284,6 +285,7 @@
                                 <form method="POST" action="{{ route('public.booking.turn') }}" data-booking-form="turno" novalidate>
                                     @csrf
                                     <input type="hidden" name="_form" value="turno">
+                                    <input type="hidden" name="idempotency_key" value="{{ (string) \Illuminate\Support\Str::uuid() }}" data-idempotency-key>
                                     <div class="hp-field" aria-hidden="true"><label>No llenar este campo <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 
                                     <fieldset class="booking-step">
@@ -405,29 +407,8 @@
 <script>window.addEventListener('load', () => window.trackEvent?.('generate_lead', { booking_type: @json($success['type'] ?? 'reserva') }));</script>
 @endif
 <script src="{{ asset('js/push-client.js') }}?v={{ @filemtime(public_path('js/push-client.js')) }}" defer></script>
-<script>
-    // Avisos automáticos: el permiso del navegador se pide en el mismo toque de "Confirmar", sin pasos extra.
-    (() => {
-        const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-        const canAsk = 'Notification' in window && 'PushManager' in window && 'serviceWorker' in navigator
-            && Notification.permission === 'default' && !(isIOS && !standalone);
-        if (!canAsk) return;
-        document.querySelectorAll('[data-push-hint]').forEach((hint) => { hint.hidden = false; });
-        document.addEventListener('submit', (event) => {
-            const form = event.target;
-            if (event.defaultPrevented || !form.matches('[data-booking-form]') || form.dataset.permissionAsked) return;
-            form.dataset.permissionAsked = '1';
-            event.preventDefault();
-            let sent = false;
-            const go = () => { if (!sent) { sent = true; HTMLFormElement.prototype.submit.call(form); } };
-            try {
-                Promise.resolve(Notification.requestPermission()).then(go, go);
-            } catch (e) { go(); }
-            setTimeout(go, 12000); // si no responde la pregunta, la reserva se envía igual
-        });
-    })();
-</script>
+{{-- Envío resiliente: borrador, idempotencia, verificación si se pierde la conexión y permiso de avisos. --}}
+<script src="{{ asset('js/booking-submit.js') }}?v={{ @filemtime(public_path('js/booking-submit.js')) }}" defer></script>
 <script>
     (() => {
         const success = document.getElementById('bookingSuccess');
@@ -452,6 +433,14 @@
                     firstInvalid?.focus();
                     return;
                 }
+                // Con booking-submit.js el envío va por fetch (sin perder datos ni duplicar); si no cargó, envío normal.
+                if (window.BookingSubmit) {
+                    event.preventDefault();
+                    window.BookingSubmit.submit(form);
+                    return;
+                }
+                if (form.dataset.sending === '1') { event.preventDefault(); return; }
+                form.dataset.sending = '1';
                 const button = form.querySelector('[type="submit"]');
                 if (button) {
                     button.disabled = true;
@@ -559,6 +548,9 @@
                 return;
             }
             const current = ++requestId;
+            // Antes de pintar el esqueleto se recuerda la hora marcada, para volver a marcarla después.
+            const keep = slots.querySelector('input:checked')?.value;
+            if (keep && !slots.dataset.selected) slots.dataset.selected = keep;
             slots.setAttribute('aria-busy', 'true');
             slots.replaceChildren(...Array.from({ length: 8 }, () => Object.assign(document.createElement('div'), { className: 'slot-skeleton' })));
             help.textContent = 'Consultando la agenda del barbero…';
@@ -566,11 +558,13 @@
                 const url = new URL(form.dataset.bookingSlots, window.location.origin);
                 url.searchParams.set('barber_id', barber.value);
                 url.searchParams.set('date', date.value);
-                const response = await fetch(url, { headers: { Accept: 'application/json' } });
-                if (!response.ok) throw new Error('agenda');
+                // Con tiempo límite: la carga nunca se queda girando para siempre.
+                const response = await window.safeFetch(url, { headers: { Accept: 'application/json' } }, 12000);
                 const result = await response.json();
+                if (!result || !Array.isArray(result.times)) throw Object.assign(new Error('agenda'), { kind: 'server' });
                 if (current !== requestId) return;
-                const selected = slots.dataset.selected;
+                // Conserva la hora elegida (o la del borrador restaurado) al volver a cargar la agenda.
+                const selected = slots.dataset.selected || slots.querySelector('input:checked')?.value || '';
                 if (!result.times.length) {
                     status('bi-calendar-x', 'No hay horas disponibles para este día. Prueba otra fecha u otro barbero.');
                     help.textContent = '';
@@ -593,7 +587,12 @@
                 slots.dataset.selected = '';
             } catch (error) {
                 if (current !== requestId) return;
-                status('bi-wifi-off', 'No pudimos cargar la agenda. Revisa tu conexión e inténtalo de nuevo.', true, true);
+                const messages = {
+                    timeout: 'La agenda está tardando más de lo normal. Inténtalo de nuevo.',
+                    network: 'La conexión se interrumpió. Revisa tu internet e inténtalo de nuevo.',
+                    ratelimit: 'Hiciste muchas consultas seguidas. Espera un momento e inténtalo de nuevo.',
+                };
+                status('bi-wifi-off', messages[error.kind] || 'No pudimos cargar la agenda. Inténtalo de nuevo.', true, true);
                 help.textContent = '';
             } finally {
                 if (current === requestId) slots.removeAttribute('aria-busy');
@@ -607,6 +606,9 @@
         }));
         barber.addEventListener('change', loadTimes);
         date.addEventListener('change', loadTimes);
+        // Para volver a consultar la agenda cuando el servidor dice que la hora ya la tomó otra persona.
+        window.reloadBookingSlots = loadTimes;
+        document.addEventListener('booking:draft-restored', loadTimes);
         loadTimes();
     })();
 </script>

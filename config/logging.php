@@ -65,6 +65,24 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Auditoría de acciones administrativas (quién hizo qué y cuándo). Solo ids, sin datos personales.
+        'audit' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/auditoria.log'),
+            'level' => 'info',
+            'days' => env('LOG_AUDIT_DAYS', 90),
+            'replace_placeholders' => true,
+        ],
+
+        // Errores que reporta el navegador de los visitantes (ver ClientErrorController).
+        'browser' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/navegador.log'),
+            'level' => 'warning',
+            'days' => env('LOG_BROWSER_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
@@ -78,7 +96,8 @@ return [
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
             'username' => env('LOG_SLACK_USERNAME', 'Laravel Log'),
             'emoji' => env('LOG_SLACK_EMOJI', ':boom:'),
-            'level' => env('LOG_LEVEL', 'critical'),
+            // Solo lo crítico (base caída, tarea programada rota) para no generar ruido.
+            'level' => env('LOG_SLACK_LEVEL', 'critical'),
             'replace_placeholders' => true,
         ],
 

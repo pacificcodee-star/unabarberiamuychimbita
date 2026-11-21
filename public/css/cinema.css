@@ -2097,3 +2097,20 @@ body:has(.cookie-banner:not([hidden])) .pwa-prompt { visibility: hidden; }
 .err-links a:hover { color: var(--gold); }
 /* Contraste: el día elegido en reservar es dorado; su etiqueta ("Hoy") va en tinta, no en blanco (2.4:1 → 8:1). */
 .booking-layout .date-chip.is-selected small { color: var(--ink); }
+/* Si un script de animación falló (error-guard.js): todo el contenido visible, en su posición final. */
+html.cx-failed main :is([data-cx-line], [data-cx-in], .reveal, h1, h2, h3, p, figure, img) { visibility: visible !important; opacity: 1 !important; }
+html.cx-failed main :is([data-cx-line], [data-cx-in], .reveal) { transform: none !important; }
+
+/* Mensajes del envío de reservas (booking-submit.js): verificando, sin conexión, errores. */
+.booking-feedback { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 18px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-2); color: var(--text); font-size: .9rem; line-height: 1.5; }
+.booking-feedback[hidden] { display: none; }
+.booking-feedback span { flex: 1 1 220px; }
+.booking-feedback i { font-size: 1.05rem; }
+.booking-feedback--info i { color: var(--gold); }
+.booking-feedback--warn { border-color: var(--gold-line); }
+.booking-feedback--warn i { color: var(--gold); }
+.booking-feedback--error { border-color: rgba(var(--brand-rgb), .6); }
+.booking-feedback--error i { color: var(--brand-red-text); }
+.booking-feedback-action { min-height: 44px; padding: 0 16px; border: 1px solid var(--gold); border-radius: 8px; background: transparent; color: var(--gold); font-weight: 700; font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+.booking-feedback-action:hover { background: var(--gold); color: var(--ink); }
+.booking-feedback-action:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }

@@ -861,33 +861,27 @@ class WhatsappBotService
             return $this->mainMenu($conversation);
         }
 
-        $taken = Appointment::query()
-            ->where('barber_id', $barber->id)
-            ->whereDate('appointment_date', $date)
-            ->whereTime('appointment_time', $time)
-            ->where('status', '!=', 'cancelada')
-            ->exists();
+        $name = trim((string) ($data['client_name'] ?? ''))
+            ?: (trim((string) $conversation->client_name) ?: 'Cliente WhatsApp');
 
-        if ($taken) {
+        // Comprobación y creación atómicas: si alguien tomó el horario mientras el cliente escribía, se le avisa.
+        try {
+            $appointment = Appointment::reserveSlot([
+                'barber_id' => $barber->id,
+                'service_id' => $data['service_id'] ?? null,
+                'client_name' => Str::limit($name, 120, ''),
+                'client_phone' => $conversation->phone,
+                'whatsapp_consent' => true,
+                'appointment_date' => $date,
+                'appointment_time' => $time,
+                'status' => 'confirmada',
+                'notes' => 'Reservada por WhatsApp (bot)',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException) {
             $flow = $this->enter($conversation->phone, $flow, 'slot_taken', $flow['data']);
 
             return $this->slotTakenText();
         }
-
-        $name = trim((string) ($data['client_name'] ?? ''))
-            ?: (trim((string) $conversation->client_name) ?: 'Cliente WhatsApp');
-
-        $appointment = Appointment::create([
-            'barber_id' => $barber->id,
-            'service_id' => $data['service_id'] ?? null,
-            'client_name' => Str::limit($name, 120, ''),
-            'client_phone' => $conversation->phone,
-            'whatsapp_consent' => true,
-            'appointment_date' => $date,
-            'appointment_time' => $time,
-            'status' => 'confirmada',
-            'notes' => 'Reservada por WhatsApp (bot)',
-        ]);
 
         $appointment->load(['service', 'barber']);
         // Faltando 15 minutos o menos queda confirmada sola (sin pedir confirmación con el recordatorio).

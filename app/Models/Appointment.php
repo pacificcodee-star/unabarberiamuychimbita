@@ -6,6 +6,9 @@ use App\Models\Concerns\HasClientNotifications;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class Appointment extends Model
 {
@@ -35,9 +38,55 @@ class Appointment extends Model
         'reminder_sent_at',
     ];
 
+    /** Mensaje cuando el horario ya lo tomó otra persona. */
+    public const SLOT_TAKEN_MESSAGE = 'Ese horario ya está ocupado. Elige otra hora o intenta con otro barbero.';
+
+    /**
+     * Crea (o mueve) una cita solo si el horario del barbero sigue libre, sin carreras:
+     * dentro de una transacción se bloquea la fila del barbero (SELECT … FOR UPDATE), así dos
+     * reservas simultáneas al mismo barbero se atienden una detrás de otra y la segunda ve ocupado.
+     *
+     * @throws ValidationException con el error en 'appointment_time' si el horario está ocupado.
+     */
+    public static function reserveSlot(array $attributes, ?self $existing = null, string $message = self::SLOT_TAKEN_MESSAGE): self
+    {
+        return DB::transaction(function () use ($attributes, $existing, $message) {
+            User::whereKey($attributes['barber_id'])->lockForUpdate()->first();
+
+            $taken = static::query()
+                ->where('barber_id', $attributes['barber_id'])
+                ->whereDate('appointment_date', $attributes['appointment_date'])
+                // Siempre H:i:s: así la comparación es exacta en MySQL y en SQLite ('11:00' = '11:00:00').
+                ->whereTime('appointment_time', \Carbon\Carbon::parse($attributes['appointment_time'])->format('H:i:s'))
+                ->where('status', '!=', 'cancelada')
+                ->when($existing, fn ($query) => $query->whereKeyNot($existing->getKey()))
+                ->exists();
+
+            // Una cita cancelada no ocupa el horario, así que guardarla así nunca choca.
+            if ($taken && ($attributes['status'] ?? null) !== 'cancelada') {
+                Log::notice('reservas.horario_ocupado', [
+                    'barber_id' => $attributes['barber_id'],
+                    'fecha' => (string) $attributes['appointment_date'],
+                    'hora' => (string) $attributes['appointment_time'],
+                ]);
+                throw ValidationException::withMessages(['appointment_time' => $message]);
+            }
+
+            if ($existing) {
+                $existing->update($attributes);
+
+                return $existing;
+            }
+
+            return static::create($attributes);
+        });
+    }
+
     protected function casts(): array
     {
         return [
+            'barber_id' => 'integer',
+            'service_id' => 'integer',
             'appointment_date' => 'date',
             'whatsapp_consent' => 'boolean',
             'reminder_sent_at' => 'datetime',
