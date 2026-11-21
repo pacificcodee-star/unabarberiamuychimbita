@@ -77,16 +77,15 @@ class AttendanceAutomation
 
     private function cancelAppointment(Appointment $appointment): bool
     {
-        if (! in_array($appointment->status, ['pendiente', 'confirmada'], true)
-            || AttendanceConfirmation::confirmed($appointment)
-            || $appointment->appointment_date?->toDateString() < now()->toDateString()) {
-            return false;
-        }
-
-        $updated = Appointment::query()
-            ->whereKey($appointment->id)
-            ->whereIn('status', ['pendiente', 'confirmada'])
-            ->update(['status' => 'cancelada', 'updated_at' => now()]);
+        $updated = DB::transaction(function () use ($appointment) {
+            $current = Appointment::whereKey($appointment->id)->lockForUpdate()->first();
+            if (! $current || ! in_array($current->status, ['pendiente', 'confirmada'], true)
+                || AttendanceConfirmation::confirmed($current)
+                || $current->appointment_date->toDateString() < now()->toDateString()) {
+                return false;
+            }
+            return $current->update(['status' => 'cancelada']);
+        });
 
         if (! $updated) {
             return false;
@@ -168,6 +167,8 @@ class AttendanceAutomation
                 $updated = Appointment::query()
                     ->whereKey($appointment->id)
                     ->where('status', 'confirmada')
+                    ->whereDate('appointment_date', $appointment->appointment_date->toDateString())
+                    ->whereTime('appointment_time', $appointment->startsAt()->format('H:i:s'))
                     ->update(['status' => 'atendida', 'updated_at' => now()]);
 
                 if (! $updated) {

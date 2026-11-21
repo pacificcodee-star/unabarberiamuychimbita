@@ -312,4 +312,17 @@ class ProductionHardeningTest extends TestCase
         }
         $this->getJson(route('public.booking.slots'))->assertStatus(429);
     }
+
+    public function test_rate_limits_are_isolated_from_one_route_to_another(): void
+    {
+        // Cada ruta lleva su nombre como prefijo del throttle: sin él todas comparten un contador
+        // por IP y agotar un endpoint (aquí los errores de JS, límite 20) bloqueaba a los demás,
+        // devolviendo 429 al cliente que solo intentaba enviar su reserva.
+        foreach (range(1, 20) as $i) {
+            $this->call('POST', '/errores-cliente', [], [], [], ['CONTENT_TYPE' => 'application/json'], '{}');
+        }
+
+        $this->post(route('public.booking.appointment'), ['appointment_date' => '2026-12-20'])
+            ->assertStatus(302);
+    }
 }

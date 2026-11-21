@@ -57,7 +57,7 @@
         </div>
     </div>
 
-    <div class="row g-2 mb-3">
+    <div class="row g-2 mb-3" data-booking-region="counts">
         @foreach(\App\Models\Turn::STATUSES as $key => $label)
             <div class="col-6 col-lg-3">
                 <div class="card py-2 px-3">
@@ -132,7 +132,7 @@
                     <th class="text-end">Acciones</th>
                 </tr>
                 </thead>
-                <tbody>
+                <tbody data-booking-region="queue">
                 @forelse($turns as $turn)
                     <tr>
                         <td class="fw-bold fs-5">#{{ $turn->turn_number }}</td>

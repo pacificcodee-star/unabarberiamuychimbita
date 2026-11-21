@@ -13,6 +13,7 @@ use App\Http\Controllers\EvolutionWebhookController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\LandingController;
+use App\Http\Controllers\MyServicesController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\PublicReviewController;
@@ -39,6 +40,10 @@ Route::get('/robots.txt', function () {
     return response()->view('robots')->header('Content-Type', 'text/plain; charset=UTF-8');
 })->name('robots');
 
+// Límite de peticiones por ruta: el throttle inline de Laravel se identifica sólo por IP, sin la
+// ruta, así que todas compartirían un mismo contador. Por eso cada ruta lleva su nombre como
+// tercer parámetro (prefijo): sin él, el sondeo de /reservar/horarios se comería el cupo de
+// /reservar/cita y el cliente recibiría un 429 al enviar su reserva.
 // Salud para monitores externos (UptimeRobot, Better Stack…): base de datos y tarea programada.
 // Responde 503 si algo falla, sin detalles técnicos. /up (Laravel) solo dice que PHP responde.
 Route::get('/salud', function () {
@@ -54,10 +59,10 @@ Route::get('/salud', function () {
     $ok = ! in_array(false, $checks, true);
 
     return response()->json(['ok' => $ok] + $checks, $ok ? 200 : 503)->header('Cache-Control', 'no-store');
-})->middleware('throttle:60,1')->name('health');
+})->middleware('throttle:60,1,health')->name('health');
 
 // Errores de JavaScript de los visitantes (sendBeacon, sin CSRF; ver public/js/error-guard.js).
-Route::post('/errores-cliente', ClientErrorController::class)->middleware('throttle:20,1')->name('client-errors');
+Route::post('/errores-cliente', ClientErrorController::class)->middleware('throttle:20,1,client-errors')->name('client-errors');
 
 // Páginas legales
 Route::view('/aviso-legal', 'public.legal.aviso-legal')->name('legal.notice');
@@ -67,65 +72,73 @@ Route::get('/nosotros', [LandingController::class, 'about'])->name('public.about
 Route::get('/servicios', [LandingController::class, 'services'])->name('public.services');
 Route::get('/barberos', [LandingController::class, 'barbers'])->name('public.barbers');
 Route::get('/resenas', [LandingController::class, 'reviews'])->name('public.reviews');
-Route::post('/resenas', [PublicReviewController::class, 'store'])->middleware('throttle:5,10')->name('public.reviews.store');
+Route::post('/resenas', [PublicReviewController::class, 'store'])->middleware('throttle:5,10,public.reviews.store')->name('public.reviews.store');
 Route::get('/contacto', [LandingController::class, 'contact'])->name('public.contact');
 Route::get('/reservar', [PublicBookingController::class, 'index'])->name('public.booking');
-Route::get('/reservar/horarios', [PublicBookingController::class, 'availableTimes'])->middleware('throttle:60,1')->name('public.booking.slots');
-Route::post('/reservar/cita', [PublicBookingController::class, 'storeAppointment'])->middleware('throttle:10,1')->name('public.booking.appointment');
-Route::post('/reservar/turno', [PublicBookingController::class, 'storeTurn'])->middleware('throttle:10,1')->name('public.booking.turn');
+Route::get('/reservar/horarios', [PublicBookingController::class, 'availableTimes'])->middleware('throttle:60,1,public.booking.slots')->name('public.booking.slots');
+Route::post('/reservar/cita', [PublicBookingController::class, 'storeAppointment'])->middleware('throttle:10,1,public.booking.appointment')->name('public.booking.appointment');
+Route::post('/reservar/turno', [PublicBookingController::class, 'storeTurn'])->middleware('throttle:10,1,public.booking.turn')->name('public.booking.turn');
 // ¿Ya quedó hecha la reserva con esta clave? (cuando se perdió la respuesta por falta de conexión)
-Route::get('/reservar/estado/{key}', [PublicBookingController::class, 'bookingStatus'])->middleware('throttle:30,1')->name('public.booking.status');
+Route::get('/reservar/estado/{key}', [PublicBookingController::class, 'bookingStatus'])->middleware('throttle:30,1,public.booking.status')->name('public.booking.status');
 // Token CSRF nuevo para seguir un formulario cuya sesión se venció (error 419) sin perder lo escrito.
 Route::get('/sesion/token', fn () => response()->json(['token' => csrf_token()])->header('Cache-Control', 'no-store'))
-    ->middleware('throttle:30,1')->name('session.token');
+    ->middleware('throttle:30,1,session.token')->name('session.token');
+
+Route::prefix('mis-servicios')->name('my-services.')->controller(MyServicesController::class)->group(function () {
+    Route::get('/', 'index')->middleware('throttle:90,1,my-services.index')->name('index');
+    Route::get('/acceso/{type}/{token}', 'access')->whereIn('type', ['cita', 'turno'])
+        ->middleware(['signed', 'throttle:20,1,my-services.access'])->name('access');
+    Route::post('/{type}/{id}/{action}', 'update')->whereNumber('id')->whereIn('type', ['cita', 'turno'])
+        ->whereIn('action', ['confirmar', 'reprogramar', 'cancelar'])->middleware('throttle:15,1,my-services.update')->name('update');
+});
 
 // Seguimiento del cliente sin cuenta: se entra con el enlace secreto del turno o cita.
 Route::prefix('seguimiento/{type}/{token}')
     ->where(['type' => 'turno|cita', 'token' => '[A-Za-z0-9]{40}'])
     ->group(function () {
-        Route::get('/', [TrackController::class, 'show'])->middleware('throttle:60,1')->name('track.show');
-        Route::get('/estado', [TrackController::class, 'status'])->middleware('throttle:60,1')->name('track.status');
-        Route::get('/app.webmanifest', [TrackController::class, 'manifest'])->middleware('throttle:30,1')->name('track.manifest');
-        Route::post('/cancelar', [TrackController::class, 'cancel'])->middleware('throttle:10,1')->name('track.cancel');
-        Route::post('/push', [TrackController::class, 'subscribe'])->middleware('throttle:20,1')->name('track.push.store');
-        Route::delete('/push', [TrackController::class, 'unsubscribe'])->middleware('throttle:20,1')->name('track.push.destroy');
+        Route::get('/', [TrackController::class, 'show'])->middleware('throttle:60,1,track.show')->name('track.show');
+        Route::get('/estado', [TrackController::class, 'status'])->middleware('throttle:60,1,track.status')->name('track.status');
+        Route::get('/app.webmanifest', [TrackController::class, 'manifest'])->middleware('throttle:30,1,track.manifest')->name('track.manifest');
+        Route::post('/cancelar', [TrackController::class, 'cancel'])->middleware('throttle:10,1,track.cancel')->name('track.cancel');
+        Route::post('/push', [TrackController::class, 'subscribe'])->middleware('throttle:20,1,track.push.store')->name('track.push.store');
+        Route::delete('/push', [TrackController::class, 'unsubscribe'])->middleware('throttle:20,1,track.push.destroy')->name('track.push.destroy');
     });
 // Encuesta de satisfacción: mismo enlace secreto del seguimiento (sin cuenta, sin ids adivinables).
 Route::prefix('encuesta/{type}/{token}')
     ->where(['type' => 'turno|cita', 'token' => '[A-Za-z0-9]{40}'])
     ->group(function () {
-        Route::get('/', [SurveyController::class, 'show'])->middleware('throttle:60,1')->name('survey.show');
-        Route::get('/estado', [SurveyController::class, 'state'])->middleware('throttle:60,1')->name('survey.state');
-        Route::post('/respuesta', [SurveyController::class, 'answer'])->middleware('throttle:40,1')->name('survey.answer');
+        Route::get('/', [SurveyController::class, 'show'])->middleware('throttle:60,1,survey.show')->name('survey.show');
+        Route::get('/estado', [SurveyController::class, 'state'])->middleware('throttle:60,1,survey.state')->name('survey.state');
+        Route::post('/respuesta', [SurveyController::class, 'answer'])->middleware('throttle:40,1,survey.answer')->name('survey.answer');
     });
 
 // Renovación automática de la suscripción desde el Service Worker (sin página abierta, por eso va sin CSRF).
-Route::post('/push/renovar', [TrackController::class, 'renew'])->middleware('throttle:20,1')->name('push.renew');
+Route::post('/push/renovar', [TrackController::class, 'renew'])->middleware('throttle:20,1,push.renew')->name('push.renew');
 
 // Webhook de Evolution API: entra todo lo que escriben los clientes (sin sesión y sin CSRF,
 // protegido con la apikey que Evolution envía en cada evento).
 Route::post('/webhook/evolution', EvolutionWebhookController::class)
-    ->middleware('throttle:120,1')
+    ->middleware('throttle:120,1,webhook.evolution')
     ->name('webhook.evolution');
 
 Route::middleware('panel-desktop')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1')->name('login.store');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1,login.store')->name('login.store');
 
     // Recuperación de contraseña: enlace de un solo uso que vence en 60 minutos.
     Route::middleware('guest')->group(function () {
         Route::get('/recuperar-contrasena', [PasswordResetController::class, 'request'])->name('password.request');
-        Route::post('/recuperar-contrasena', [PasswordResetController::class, 'email'])->middleware('throttle:3,10')->name('password.email');
+        Route::post('/recuperar-contrasena', [PasswordResetController::class, 'email'])->middleware('throttle:3,10,password.email')->name('password.email');
         Route::get('/restablecer-contrasena/{token}', [PasswordResetController::class, 'edit'])->name('password.reset');
-        Route::post('/restablecer-contrasena', [PasswordResetController::class, 'update'])->middleware('throttle:5,10')->name('password.update');
+        Route::post('/restablecer-contrasena', [PasswordResetController::class, 'update'])->middleware('throttle:5,10,password.update')->name('password.update');
     });
 });
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
 Route::middleware(['panel-desktop', 'auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::post('/staff/push', [StaffPushController::class, 'store'])->middleware('throttle:20,1')->name('staff.push.store');
-    Route::delete('/staff/push', [StaffPushController::class, 'destroy'])->middleware('throttle:20,1')->name('staff.push.destroy');
+    Route::post('/staff/push', [StaffPushController::class, 'store'])->middleware('throttle:20,1,staff.push.store')->name('staff.push.store');
+    Route::delete('/staff/push', [StaffPushController::class, 'destroy'])->middleware('throttle:20,1,staff.push.destroy')->name('staff.push.destroy');
 
     Route::get('/sales/{sale}/receipt', [SaleController::class, 'receipt'])->name('sales.receipt');
     Route::post('/sales/{sale}/items/{item}/return', [SaleController::class, 'returnItem'])->name('sales.items.return');

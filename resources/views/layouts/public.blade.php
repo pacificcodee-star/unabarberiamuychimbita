@@ -49,6 +49,9 @@
             ['route' => 'public.barbers', 'label' => 'Barberos', 'icon' => 'bi-person-badge'],
             ['route' => 'public.contact', 'label' => 'Contacto', 'icon' => 'bi-geo-alt'],
         ];
+        if (\App\Support\ClientServiceAccess::hasServices(request())) {
+            $navItems[] = ['route' => 'my-services.index', 'label' => 'Mis servicios', 'icon' => 'bi-calendar2-check'];
+        }
     @endphp
     <title>{{ $pageTitle }}</title>
     <meta name="description" content="{{ $metaDescription }}">

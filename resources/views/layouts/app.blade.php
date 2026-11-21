@@ -442,7 +442,12 @@
     const list = root.querySelector('[data-staff-bell-list]');
     const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text) node.textContent = text; return node; };
 
+    let revision = null;
+    const live = document.querySelector('[data-booking-region]');
     const paint = (data) => {
+        const latest = data.items[0]?.id || 0;
+        if (live && latest !== revision) window.dispatchEvent(new Event('booking:changed'));
+        revision = latest;
         badge.hidden = !data.unread;
         badge.textContent = data.unread > 9 ? '9+' : String(data.unread);
         list.replaceChildren();
@@ -481,7 +486,7 @@
     root.addEventListener('hidden.bs.dropdown', load);
 
     load();
-    setInterval(load, 30000);
+    setInterval(load, live ? 5000 : 30000);
     document.addEventListener('visibilitychange', load);
 })();
 </script>
@@ -571,6 +576,9 @@
     })();
 })();
 </script>
+@if(request()->routeIs('dashboard', 'turns.index', 'appointments.index'))
+    <script src="{{ asset('js/booking-panels.js') }}?v={{ filemtime(public_path('js/booking-panels.js')) }}"></script>
+@endif
 @stack('scripts')
 </body>
 </html>

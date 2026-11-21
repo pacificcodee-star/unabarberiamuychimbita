@@ -74,7 +74,7 @@
         </div>
     </div>
 
-    <div class="row g-2 mb-3">
+    <div class="row g-2 mb-3" data-booking-region="counts">
         @foreach(\App\Models\Appointment::STATUSES as $key => $label)
             <div class="col-6 col-lg-3">
                 <div class="card py-2 px-3 h-100">
@@ -117,7 +117,7 @@
                     </div>
                     @foreach($days as $day)
                         @php $dayKey = $day->toDateString(); $dayItems = $grouped->get($dayKey, collect()); @endphp
-                        <div class="gc-day-col {{ $day->isToday() ? 'is-today' : '' }}" data-date="{{ $dayKey }}">
+                        <div data-booking-region="day-{{ $dayKey }}" class="gc-day-col {{ $day->isToday() ? 'is-today' : '' }}" data-date="{{ $dayKey }}">
                             <div class="gc-slots">
                                 @for($h = $hourStart; $h < $hourEnd; $h++)
                                     <div class="gc-slot" style="height: {{ $slotHeight }}px;"></div>
@@ -280,8 +280,9 @@
             const deleteForm = modalEl.querySelector('[data-appt-delete-form]');
             const editBtn = modalEl.querySelector('[data-appt-edit]');
 
-            document.querySelectorAll('[data-appt-trigger]').forEach((el) => {
-                el.addEventListener('click', (e) => {
+            document.addEventListener('click', (e) => {
+                    const el = e.target.closest('[data-appt-trigger]');
+                    if (!el) return;
                     e.preventDefault();
                     const d = el.dataset;
                     modalEl.querySelector('[data-appt-field="client"]').textContent = d.client || '—';
@@ -306,7 +307,6 @@
                         }
                     }
                     modal.show();
-                });
             });
         }
 

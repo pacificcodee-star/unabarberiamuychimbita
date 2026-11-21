@@ -5,7 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\ClientNotification;
 use App\Models\PushSubscription;
-use App\Models\StaffNotification;
+use App\Support\ClientServiceAccess;
+use App\Services\ClientBookingActions;
 use App\Models\Turn;
 use App\Services\ClientNotifier;
 use App\Services\TurnQueueService;
@@ -36,6 +37,8 @@ class TrackController extends Controller
     public function show(string $type, string $token, TurnQueueService $queue)
     {
         $subject = $this->find($type, $token);
+
+        ClientServiceAccess::remember(request(), $subject);
 
         return response()
             ->view('public.track', [
@@ -75,62 +78,15 @@ class TrackController extends Controller
             ->header('Cache-Control', 'no-store, private');
     }
 
-    public function cancel(string $type, string $token, TurnQueueService $queue, ClientNotifier $notifier)
+    public function cancel(string $type, string $token, ClientBookingActions $actions)
     {
         $subject = $this->find($type, $token);
-        $back = redirect()->route('track.show', ['type' => $type, 'token' => $token]);
-
-        if ($subject instanceof Turn) {
-            // Actualización condicionada: solo cancela si todavía no ha comenzado el servicio.
-            $cancelled = Turn::whereKey($subject->id)
-                ->whereIn('status', ['esperando', 'llamado'])
-                ->update(['status' => 'cancelado', 'finished_at' => now(), 'updated_at' => now()]);
-
-            if (! $cancelled) {
-                $message = $subject->fresh()->status === 'atendiendo'
-                    ? 'Tu servicio ya comenzó, así que no se puede cancelar desde aquí. Habla directamente con tu barbero.'
-                    : ($subject->fresh()->status === 'cancelado' ? 'Tu turno ya estaba cancelado.' : 'Este turno ya no se puede cancelar.');
-
-                return $back->with('track_error', $message);
-            }
-
-            $notifier->turnCancelled($subject);
-            StaffNotification::record(
-                'client_cancelled',
-                'Turno #'.$subject->turn_number.' cancelado por el cliente',
-                $subject->client_name.' canceló su turno. La fila se reorganizó sola.',
-                route('turns.index', [], false),
-                $subject->barber_id,
-            );
-            $queue->advance($subject->barber_id); // los demás clientes se adelantan y se recalculan sus horas
-
-            return $back->with('track_success', 'Tu turno fue cancelado. No recibirás más avisos.');
+        $back = redirect()->route('track.show', compact('type', 'token'));
+        try {
+            return $back->with('track_success', $actions->apply($subject, 'cancelar'));
+        } catch (ValidationException $e) {
+            return $back->with('track_error', collect($e->errors())->flatten()->first());
         }
-
-        $before = ['status' => $subject->status, 'starts_at' => $subject->startsAt()];
-        $cancelled = $subject->startsAt()->isFuture()
-            ? Appointment::whereKey($subject->id)
-                ->whereIn('status', ['pendiente', 'confirmada'])
-                ->update(['status' => 'cancelada', 'updated_at' => now()])
-            : 0;
-
-        if (! $cancelled) {
-            return $back->with('track_error', $subject->fresh()->status === 'cancelada'
-                ? 'Tu cita ya estaba cancelada.'
-                : 'Esta cita ya no se puede cancelar desde aquí. Si necesitas ayuda, escríbenos.');
-        }
-
-        $notifier->appointmentChanged($subject->fresh(), $before);
-        $notifier->flush();
-        StaffNotification::record(
-            'client_cancelled',
-            'Cita cancelada por el cliente',
-            $subject->client_name.' canceló su cita del '.$before['starts_at']->format('d/m').' a las '.$this->time($before['starts_at']).' El horario quedó libre.',
-            route('appointments.index', ['date' => $before['starts_at']->toDateString()], false),
-            $subject->barber_id,
-        );
-
-        return $back->with('track_success', 'Tu cita fue cancelada. No recibirás más recordatorios.');
     }
 
     /** Guarda la suscripción push de un dispositivo y la asocia a este turno o cita. */
@@ -262,13 +218,11 @@ class TrackController extends Controller
                 'detail' => $detail,
                 'ahead' => $estimate['ahead'] ?? null,
                 'call_at' => isset($estimate['call_at']) ? $this->time($estimate['call_at']) : null,
-                'can_cancel' => in_array($subject->status, ['esperando', 'llamado'], true),
+                'can_cancel' => in_array('cancelar', ClientBookingActions::actions($subject), true),
                 'open' => $this->isOpen($subject),
                 'notifications' => $this->inbox($subject),
             ];
         }
-
-        $active = in_array($subject->status, ['pendiente', 'confirmada'], true);
 
         return [
             'status' => $subject->status,
@@ -281,7 +235,7 @@ class TrackController extends Controller
             },
             'ahead' => null,
             'call_at' => null,
-            'can_cancel' => $active && $subject->startsAt()->isFuture(),
+            'can_cancel' => in_array('cancelar', ClientBookingActions::actions($subject), true),
             'open' => $this->isOpen($subject),
             'notifications' => $this->inbox($subject),
         ];

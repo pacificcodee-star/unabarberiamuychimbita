@@ -761,7 +761,7 @@ class WhatsappBotService
         }
 
         $barber = User::find($flow['data']['barber_id'] ?? 0);
-        $slots = $barber ? $this->slotsFor($barber, $date) : [];
+        $slots = $barber ? Appointment::availableTimes($barber, $date) : [];
 
         if ($slots === []) {
             return '⚠️ Ese día ya no tiene horarios disponibles.'."\n\n"
@@ -1109,7 +1109,7 @@ class WhatsappBotService
             $next = null;
             for ($offset = 0; $offset < 8 && $next === null; $offset++) {
                 $day = now()->addDays($offset);
-                $slots = $this->slotsFor($barber, $day->toDateString());
+                $slots = Appointment::availableTimes($barber, $day->toDateString());
 
                 if ($slots !== []) {
                     $next = $this->dateOptionLabel($day->toDateString()).' a las '.$this->slotLabel($slots[0]);
@@ -1377,7 +1377,7 @@ class WhatsappBotService
 
         if ($n === 4) {
             $date = $appointment->appointment_date?->toDateString();
-            $slots = $appointment->barber ? $this->slotsFor($appointment->barber, (string) $date, $appointment->id) : [];
+            $slots = $appointment->barber ? Appointment::availableTimes($appointment->barber, (string) $date, $appointment->id) : [];
             $flow['data']['date'] = $date;
             $flow['data']['slots'] = $slots;
 
@@ -1476,7 +1476,14 @@ class WhatsappBotService
         }
 
         $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
-        $appointment->update(['barber_id' => $barber->id]);
+        try {
+            Appointment::reserveSlot([
+                'barber_id' => $barber->id, 'appointment_date' => $appointment->appointment_date->toDateString(),
+                'appointment_time' => $appointment->startsAt()->format('H:i'),
+            ], $appointment);
+        } catch (\Illuminate\Validation\ValidationException) {
+            return '⚠️ Ese barbero ya tiene una cita en ese horario.'."\n\n".$this->modBarberText($flow['data']);
+        }
         $appointment->load(['barber', 'service']);
 
         $this->notifier->appointmentChanged($appointment, $before);
@@ -1524,7 +1531,7 @@ class WhatsappBotService
             return $this->invalidOption($conversation, $flow);
         }
 
-        $slots = $appointment->barber ? $this->slotsFor($appointment->barber, $date, $appointment->id) : [];
+        $slots = $appointment->barber ? Appointment::availableTimes($appointment->barber, $date, $appointment->id) : [];
 
         if ($slots === []) {
             return '⚠️ Ese día ya no tiene horarios disponibles. Elige otra fecha:'."\n\n".$this->modDateText($flow['data']);
@@ -1565,33 +1572,13 @@ class WhatsappBotService
 
         $date = (string) ($flow['data']['date'] ?? $appointment->appointment_date?->toDateString());
 
-        $taken = Appointment::query()
-            ->where('id', '!=', $appointment->id)
-            ->where('barber_id', $appointment->barber_id)
-            ->whereDate('appointment_date', $date)
-            ->whereTime('appointment_time', $time)
-            ->where('status', '!=', 'cancelada')
-            ->exists();
-
-        if ($taken) {
-            return '⚠️ Ese horario acaba de ocuparse. Elige otro:'."\n\n".$this->modTimeText($flow['data']);
+        try {
+            app(\App\Services\ClientBookingActions::class)->apply($appointment, 'reprogramar', [
+                'appointment_date' => $date, 'appointment_time' => $time,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return '⚠️ '.collect($e->errors())->flatten()->first()."\n\n".$this->modTimeText($flow['data']);
         }
-
-        $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
-        $appointment->update(['appointment_date' => $date, 'appointment_time' => $time]);
-        $appointment->load(['barber', 'service']);
-
-        $this->notifier->cancelPending($appointment, ClientNotifier::REMINDER_TYPES);
-        $this->notifier->scheduleAppointmentReminders($appointment);
-        $this->notifier->flush();
-
-        StaffNotification::record(
-            'appt_rescheduled',
-            'Cliente reprogramó su cita (WhatsApp)',
-            ($appointment->client_name ?: $appointment->client_phone).' · Nueva fecha: '.$this->appointmentWhen($appointment),
-            route('appointments.index', ['date' => $date], false),
-            $appointment->barber_id,
-        );
 
         $this->saveFlow($conversation->phone, [
             'step' => 'modify',
@@ -2256,7 +2243,7 @@ class WhatsappBotService
         }
 
         if ($n === 1) {
-            $slots = $this->slotsFor($barber, (string) ($data['date'] ?? ''));
+            $slots = Appointment::availableTimes($barber, (string) ($data['date'] ?? ''));
 
             if ($slots === []) {
                 $dates = $this->bookingDates($barber);
@@ -2426,7 +2413,7 @@ class WhatsappBotService
         for ($offset = 0; $offset < 14; $offset++) {
             $date = now()->addDays($offset)->toDateString();
 
-            if ($this->slotsFor($barber, $date, $ignoreAppointmentId) !== []) {
+            if (Appointment::availableTimes($barber, $date, $ignoreAppointmentId) !== []) {
                 $dates[] = $date;
             }
         }
@@ -2549,51 +2536,6 @@ class WhatsappBotService
     }
 
     /** Horarios libres (cada 30 min) de un barbero en un día, igual que la página de reservas. */
-    private function slotsFor(User $barber, string $date, ?int $ignoreAppointmentId = null): array
-    {
-        if ($date === '') {
-            return [];
-        }
-
-        $settings = SiteSetting::currentData();
-        $day = Carbon::parse($date);
-
-        if (SiteSetting::isClosedOn($day, $settings) || $barber->isUnavailableOnDate($date)) {
-            return [];
-        }
-
-        $start = Carbon::createFromFormat('H:i', $settings['booking_start'] ?? '08:00');
-        $end = Carbon::createFromFormat('H:i', $settings['booking_end'] ?? '20:00');
-
-        $reserved = Appointment::query()
-            ->where('barber_id', $barber->id)
-            ->whereDate('appointment_date', $date)
-            ->where('status', '!=', 'cancelada')
-            ->when($ignoreAppointmentId, fn ($query) => $query->where('id', '!=', $ignoreAppointmentId))
-            ->pluck('appointment_time')
-            ->map(fn ($time) => substr((string) $time, 0, 5))
-            ->all();
-
-        $slots = [];
-        for ($slot = $start->copy(); $slot->lte($end); $slot->addMinutes(30)) {
-            $formatted = $slot->format('H:i');
-
-            if ($day->isToday() && $slot->lte(now())) {
-                continue;
-            }
-            if (in_array($formatted, $reserved, true)) {
-                continue;
-            }
-            if ($barber->isUnavailableAt($date, $formatted)) {
-                continue;
-            }
-
-            $slots[] = $formatted;
-        }
-
-        return $slots;
-    }
-
     private function businessOpenNow(): bool
     {
         $settings = SiteSetting::currentData();

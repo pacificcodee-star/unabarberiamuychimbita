@@ -99,6 +99,51 @@ class Appointment extends Model
         });
     }
 
+    public static function availableTimes(User $barber, string $date, ?int $ignoreAppointmentId = null): array
+    {
+        if ($date === '' || Carbon::parse($date)->startOfDay()->lt(today()) || ! $barber->active || $barber->attention_mode !== 'citas') {
+            return [];
+        }
+
+        $settings = SiteSetting::currentData();
+        $day = Carbon::parse($date);
+
+        if (SiteSetting::isClosedOn($day, $settings) || $barber->isUnavailableOnDate($date)) {
+            return [];
+        }
+
+        $start = Carbon::createFromFormat('H:i', $settings['booking_start'] ?? '08:00');
+        $end = Carbon::createFromFormat('H:i', $settings['booking_end'] ?? '20:00');
+
+        $reserved = Appointment::query()
+            ->where('barber_id', $barber->id)
+            ->whereDate('appointment_date', $date)
+            ->where('status', '!=', 'cancelada')
+            ->when($ignoreAppointmentId, fn ($query) => $query->where('id', '!=', $ignoreAppointmentId))
+            ->pluck('appointment_time')
+            ->map(fn ($time) => substr((string) $time, 0, 5))
+            ->all();
+
+        $slots = [];
+        for ($slot = $start->copy(); $slot->lte($end); $slot->addMinutes(30)) {
+            $formatted = $slot->format('H:i');
+
+            if ($day->isToday() && $slot->lte(now())) {
+                continue;
+            }
+            if (in_array($formatted, $reserved, true)) {
+                continue;
+            }
+            if ($barber->isUnavailableAt($date, $formatted)) {
+                continue;
+            }
+
+            $slots[] = $formatted;
+        }
+
+        return $slots;
+    }
+
     protected function casts(): array
     {
         return [

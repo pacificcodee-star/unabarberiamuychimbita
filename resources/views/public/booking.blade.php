@@ -11,7 +11,8 @@
         $turnoBarber = old('_form') === 'turno' ? old('barber_id', $selectedBarberId) : $selectedBarberId;
         $citaService = old('_form') === 'cita' ? old('service_id') : $requestedService;
         $turnoService = old('_form') === 'turno' ? old('service_id') : $requestedService;
-        $success = session('booking_success');
+        // Se retira (pull): la confirmación vive en la sesión normal y solo debe verse una vez.
+        $success = session()->pull('booking_success');
         $fieldError = fn (string $form, string $field) => old('_form') === $form ? ($errors->first($field) ?: null) : null;
         $closedOn = fn ($day) => \App\Models\SiteSetting::isClosedOn($day, $siteSettings);
         $selectedDate = old('_form') === 'cita' ? old('appointment_date', now()->toDateString()) : now()->toDateString();
@@ -86,6 +87,9 @@
                     <div class="d-flex flex-wrap gap-2">
                         @if(!empty($success['track_url']))
                             <a href="{{ $success['track_url'] }}" class="btn btn-gold"><i class="bi bi-eye" aria-hidden="true"></i> {{ $success['type'] === 'cita' ? 'Ver mi cita' : 'Ver mi turno en vivo' }}</a>
+                        @endif
+                        @if(!empty($success['access_url']))
+                            <a href="{{ $success['access_url'] }}" class="btn btn-outline-gold">Mis servicios</a>
                         @endif
                         <a href="{{ route('public.booking') }}" class="btn btn-ghost-light">Hacer otra reserva</a>
                         @if(!empty($siteSettings['whatsapp']))
@@ -538,22 +542,25 @@
         });
 
         let requestId = 0;
-        async function loadTimes() {
+        async function loadTimes(quiet = false) {
+            quiet = quiet === true;
             syncChips();
             help.classList.remove('text-danger');
+            const current = ++requestId;
             if (!barber.value || !date.value) {
                 status('bi-info-circle', 'Selecciona un barbero y una fecha para ver las horas disponibles.');
                 help.textContent = 'Los horarios ocupados no aparecen.';
                 updateSummary();
                 return;
             }
-            const current = ++requestId;
             // Antes de pintar el esqueleto se recuerda la hora marcada, para volver a marcarla después.
             const keep = slots.querySelector('input:checked')?.value;
-            if (keep && !slots.dataset.selected) slots.dataset.selected = keep;
+            if (!quiet && keep && !slots.dataset.selected) slots.dataset.selected = keep;
+            if (!quiet) {
             slots.setAttribute('aria-busy', 'true');
             slots.replaceChildren(...Array.from({ length: 8 }, () => Object.assign(document.createElement('div'), { className: 'slot-skeleton' })));
             help.textContent = 'Consultando la agenda del barbero…';
+            }
             try {
                 const url = new URL(form.dataset.bookingSlots, window.location.origin);
                 url.searchParams.set('barber_id', barber.value);
@@ -563,6 +570,8 @@
                 const result = await response.json();
                 if (!result || !Array.isArray(result.times)) throw Object.assign(new Error('agenda'), { kind: 'server' });
                 if (current !== requestId) return;
+                const displayed = Array.from(slots.querySelectorAll('input')).map(input => input.value);
+                if (quiet && JSON.stringify(displayed) === JSON.stringify(result.times) && displayed.length) return;
                 // Conserva la hora elegida (o la del borrador restaurado) al volver a cargar la agenda.
                 const selected = slots.dataset.selected || slots.querySelector('input:checked')?.value || '';
                 if (!result.times.length) {
@@ -587,6 +596,7 @@
                 slots.dataset.selected = '';
             } catch (error) {
                 if (current !== requestId) return;
+                if (quiet) return;
                 const messages = {
                     timeout: 'La agenda está tardando más de lo normal. Inténtalo de nuevo.',
                     network: 'La conexión se interrumpió. Revisa tu internet e inténtalo de nuevo.',
@@ -607,6 +617,12 @@
         barber.addEventListener('change', loadTimes);
         date.addEventListener('change', loadTimes);
         // Para volver a consultar la agenda cuando el servidor dice que la hora ya la tomó otra persona.
+        const syncSlots = () => {
+            if (!document.hidden && barber.value && date.value && !slots.hasAttribute('aria-busy')) loadTimes(true);
+        };
+        setInterval(syncSlots, 5000);
+        document.addEventListener('visibilitychange', syncSlots);
+        window.addEventListener('storage', event => { if (event.key === 'ubmc-service-change') syncSlots(); });
         window.reloadBookingSlots = loadTimes;
         document.addEventListener('booking:draft-restored', loadTimes);
         loadTimes();

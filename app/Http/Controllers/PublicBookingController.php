@@ -12,6 +12,7 @@ use App\Services\ClientNotifier;
 use App\Services\TurnService;
 use App\Services\WhatsApp\BookingMessenger;
 use App\Services\WhatsAppService;
+use App\Support\ClientServiceAccess;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -31,38 +32,8 @@ class PublicBookingController extends Controller
         $barber = User::barbers()->where('active', true)->where('attention_mode', 'citas')->find($data['barber_id']);
         abort_if(! $barber, 404);
 
-        $date = Carbon::parse($data['date']);
-        $settings = SiteSetting::currentData();
-        if (SiteSetting::isClosedOn($date, $settings) || $barber->isUnavailableOnDate($date->toDateString())) {
-            return response()->json(['times' => []]);
-        }
-
-        $start = Carbon::createFromFormat('H:i', $settings['booking_start']);
-        $end = Carbon::createFromFormat('H:i', $settings['booking_end']);
-        $reserved = Appointment::query()
-            ->where('barber_id', $barber->id)
-            ->whereDate('appointment_date', $date->toDateString())
-            ->where('status', '!=', 'cancelada')
-            ->pluck('appointment_time')
-            ->map(fn ($time) => substr((string) $time, 0, 5))
-            ->all();
-
-        $times = [];
-        for ($slot = $start->copy(); $slot->lte($end); $slot->addMinutes(30)) {
-            if ($date->isToday() && $slot->lte(Carbon::now())) {
-                continue;
-            }
-            $formatted = $slot->format('H:i');
-            if (in_array($formatted, $reserved, true)) {
-                continue;
-            }
-            if ($barber->isUnavailableAt($date->toDateString(), $formatted)) {
-                continue;
-            }
-            $times[] = $formatted;
-        }
-
-        return response()->json(['times' => $times]);
+        return response()->json(['times' => Appointment::availableTimes($barber, Carbon::parse($data['date'])->toDateString())])
+            ->header('Cache-Control', 'no-store');
     }
 
     public function index(Request $request)
@@ -154,40 +125,9 @@ class PublicBookingController extends Controller
             ]);
         }
 
-        if ($data['appointment_time'] < $settings['booking_start'] || $data['appointment_time'] > $settings['booking_end']) {
-            throw ValidationException::withMessages([
-                'appointment_time' => 'La hora seleccionada está fuera del horario de atención.',
-            ]);
-        }
-
         $appointmentDate = Carbon::parse($data['appointment_date'])->toDateString();
-
-        if (SiteSetting::isClosedOn(Carbon::parse($data['appointment_date']), $settings) || $barber->isUnavailableOnDate($appointmentDate)) {
-            throw ValidationException::withMessages([
-                'appointment_date' => 'Ese día el barbero no está disponible. Elige otro día.',
-            ]);
-        }
-
-        $slotStart = Carbon::createFromFormat('H:i', $settings['booking_start']);
-        $slotEnd = Carbon::createFromFormat('H:i', $settings['booking_end']);
-        $slotIsValid = false;
-        while ($slotStart->lte($slotEnd)) {
-            if ($slotStart->format('H:i') === $data['appointment_time']) {
-                $slotIsValid = true;
-                break;
-            }
-            $slotStart->addMinutes(30);
-        }
-        if (! $slotIsValid) {
-            throw ValidationException::withMessages([
-                'appointment_time' => 'Elige uno de los horarios disponibles.',
-            ]);
-        }
-
-        if ($barber->isUnavailableAt($appointmentDate, $data['appointment_time'])) {
-            throw ValidationException::withMessages([
-                'appointment_time' => 'El barbero no está disponible en ese horario. Elige otra hora.',
-            ]);
+        if (! in_array($data['appointment_time'], Appointment::availableTimes($barber, $appointmentDate), true)) {
+            throw ValidationException::withMessages(['appointment_time' => 'Ese horario no está disponible. Elige otra hora.']);
         }
 
         // Se vuelve a comprobar el horario en el servidor, con bloqueo, al momento de guardar.
@@ -206,6 +146,7 @@ class PublicBookingController extends Controller
         ]);
 
         $appointment->load(['service', 'barber']);
+        ClientServiceAccess::remember($request, $appointment);
         $this->recordConsents($appointment, (bool) ($data['whatsapp_consent'] ?? false));
         $this->sendPaymentInfoIfVirtual($whatsApp, $settings, $data['client_phone'], $data['client_name'], $data['payment_method'], 'cita');
 
@@ -225,23 +166,24 @@ class PublicBookingController extends Controller
             $barber->id,
         );
 
-        return redirect()
-            ->route('public.booking', ['tipo' => 'cita'])
-            ->with('booking_success', [
-                'type' => 'cita',
-                'title' => '¡Tu cita quedó registrada!',
-                'client' => $appointment->client_name,
-                'barber' => $barber->name,
-                'service' => $appointment->service?->name,
-                'date' => Carbon::parse($appointment->appointment_date)->locale('es')->translatedFormat('l, d \d\e F'),
-                'time' => $this->timeLabel($appointment->appointment_time),
-                'status' => 'Pendiente de confirmación',
-                'payment' => $this->enabledPaymentMethods($settings)[$data['payment_method']] ?? $data['payment_method'],
-                'code' => 'CITA-'.$appointment->id,
-                'track_url' => route('track.show', ['type' => 'cita', 'token' => $appointment->public_token]),
-                'track_type' => 'cita',
-                'track_token' => $appointment->public_token,
-            ]);
+        $this->rememberSuccess($request, [
+            'type' => 'cita',
+            'title' => '¡Tu cita quedó registrada!',
+            'client' => $appointment->client_name,
+            'barber' => $barber->name,
+            'service' => $appointment->service?->name,
+            'date' => Carbon::parse($appointment->appointment_date)->locale('es')->translatedFormat('l, d \d\e F'),
+            'time' => $this->timeLabel($appointment->appointment_time),
+            'status' => 'Pendiente de confirmación',
+            'payment' => $this->enabledPaymentMethods($settings)[$data['payment_method']] ?? $data['payment_method'],
+            'code' => 'CITA-'.$appointment->id,
+            'track_url' => route('track.show', ['type' => 'cita', 'token' => $appointment->public_token]),
+            'track_type' => 'cita',
+            'track_token' => $appointment->public_token,
+            'access_url' => ClientServiceAccess::recoveryUrl($appointment),
+        ]);
+
+        return redirect()->route('public.booking', ['tipo' => 'cita']);
     }
 
     private function createTurn(Request $request, TurnService $turnService, WhatsAppService $whatsApp)
@@ -294,6 +236,7 @@ class PublicBookingController extends Controller
         }
 
         $turn = $turnService->createFor($barber, $data);
+        ClientServiceAccess::remember($request, $turn);
         $this->recordConsents($turn, (bool) ($data['whatsapp_consent'] ?? false));
         $turn->load('service');
         $this->sendPaymentInfoIfVirtual($whatsApp, $settings, $data['client_phone'], $data['client_name'], $data['payment_method'], 'turno');
@@ -306,22 +249,38 @@ class PublicBookingController extends Controller
             $barber->id,
         );
 
-        return redirect()
-            ->route('public.booking', ['tipo' => 'turno'])
-            ->with('booking_success', [
-                'type' => 'turno',
-                'title' => '¡Tu turno quedó registrado!',
-                'client' => $turn->client_name,
-                'barber' => $barber->name,
-                'service' => $turn->service?->name,
-                'turn_number' => $turn->turn_number,
-                'status' => $turn->status === 'llamado' ? '¡Es tu turno! Puedes pasar' : 'Esperando ser llamado',
-                'payment' => $this->enabledPaymentMethods($settings)[$data['payment_method']] ?? $data['payment_method'],
-                'code' => 'TURNO-'.$turn->id,
-                'track_url' => route('track.show', ['type' => 'turno', 'token' => $turn->public_token]),
-                'track_type' => 'turno',
-                'track_token' => $turn->public_token,
-            ]);
+        $this->rememberSuccess($request, [
+            'type' => 'turno',
+            'title' => '¡Tu turno quedó registrado!',
+            'client' => $turn->client_name,
+            'barber' => $barber->name,
+            'service' => $turn->service?->name,
+            'turn_number' => $turn->turn_number,
+            'status' => $turn->status === 'llamado' ? '¡Es tu turno! Puedes pasar' : 'Esperando ser llamado',
+            'payment' => $this->enabledPaymentMethods($settings)[$data['payment_method']] ?? $data['payment_method'],
+            'code' => 'TURNO-'.$turn->id,
+            'track_url' => route('track.show', ['type' => 'turno', 'token' => $turn->public_token]),
+            'track_type' => 'turno',
+            'track_token' => $turn->public_token,
+            'access_url' => ClientServiceAccess::recoveryUrl($turn),
+        ]);
+
+        return redirect()->route('public.booking', ['tipo' => 'turno']);
+    }
+
+    /**
+     * Deja lista la pantalla de éxito en la sesión normal, no como flash.
+     *
+     * La página de reservas consulta la agenda cada 5 segundos (y el navegador puede disparar otras
+     * peticiones) justo entre la reserva y la redirección: esas peticiones envejecen el flash y la
+     * confirmación desaparecía sin haberse visto. La vista la retira (pull) al mostrarla, así no
+     * queda un éxito de un viaje anterior.
+     */
+    private function rememberSuccess(Request $request, array $data): void
+    {
+        $request->session()->put('booking_success', $data);
+        // En la petición actual, para decidir qué se guarda en la caché de idempotencia.
+        $request->attributes->set('booking_success', $data);
     }
 
     /** Teléfono: entre 7 y 15 dígitos; se permiten espacios, guiones, paréntesis y el + inicial. */
@@ -336,7 +295,7 @@ class PublicBookingController extends Controller
 
         $stored = Cache::get(self::IDEMPOTENCY_PREFIX.$key);
         if ($stored) {
-            $request->session()->flash('booking_success', $stored['success']);
+            $this->rememberSuccess($request, $stored['success']);
 
             return response()->json(['status' => 'done', 'redirect' => $stored['redirect']]);
         }
@@ -384,7 +343,7 @@ class PublicBookingController extends Controller
         try {
             if ($stored = Cache::get($cacheKey)) {
                 Log::info('reservas.reintento_sin_duplicar');
-                $request->session()->flash('booking_success', $stored['success']);
+                $this->rememberSuccess($request, $stored['success']);
 
                 return $this->asBookingResponse($request, redirect()->to($stored['redirect']));
             }
@@ -392,9 +351,7 @@ class PublicBookingController extends Controller
             $response = $create();
 
             // Solo se recuerda una reserva hecha de verdad (no errores ni el campo trampa).
-            $success = in_array('booking_success', $request->session()->get('_flash.new', []), true)
-                ? $request->session()->get('booking_success')
-                : null;
+            $success = $request->attributes->get('booking_success');
             if ($success && $response instanceof \Illuminate\Http\RedirectResponse) {
                 Cache::put($cacheKey, ['success' => $success, 'redirect' => $response->getTargetUrl()], now()->addDay());
             }

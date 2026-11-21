@@ -55,14 +55,23 @@ class TurnQueueService
      * finalizar el servicio que ya cumplió su tiempo, llamar al siguiente y avisar al que sigue.
      * Es seguro llamarlo muchas veces: bloquea la fila del barbero y los avisos no se duplican.
      */
-    public function advance(int $barberId): void
+    public function advance(int $barberId, ?Turn $cancel = null): void
     {
         $auto = (bool) config('notificaciones.auto_queue', true);
 
-        $events = DB::transaction(function () use ($barberId, $auto) {
+        $events = DB::transaction(function () use ($barberId, $auto, $cancel) {
             $barber = User::whereKey($barberId)->lockForUpdate()->first();
             if (! $barber) {
                 return [];
+            }
+
+            if ($cancel) {
+                $turn = Turn::whereKey($cancel->id)->where('barber_id', $barberId)->lockForUpdate()->firstOrFail();
+                if (! in_array('cancelar', ClientBookingActions::actions($turn), true)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['status' => 'Este turno ya no se puede cancelar.']);
+                }
+                $turn->update(['status' => 'cancelado', 'finished_at' => now()]);
+                $this->notifier->turnCancelled($turn);
             }
 
             $now = now();

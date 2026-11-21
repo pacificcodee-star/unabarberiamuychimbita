@@ -65,6 +65,31 @@ class PublicBookingTest extends TestCase
         ]);
     }
 
+    /**
+     * La página de reservas consulta la agenda cada 5 segundos; esas consultas no pueden borrar
+     * la confirmación antes de que el navegador muestre la pantalla de éxito.
+     */
+    public function test_the_success_screen_survives_the_pages_own_agenda_polling(): void
+    {
+        $barber = $this->barber('citas');
+        $date = now()->addDay()->toDateString();
+
+        $this->post(route('public.booking.appointment'), [
+            'barber_id' => $barber->id,
+            'client_name' => 'Cliente Público',
+            'client_phone' => '300 123 4567',
+            'payment_method' => 'efectivo',
+            'appointment_date' => $date,
+            'appointment_time' => '10:30',
+        ])->assertSessionHas('booking_success');
+
+        $this->getJson(route('public.booking.slots', ['barber_id' => $barber->id, 'date' => $date]))->assertOk();
+
+        $this->get(route('public.booking', ['tipo' => 'cita']))
+            ->assertSee('booking-success', false)
+            ->assertSee('mis-servicios', false);
+    }
+
     public function test_a_visitor_can_take_a_turn_without_logging_in(): void
     {
         $barber = $this->barber('llegada');

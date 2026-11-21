@@ -12,7 +12,7 @@
 @endphp
 
 <nav class="mnav" id="mobileBottomNav" aria-label="Navegación móvil">
-    <ul class="mnav__track{{ $mnavActive < 0 ? ' is-idle' : '' }}">
+    <ul style="--mnav-count: {{ count($mnavItems) }}" class="mnav__track{{ $mnavActive < 0 ? ' is-idle' : '' }}">
         <li class="mnav__indicator" aria-hidden="true"></li>
         @foreach($mnavItems as $mnavIndex => $mnavItem)
             @php

@@ -1504,7 +1504,7 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
         margin: 0; padding: 0; list-style: none;
     }
     .mnav__indicator {
-        position: absolute; z-index: 0; left: 0; top: 0; bottom: 0; width: 20%;
+        position: absolute; z-index: 0; left: 0; top: 0; bottom: 0; width: calc(100% / var(--mnav-count, 5));
         border-radius: 999px;
         border: 1px solid rgba(var(--accent-rgb), .28);
         background: linear-gradient(180deg, rgba(var(--accent-rgb), .22), rgba(var(--accent-rgb), .09));
@@ -1518,6 +1518,8 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
     .mnav__track:has(.mnav__cell:nth-child(4) .mnav__item.is-active) .mnav__indicator { transform: translateX(200%); }
     .mnav__track:has(.mnav__cell:nth-child(5) .mnav__item.is-active) .mnav__indicator { transform: translateX(300%); }
     .mnav__track:has(.mnav__cell:nth-child(6) .mnav__item.is-active) .mnav__indicator { transform: translateX(400%); }
+    .mnav__track:has(.mnav__cell:nth-child(7) .mnav__item.is-active) .mnav__indicator { transform: translateX(500%); }
+    .mnav__cell:last-child .mnav__label { white-space: normal; text-align: center; }
     .mnav__cell { position: relative; z-index: 1; flex: 1 1 0; min-width: 0; display: flex; }
     .mnav__item {
         display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center;

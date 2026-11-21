@@ -62,7 +62,7 @@ class DashboardController extends Controller
         $waitingTurns = (clone $turnsQuery)->where('status', 'esperando')->count();
         $nextTurns = (clone $turnsQuery)
             ->with(['barber', 'service'])
-            ->whereIn('status', ['esperando', 'atendiendo'])
+            ->whereIn('status', \App\Services\TurnQueueService::OPEN)
             ->orderBy('turn_number')
             ->take(5)
             ->get();
