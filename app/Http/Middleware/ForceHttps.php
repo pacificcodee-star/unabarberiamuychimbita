@@ -38,6 +38,36 @@ class ForceHttps
         if (! $headers->has('X-Frame-Options')) {
             $headers->set('X-Frame-Options', 'SAMEORIGIN');
         }
+        // El sitio no usa cámara, micrófono, ubicación ni pagos del navegador: se bloquean para todos.
+        if (! $headers->has('Permissions-Policy')) {
+            $headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()');
+        }
+
+        if (! $headers->has('Content-Security-Policy') && str_contains((string) $headers->get('Content-Type'), 'text/html')) {
+            // CSP aplicada: lo que no puede romper nada y corta ataques comunes
+            // (etiqueta <base> inyectada, plugins, el sitio dentro de iframes ajenos, formularios a otros dominios).
+            $enforced = "base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'"
+                .($enabled && $request->secure() ? '; upgrade-insecure-requests' : '');
+            $headers->set('Content-Security-Policy', $enforced);
+            // CSP completa en modo observación: informa en la consola qué se bloquearía, sin bloquear.
+            // Para aplicarla falta pasar los <script> en línea a archivos o a nonces (ver docs/PRODUCCION.md).
+            $headers->set('Content-Security-Policy-Report-Only', implode('; ', [
+                "default-src 'self'",
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://www.googletagmanager.com https://maps.googleapis.com",
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.bunny.net",
+                "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.bunny.net",
+                "img-src 'self' data: blob: https:",
+                "media-src 'self' blob:",
+                "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://maps.googleapis.com",
+                "frame-src 'self' https://www.google.com",
+                "worker-src 'self'",
+                "manifest-src 'self'",
+                "base-uri 'self'",
+                "object-src 'none'",
+                "frame-ancestors 'self'",
+                "form-action 'self'",
+            ]));
+        }
 
         return $response;
     }

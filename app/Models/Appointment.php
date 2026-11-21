@@ -38,6 +38,23 @@ class Appointment extends Model
         'reminder_sent_at',
     ];
 
+    /**
+     * Cambios de estado permitidos (máquina de estados). Una cita cancelada solo se puede
+     * reactivar (y entonces se vuelve a comprobar el horario); nunca pasa directo a atendida.
+     * Una atendida queda cerrada.
+     */
+    public const TRANSITIONS = [
+        'pendiente' => ['confirmada', 'cancelada', 'atendida'],
+        'confirmada' => ['pendiente', 'cancelada', 'atendida'],
+        'cancelada' => ['pendiente', 'confirmada'],
+        'atendida' => [],
+    ];
+
+    public function canTransitionTo(string $status): bool
+    {
+        return $status === $this->status || in_array($status, self::TRANSITIONS[$this->status] ?? [], true);
+    }
+
     /** Mensaje cuando el horario ya lo tomó otra persona. */
     public const SLOT_TAKEN_MESSAGE = 'Ese horario ya está ocupado. Elige otra hora o intenta con otro barbero.';
 

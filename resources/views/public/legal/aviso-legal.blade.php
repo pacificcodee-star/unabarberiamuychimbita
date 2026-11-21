@@ -32,8 +32,16 @@
                     <li>Una reserva queda hecha cuando ves la pantalla de confirmación. Te damos un enlace privado para seguirla o cancelarla.</li>
                     <li>Si no puedes venir, cancela desde ese enlace o escríbenos por WhatsApp lo antes posible. Así liberamos el espacio para otra persona.</li>
                     <li>Los precios y tiempos que se muestran son de referencia. El valor final puede cambiar si pides algo adicional el día de la visita.</li>
-                    <li>Los pagos se hacen en la barbería, con los medios de pago que aparecen en el sitio. Este sitio no cobra en línea ni guarda datos de tarjetas.</li>
+                    <li>Puedes pagar en la barbería o, si eliges Nequi, Daviplata, Bre-b o transferencia, consignar antes: te enviamos la cuenta por WhatsApp. Este sitio no procesa pagos ni guarda datos de tarjetas o cuentas.</li>
                     <li>Podemos reprogramar o cancelar una reserva por causas de fuerza mayor. Si pasa, te avisamos por el medio de contacto que nos diste.</li>
+                </ul>
+
+                <h2>3.1 Pagos anticipados, cancelaciones y devoluciones</h2>
+                <ul>
+                    <li><strong>Sin pago anticipado:</strong> cancelar no tiene costo.</li>
+                    <li><strong>Si pagaste antes y cancelas o no te podemos atender:</strong> escríbenos con el comprobante. Revisamos el caso y te devolvemos el dinero por el mismo medio, según el Estatuto del Consumidor (Ley 1480 de 2011).</li>
+                    <li><strong>Derecho de retracto:</strong> aplica solo en los casos del artículo 47 de la Ley 1480 (por ejemplo, ventas a distancia). No procede si la cita es dentro de los cinco días siguientes o si el servicio ya empezó con tu acuerdo. Cuando sí aplica, tienes cinco días hábiles desde la reserva para retractarte y te devolvemos todo el dinero, sin descuentos, en máximo 30 días calendario.</li>
+                    <li>Un servicio que ya se prestó no se devuelve, salvo reclamo por calidad, que atendemos según la garantía legal.</li>
                 </ul>
 
                 <h2>4. Uso correcto</h2>

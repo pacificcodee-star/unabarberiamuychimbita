@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\AvailabilityController;
 use App\Http\Controllers\BarberController;
 use App\Http\Controllers\CashSessionController;
@@ -67,7 +68,7 @@ Route::get('/resenas', [LandingController::class, 'reviews'])->name('public.revi
 Route::post('/resenas', [PublicReviewController::class, 'store'])->middleware('throttle:5,10')->name('public.reviews.store');
 Route::get('/contacto', [LandingController::class, 'contact'])->name('public.contact');
 Route::get('/reservar', [PublicBookingController::class, 'index'])->name('public.booking');
-Route::get('/reservar/horarios', [PublicBookingController::class, 'availableTimes'])->name('public.booking.slots');
+Route::get('/reservar/horarios', [PublicBookingController::class, 'availableTimes'])->middleware('throttle:60,1')->name('public.booking.slots');
 Route::post('/reservar/cita', [PublicBookingController::class, 'storeAppointment'])->middleware('throttle:10,1')->name('public.booking.appointment');
 Route::post('/reservar/turno', [PublicBookingController::class, 'storeTurn'])->middleware('throttle:10,1')->name('public.booking.turn');
 // ¿Ya quedó hecha la reserva con esta clave? (cuando se perdió la respuesta por falta de conexión)
@@ -98,7 +99,15 @@ Route::post('/webhook/evolution', EvolutionWebhookController::class)
 
 Route::middleware('panel-desktop')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AuthController::class, 'login'])->name('login.store');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1')->name('login.store');
+
+    // Recuperación de contraseña: enlace de un solo uso que vence en 60 minutos.
+    Route::middleware('guest')->group(function () {
+        Route::get('/recuperar-contrasena', [PasswordResetController::class, 'request'])->name('password.request');
+        Route::post('/recuperar-contrasena', [PasswordResetController::class, 'email'])->middleware('throttle:3,10')->name('password.email');
+        Route::get('/restablecer-contrasena/{token}', [PasswordResetController::class, 'edit'])->name('password.reset');
+        Route::post('/restablecer-contrasena', [PasswordResetController::class, 'update'])->middleware('throttle:5,10')->name('password.update');
+    });
 });
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 

@@ -49,7 +49,25 @@ class SiteSetting extends Model
         ]);
     }
 
+    /** Se lee una sola vez por petición; al guardar cambios se descarta la copia. */
+    protected static function booted(): void
+    {
+        static::saved(fn () => app()->forgetInstance('site-settings.data'));
+        static::deleted(fn () => app()->forgetInstance('site-settings.data'));
+    }
+
     public static function currentData(): array
+    {
+        if (app()->bound('site-settings.data')) {
+            return app('site-settings.data');
+        }
+        $data = static::computeCurrentData();
+        app()->instance('site-settings.data', $data);
+
+        return $data;
+    }
+
+    private static function computeCurrentData(): array
     {
         $saved = static::query()->first()?->data ?? [];
         // Del panel solo se toman los datos del negocio y las imágenes; los textos salen siempre del código.

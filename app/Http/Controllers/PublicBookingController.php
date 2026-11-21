@@ -206,6 +206,7 @@ class PublicBookingController extends Controller
         ]);
 
         $appointment->load(['service', 'barber']);
+        $this->recordConsents($appointment, (bool) ($data['whatsapp_consent'] ?? false));
         $this->sendPaymentInfoIfVirtual($whatsApp, $settings, $data['client_phone'], $data['client_name'], $data['payment_method'], 'cita');
 
         // Confirmación inmediata + recordatorios (1 hora antes, 15 minutos antes y a la hora de la cita).
@@ -293,6 +294,7 @@ class PublicBookingController extends Controller
         }
 
         $turn = $turnService->createFor($barber, $data);
+        $this->recordConsents($turn, (bool) ($data['whatsapp_consent'] ?? false));
         $turn->load('service');
         $this->sendPaymentInfoIfVirtual($whatsApp, $settings, $data['client_phone'], $data['client_name'], $data['payment_method'], 'turno');
 
@@ -410,6 +412,18 @@ class PublicBookingController extends Controller
         }
 
         return $response;
+    }
+
+    /**
+     * Prueba de la autorización (Ley 1581): enviar el formulario tras leer el aviso es una conducta
+     * inequívoca para gestionar la reserva; los avisos por WhatsApp se autorizan aparte, con su casilla.
+     */
+    private function recordConsents(\Illuminate\Database\Eloquent\Model $subject, bool $whatsapp): void
+    {
+        \App\Models\ConsentRecord::grant($subject, 'tratamiento_reserva', 'formulario_web');
+        if ($whatsapp) {
+            \App\Models\ConsentRecord::grant($subject, 'avisos_whatsapp', 'casilla_web');
+        }
     }
 
     private function phoneRules(): array

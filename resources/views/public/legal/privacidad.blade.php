@@ -47,7 +47,9 @@
                 <p>No vendemos ni alquilamos tus datos y no los usamos para publicidad de terceros.</p>
 
                 <h2>4. Autorización</h2>
-                <p>Cuando envías un formulario de reserva u opinión nos das tu autorización previa, expresa e informada para tratar tus datos según esta política. Puedes revocarla cuando quieras (punto 7).</p>
+                <p>Cuando envías un formulario de reserva u opinión, después de leer el aviso que está junto al botón, nos das tu autorización para tratar tus datos con esa finalidad (es una conducta inequívoca, según el Decreto 1074 de 2015). Los avisos por WhatsApp se autorizan aparte, con su propia casilla, que nunca viene marcada.</p>
+                <p>Guardamos constancia de cada autorización: la finalidad, la versión de esta política, la fecha y hora y el medio (formulario web o WhatsApp). La constancia se asocia a tu reserva u opinión; no guardamos tu dirección IP para esto.</p>
+                <p>Puedes revocarla cuando quieras (punto 7). Para dejar de recibir avisos por WhatsApp basta con escribir <strong>BAJA</strong> en el chat.</p>
 
                 <h2>5. Con quién los compartimos</h2>
                 <p>Solo con proveedores que necesitamos para prestar el servicio. Ellos tratan los datos por encargo nuestro:</p>

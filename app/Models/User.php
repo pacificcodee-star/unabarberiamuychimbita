@@ -115,18 +115,22 @@ class User extends Authenticatable
 
     public function isUnavailableOnDate(string $date): bool
     {
-        return $this->unavailabilities()
-            ->whereDate('date', $date)
-            ->get()
-            ->contains(fn (BarberUnavailability $u) => $u->isAllDay());
+        return $this->unavailabilitiesOn($date)->contains(fn (BarberUnavailability $u) => $u->isAllDay());
     }
 
     public function isUnavailableAt(string $date, string $time): bool
     {
-        return $this->unavailabilities()
-            ->whereDate('date', $date)
-            ->get()
-            ->contains(fn (BarberUnavailability $u) => $u->blocksSlot($date, $time));
+        return $this->unavailabilitiesOn($date)->contains(fn (BarberUnavailability $u) => $u->blocksSlot($date, $time));
+    }
+
+    /** @var array<string, \Illuminate\Support\Collection> Bloqueos por día ya consultados (evita una consulta por cada franja). */
+    private array $unavailabilityCache = [];
+
+    private function unavailabilitiesOn(string $date)
+    {
+        $day = \Illuminate\Support\Carbon::parse($date)->toDateString();
+
+        return $this->unavailabilityCache[$day] ??= $this->unavailabilities()->whereDate('date', $day)->get();
     }
 
     public function commissionPercentFor(int $serviceId): float

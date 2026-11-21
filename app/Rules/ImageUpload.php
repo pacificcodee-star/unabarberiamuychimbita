@@ -15,6 +15,11 @@ class ImageUpload implements ValidationRule
         // Solo imágenes de mapa de bits: un SVG puede llevar JavaScript y ejecutarse en el dominio del sitio.
         if (! $value instanceof UploadedFile || ! in_array((string) $value->getMimeType(), self::ALLOWED, true)) {
             $fail('El archivo debe ser una imagen JPG, PNG, WebP, AVIF o GIF.');
+
+            return;
         }
+
+        // Fotos de celular: se borra la ubicación GPS antes de guardarlas (se conserva la orientación).
+        \App\Support\ImageSanitizer::stripGps((string) $value->getRealPath());
     }
 }

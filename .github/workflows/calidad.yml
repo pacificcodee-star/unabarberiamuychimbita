@@ -1,0 +1,60 @@
+# Verificaciones antes de integrar código: pruebas, dependencias vulnerables y secretos.
+name: Calidad y seguridad
+
+on:
+  push:
+    branches: [main, 'lanzamiento-*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3, mbstring, exif, fileinfo, bcmath
+          coverage: none
+
+      - name: Dependencias PHP
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Dependencias PHP vulnerables
+        run: composer audit --no-interaction
+
+      - name: Pruebas (PHPUnit, SQLite en memoria)
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan test
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Dependencias JS vulnerables
+        run: |
+          npm ci --no-audit --no-fund
+          npm audit --omit=dev
+
+      - name: Secretos en los archivos actuales
+        run: node scripts/check-secrets.mjs
+
+  secretos-historial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks (todo el historial)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

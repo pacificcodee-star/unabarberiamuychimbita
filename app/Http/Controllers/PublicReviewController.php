@@ -33,12 +33,13 @@ class PublicReviewController extends Controller
             'comment.max' => 'Tu opinión puede tener máximo 600 caracteres.',
         ]);
 
-        Review::create([
+        $review = Review::create([
             'client_name' => trim(strip_tags($data['client_name'])),
             'rating' => (int) $data['rating'],
             'comment' => trim(strip_tags($data['comment'])),
             'approved' => false,
         ]);
+        \App\Models\ConsentRecord::grant($review, 'publicacion_resena', 'formulario_web');
 
         return redirect()->to(route('public.reviews').'#opinar')->with('review_sent', true);
     }

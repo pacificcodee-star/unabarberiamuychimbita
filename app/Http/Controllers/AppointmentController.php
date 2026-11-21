@@ -175,6 +175,10 @@ class AppointmentController extends Controller
             $data['barber_id'] = $request->user()->id;
         }
 
+        if (! $appointment->canTransitionTo($data['status'])) {
+            throw ValidationException::withMessages(['status' => 'No se puede pasar una cita de "'.$appointment->statusLabel().'" a "'.Appointment::STATUSES[$data['status']].'".']);
+        }
+
         $this->ensureBarberHandlesAppointments((int) $data['barber_id']);
 
         $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
@@ -204,8 +208,26 @@ class AppointmentController extends Controller
             return back()->with('error', 'Esta cita ya fue atendida y no se puede modificar. Si fue un error, elimínala.');
         }
 
+        if (! $appointment->canTransitionTo($data['status'])) {
+            return back()->with('error', 'No se puede pasar una cita de "'.$appointment->statusLabel().'" a "'.Appointment::STATUSES[$data['status']].'".');
+        }
+
         $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
-        $appointment->update(['status' => $data['status']]);
+        if ($appointment->status === 'cancelada' && $data['status'] !== 'cancelada') {
+            // Reactivar una cancelada: el horario pudo haberlo tomado otra persona; se comprueba con bloqueo.
+            try {
+                Appointment::reserveSlot([
+                    'barber_id' => $appointment->barber_id,
+                    'appointment_date' => $appointment->appointment_date->toDateString(),
+                    'appointment_time' => substr((string) $appointment->appointment_time, 0, 5),
+                    'status' => $data['status'],
+                ], $appointment);
+            } catch (ValidationException) {
+                return back()->with('error', 'No se puede reactivar: ese horario ya lo tiene otra cita.');
+            }
+        } else {
+            $appointment->update(['status' => $data['status']]);
+        }
         AuditLog::record('cita.estado', $appointment, ['de' => $before['status'], 'a' => $data['status']]);
         $note = app(\App\Services\AttendedServiceRecorder::class)->sync($appointment, $request->input('payment_method'));
         $appointment->loadMissing(['service', 'barber']);

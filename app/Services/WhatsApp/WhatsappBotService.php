@@ -64,7 +64,7 @@ class WhatsappBotService
                 : $this->respond($conversation, $text);
         } catch (Throwable $e) {
             Log::error('WhatsApp bot: no se pudo procesar el mensaje', [
-                'phone' => $conversation->phone,
+                'phone' => \App\Support\Pii::phone($conversation->phone),
                 'error' => $e->getMessage(),
             ]);
             $this->saveFlow($conversation->phone, ['step' => 'error_options', 'data' => [], 'history' => []]);
@@ -86,6 +86,11 @@ class WhatsappBotService
 
     private function respond(WhatsAppConversation $conversation, string $text): ?string
     {
+        // Revocación (Ley 1581): "BAJA" o "STOP" en cualquier momento corta los avisos por WhatsApp.
+        if (in_array(trim($this->normalize($text), " .,!¡?¿"), self::OPT_OUT_WORDS, true)) {
+            return $this->optOut($conversation);
+        }
+
         $numeric = preg_match('/^\s*(\d{1,3})\s*$/u', $text, $match) ? (int) $match[1] : null;
         $flow = $this->flow($conversation->phone);
 
@@ -701,6 +706,8 @@ class WhatsappBotService
         ], notify: false);
 
         $turn->load(['service', 'barber']);
+        \App\Models\ConsentRecord::grant($turn, 'tratamiento_reserva', 'whatsapp_bot');
+        \App\Models\ConsentRecord::grant($turn, 'avisos_whatsapp', 'whatsapp_bot');
 
         StaffNotification::record(
             'turn_new',
@@ -884,6 +891,8 @@ class WhatsappBotService
         }
 
         $appointment->load(['service', 'barber']);
+        \App\Models\ConsentRecord::grant($appointment, 'tratamiento_reserva', 'whatsapp_bot');
+        \App\Models\ConsentRecord::grant($appointment, 'avisos_whatsapp', 'whatsapp_bot');
         // Faltando 15 minutos o menos queda confirmada sola (sin pedir confirmación con el recordatorio).
         $this->notifier->autoConfirmIfSoon($appointment);
         $this->notifier->scheduleAppointmentReminders($appointment);
@@ -2418,6 +2427,38 @@ class WhatsappBotService
         }
 
         return $dates;
+    }
+
+    /** Mensaje completo (sin nada más) con el que el cliente pide no recibir más avisos. */
+    public const OPT_OUT_WORDS = ['baja', 'stop', 'darme de baja', 'no mas mensajes', 'no quiero mas mensajes', 'cancelar suscripcion'];
+
+    /**
+     * El cliente revoca los avisos por WhatsApp: se apaga el consentimiento en sus reservas vigentes,
+     * se anulan los avisos pendientes por ese canal y queda constancia de la revocación.
+     */
+    private function optOut(WhatsAppConversation $conversation): string
+    {
+        $local = substr(preg_replace('/\D/', '', $conversation->phone), -10);
+        $ids = ['appointment' => [], 'turn' => []];
+        if ($local !== '') {
+            $ids['appointment'] = Appointment::where('client_phone', 'like', '%'.$local)->where('whatsapp_consent', true)->pluck('id')->all();
+            $ids['turn'] = Turn::where('client_phone', 'like', '%'.$local)->where('whatsapp_consent', true)->pluck('id')->all();
+            Appointment::whereIn('id', $ids['appointment'])->update(['whatsapp_consent' => false]);
+            Turn::whereIn('id', $ids['turn'])->update(['whatsapp_consent' => false]);
+            foreach ($ids as $type => $list) {
+                \App\Models\ConsentRecord::revoke('avisos_whatsapp', $type, $list, 'whatsapp_baja');
+                if ($list !== []) {
+                    \App\Models\ClientNotification::where('notifiable_type', $type)->whereIn('notifiable_id', $list)
+                        ->where('channel', 'whatsapp')->where('status', \App\Models\ClientNotification::PENDING)
+                        ->update(['status' => \App\Models\ClientNotification::CANCELLED, 'updated_at' => now()]);
+                }
+            }
+        }
+        $this->saveFlow($conversation->phone, ['step' => 'menu', 'data' => [], 'history' => []]);
+        Log::notice('whatsapp.baja', ['phone' => \App\Support\Pii::phone($conversation->phone), 'reservas' => count($ids['appointment']) + count($ids['turn'])]);
+
+        return "Listo, no te enviaremos más avisos automáticos por WhatsApp.\n\n"
+            ."Tus reservas siguen igual. Si escribes de nuevo te respondemos, y si quieres que borremos tus datos, dínoslo por aquí.";
     }
 
     private function pendingAppointment(string $phone): ?Appointment

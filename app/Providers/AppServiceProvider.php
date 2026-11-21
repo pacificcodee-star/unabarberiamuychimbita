@@ -32,6 +32,7 @@ class AppServiceProvider extends ServiceProvider
         Relation::morphMap([
             'turn' => Turn::class,
             'appointment' => Appointment::class,
+            'review' => \App\Models\Review::class,
         ]);
 
         View::composer(['layouts.public', 'landing', 'public.*'], function ($view): void {
@@ -49,6 +50,20 @@ class AppServiceProvider extends ServiceProvider
                 'legalPhone' => $settings['phone'] ?? '',
                 'legalUpdated' => Carbon::parse(config('web.legal.updated_at'))->locale('es')->isoFormat('D [de] MMMM [de] YYYY'),
             ]);
+        });
+
+        // Correo de recuperación de contraseña en español.
+        \Illuminate\Auth\Notifications\ResetPassword::toMailUsing(function ($user, string $token) {
+            $url = route('password.reset', ['token' => $token, 'email' => $user->getEmailForPasswordReset()]);
+
+            return (new \Illuminate\Notifications\Messages\MailMessage)
+                ->subject('Crea tu contraseña nueva · '.config('sitio.brand_name', config('app.name')))
+                ->greeting('Hola, '.$user->name)
+                ->line('Recibimos una solicitud para cambiar la contraseña del panel de la barbería.')
+                ->action('Crear contraseña nueva', $url)
+                ->line('El enlace sirve una sola vez y vence en '.config('auth.passwords.users.expire', 60).' minutos.')
+                ->line('Si no lo pediste, ignora este correo: tu contraseña sigue igual.')
+                ->salutation('El equipo de '.config('sitio.brand_name', config('app.name')));
         });
 
         // HTTPS obligatorio en producción: todas las URLs generadas salen con https://.

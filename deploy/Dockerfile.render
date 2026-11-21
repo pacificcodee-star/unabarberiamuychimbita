@@ -33,6 +33,7 @@ COPY --from=evolution /evolution /evolution
 WORKDIR /var/www/html
 COPY --from=vendor /app /var/www/html
 COPY --from=assets /app/public/build /var/www/html/public/build
+COPY deploy/php/barberia.ini /usr/local/etc/php/conf.d/zz-barberia.ini
 COPY deploy/caddy/Caddyfile.render /etc/caddy/Caddyfile
 COPY deploy/supervisord.render.conf /etc/supervisord.conf
 COPY deploy/render-entrypoint.sh /usr/local/bin/render-entrypoint

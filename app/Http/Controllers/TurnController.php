@@ -101,6 +101,10 @@ class TurnController extends Controller
             return back()->with('error', 'Este turno ya fue atendido y no se puede modificar. Si fue un error, elimínalo.');
         }
 
+        if (! $turn->canTransitionTo($data['status'])) {
+            return back()->with('error', 'No se puede pasar un turno de "'.$turn->statusLabel().'" a "'.Turn::STATUSES[$data['status']].'".');
+        }
+
         $previousStatus = $turn->status;
         $attributes = ['status' => $data['status']];
 

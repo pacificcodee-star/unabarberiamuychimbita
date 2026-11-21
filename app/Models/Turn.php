@@ -19,6 +19,23 @@ class Turn extends Model
         'cancelado' => 'Anulado',
     ];
 
+    /**
+     * Cambios de estado permitidos. Un turno anulado solo puede volver a la fila (esperando),
+     * nunca pasar a finalizado; uno finalizado queda cerrado.
+     */
+    public const TRANSITIONS = [
+        'esperando' => ['llamado', 'atendiendo', 'cancelado'],
+        'llamado' => ['esperando', 'atendiendo', 'atendido', 'cancelado'],
+        'atendiendo' => ['atendido', 'cancelado'],
+        'cancelado' => ['esperando'],
+        'atendido' => [],
+    ];
+
+    public function canTransitionTo(string $status): bool
+    {
+        return $status === $this->status || in_array($status, self::TRANSITIONS[$this->status] ?? [], true);
+    }
+
     protected $fillable = [
         'public_token',
         'client_email',

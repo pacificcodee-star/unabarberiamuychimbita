@@ -28,6 +28,7 @@ WORKDIR /var/www/html
 
 COPY --from=vendor /app /var/www/html
 COPY --from=assets /app/public/build /var/www/html/public/build
+COPY deploy/php/barberia.ini /usr/local/etc/php/conf.d/zz-barberia.ini
 COPY deploy/caddy/Caddyfile /etc/caddy/Caddyfile
 COPY deploy/supervisord.conf /etc/supervisord.conf
 COPY deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint

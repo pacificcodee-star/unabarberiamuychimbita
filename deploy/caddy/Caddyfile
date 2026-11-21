@@ -1,6 +1,16 @@
 # Sitio Laravel (panel + web pública) con HTTPS automático.
 {$APP_HOST} {
 	root * /var/www/html/public
+	# Nunca ejecutar PHP subido: solo public/index.php pasa a PHP.
+	@noPhpStorage path /storage/* /images/* /videos/* /icons/* /vendor/* /css/* /js/*
+	handle @noPhpStorage {
+		header X-Content-Type-Options nosniff
+		file_server
+	}
+	# Peticiones de más de 120 MB se cortan antes de llegar a PHP.
+	request_body {
+		max_size 120MB
+	}
 	encode zstd gzip
 	php_fastcgi 127.0.0.1:9000
 	file_server
