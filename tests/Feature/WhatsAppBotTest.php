@@ -154,6 +154,31 @@ class WhatsAppBotTest extends TestCase
         Http::assertSent(fn ($request) => str_contains((string) $request['text'], '/reservar'));
     }
 
+    public function test_el_bot_no_da_turnos_en_la_ultima_media_hora_antes_del_cierre(): void
+    {
+        User::factory()->create(['role' => 'barbero', 'attention_mode' => 'llegada', 'active' => true]);
+        Service::create(['name' => 'Corte', 'price' => 15000, 'duration_minutes' => 30, 'active' => true]);
+
+        // Cierre a las 8:00 p. m.: a las 7:31 p. m. ya no se reciben turnos.
+        $this->travelTo(Carbon::parse('2026-11-18 19:31:00'));
+        $this->escribir('quiero sacar turno')->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'cierran a las 7:30 p. m.'));
+        $this->assertDatabaseCount('turns', 0);
+    }
+
+    public function test_el_bot_da_turnos_hasta_la_media_hora_antes_del_cierre(): void
+    {
+        User::factory()->create(['role' => 'barbero', 'attention_mode' => 'llegada', 'active' => true]);
+        Service::create(['name' => 'Corte', 'price' => 15000, 'duration_minutes' => 30, 'active' => true]);
+
+        $this->travelTo(Carbon::parse('2026-11-18 19:30:00'));
+        $this->escribir('quiero sacar turno')->assertOk();
+
+        Http::assertNotSent(fn ($request) => str_contains((string) $request['text'], 'cierran a las'));
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'tomar tu turno'));
+    }
+
     public function test_ignora_mensajes_propios_y_de_grupos(): void
     {
         // Mensaje enviado por el negocio (fromMe): no debe entrar ni rebotar en el bot.

@@ -391,6 +391,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="{{ asset('vendor/sidebar/js/sidebar.js') }}?v={{ @filemtime(public_path('vendor/sidebar/js/sidebar.js')) }}"></script>
+<script src="{{ asset('js/chime.js') }}?v={{ @filemtime(public_path('js/chime.js')) }}"></script>
 <script>
     // Gráficas y modo oscuro: colores de texto y líneas según el tema, también al cambiarlo.
     (function () {
@@ -457,6 +458,8 @@
     const paint = (data) => {
         const latest = data.items[0]?.id || 0;
         if (live && latest !== revision) window.dispatchEvent(new Event('booking:changed'));
+        // Aviso nuevo con el panel abierto: timbre (si el push está activo, ya suena la notificación del sistema).
+        if (revision !== null && latest > revision && data.items[0]?.unread) window.ubmcChime?.();
         revision = latest;
         badge.hidden = !data.unread;
         badge.textContent = data.unread > 9 ? '9+' : String(data.unread);

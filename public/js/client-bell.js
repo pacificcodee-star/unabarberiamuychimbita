@@ -14,6 +14,7 @@
     const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text) node.textContent = text; return node; };
 
     let results = []; // [{ booking, state }]
+    let lastNewest = null; // id del aviso más reciente ya visto en esta página (null = primera carga)
 
     const unreadCount = () => {
         const seen = read('ubmc-bell-seen', {});
@@ -77,6 +78,10 @@
             }
         }
         if (keep.length !== bookings.length) write('ubmc-bookings', keep);
+        // Aviso nuevo con la página abierta: timbre (si el push está activo, ya suena la notificación del sistema).
+        const newest = next.reduce((max, { state }) => state.notifications.reduce((m, n) => Math.max(m, n.id), max), 0);
+        if (lastNewest !== null && newest > lastNewest) window.ubmcChime?.();
+        lastNewest = newest;
         results = next;
         paintBadge();
         if (!panel.hidden) { paintPanel(); markSeen(); }

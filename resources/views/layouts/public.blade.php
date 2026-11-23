@@ -779,6 +779,7 @@
     })();
 })();
 </script>
+<script src="{{ asset('js/chime.js') }}?v={{ @filemtime(public_path('js/chime.js')) }}" defer></script>
 <script src="{{ asset('js/client-bell.js') }}?v={{ @filemtime(public_path('js/client-bell.js')) }}" defer></script>
 @stack('scripts')
 {{-- Scroll cinematográfico: GSAP + ScrollTrigger sobre el scroll nativo (copias locales en public/vendor) --}}
