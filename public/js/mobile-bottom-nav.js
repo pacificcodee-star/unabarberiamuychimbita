@@ -5,13 +5,13 @@
      más lenta). Tocar la pestaña en la que ya estás sube al inicio de la página.
    - Las páginas de la barra se descargan por adelantado (partials/speculation-rules) para que abran casi
      al instante en Chrome y Android.
-   - El resaltado anima desde la sección anterior guardada en la sesión. */
+   - El resaltado aparece directo en la pestaña actual (sin deslizarse de una a otra), para que la barra
+     no se vea deformada mientras cambia la sección. */
 (() => {
     const nav = document.getElementById('mobileBottomNav');
     const track = nav?.querySelector('.mnav__track');
     if (!nav || !track) return;
 
-    const indicator = track.querySelector('.mnav__indicator');
     const items = Array.from(track.querySelectorAll('.mnav__item'));
     const serverActive = items.findIndex((item) => item.classList.contains('is-active'));
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -46,7 +46,6 @@
             pending = item.href;
             setActive(index);
             nav.classList.add('is-navigating');
-            try { sessionStorage.setItem('mnavIndex', String(serverActive)); } catch (error) {}
         });
     });
 
@@ -56,30 +55,5 @@
         pending = null;
         nav.classList.remove('is-navigating');
         setActive(serverActive);
-    });
-
-    /* Animación del resaltado desde la sección anterior. */
-    if (!indicator || serverActive < 0) return;
-    let previous = -1;
-    try {
-        const stored = Number(sessionStorage.getItem('mnavIndex'));
-        if (Number.isInteger(stored) && stored >= 0 && stored < items.length) previous = stored;
-        sessionStorage.setItem('mnavIndex', String(serverActive));
-    } catch (error) {
-        previous = -1;
-    }
-    if (reducedMotion || previous < 0 || previous === serverActive) return;
-
-    const finish = () => {
-        indicator.style.removeProperty('transform');
-        indicator.style.removeProperty('transition');
-    };
-    indicator.style.transition = 'none';
-    indicator.style.transform = `translateX(${previous * 100}%)`;
-    void indicator.offsetWidth;
-    indicator.style.removeProperty('transition');
-    indicator.addEventListener('transitionend', finish, { once: true });
-    requestAnimationFrame(() => {
-        indicator.style.transform = `translateX(${serverActive * 100}%)`;
     });
 })();
