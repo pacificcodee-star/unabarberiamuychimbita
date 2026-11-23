@@ -48,6 +48,9 @@
                                 @if($subject->barber)
                                     <li><i class="bi bi-person" aria-hidden="true"></i> {{ $subject->barber->name }}</li>
                                 @endif
+                                @if($turn && ! $history && \App\Support\AttendanceConfirmation::confirmed($subject))
+                                    <li><i class="bi bi-check2-circle" aria-hidden="true"></i> Asistencia confirmada</li>
+                                @endif
                                 @if($history && $subject->service_price !== null)
                                     <li><i class="bi bi-receipt" aria-hidden="true"></i> Precio registrado: {{ format_money($subject->service_price) }}</li>
                                 @endif

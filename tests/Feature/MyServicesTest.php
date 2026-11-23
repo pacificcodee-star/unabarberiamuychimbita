@@ -109,6 +109,18 @@ class MyServicesTest extends TestCase
         $this->get('/mis-servicios')->assertSee('Atendida');
     }
 
+    public function test_the_page_shows_when_the_client_confirmed_attendance_from_whatsapp(): void
+    {
+        $turn = $this->book($this->barber('llegada'), 'turno');
+
+        $this->get('/mis-servicios')->assertOk()->assertDontSee('Asistencia confirmada');
+
+        // Lo mismo que hace el bot cuando el cliente responde «sí» por WhatsApp.
+        AttendanceConfirmation::mark($turn);
+
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()->assertSee('Asistencia confirmada');
+    }
+
     public function test_cancelling_called_turn_updates_queue_estimates_history_and_notifications_once(): void
     {
         $barber = $this->barber('llegada');
