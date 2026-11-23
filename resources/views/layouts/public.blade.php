@@ -269,7 +269,7 @@
                 </span>
             </a>
 
-            <nav class="nav-links{{ count($navItems) > 4 ? ' nav-links--five' : '' }}" id="navLinks" aria-label="Navegación principal">
+            <nav class="nav-links" id="navLinks" aria-label="Navegación principal">
                 <span class="nav-indicator" aria-hidden="true"></span>
                 @foreach($navItems as $item)
                     @php $isActive = request()->routeIs($item['route']); @endphp
