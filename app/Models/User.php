@@ -40,6 +40,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'commission_percentage' => 'decimal:2',
             'active' => 'boolean',
+            'notifications_seen_at' => 'datetime',
+            'notifications_cleared_at' => 'datetime',
         ];
     }
 

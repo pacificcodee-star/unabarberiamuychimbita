@@ -31,15 +31,56 @@ class StaffNotification extends Model
         return $this->belongsTo(User::class, 'barber_id');
     }
 
-    /** El administrador ve todo; cada barbero solo lo suyo. */
+    /** Color del ícono según el tipo de aviso (clases .tone-* del panel). */
+    public const TONES = [
+        'turn_new' => 'blue',
+        'appt_new' => 'green',
+        'appt_rescheduled' => 'amber',
+        'client_cancelled' => 'red',
+        'client_confirmed' => 'green',
+        'turn_called' => 'brand',
+        'turn_finished' => 'green',
+        'survey_attention' => 'amber',
+        'survey_review' => 'red',
+    ];
+
+    /** Los avisos se borran solos después de este tiempo (programador diario). */
+    public const RETENTION_DAYS = 90;
+
+    /**
+     * El administrador ve todo; cada barbero solo lo suyo. Si la persona vació su bandeja
+     * ("Eliminar todas"), solo ve lo que llegó después.
+     */
     public function scopeVisibleTo($query, User $user)
     {
-        return $user->isAdmin() ? $query : $query->where('barber_id', $user->id);
+        $query = $user->isAdmin() ? $query : $query->where('barber_id', $user->id);
+
+        return $user->notifications_cleared_at
+            ? $query->where('created_at', '>', $user->notifications_cleared_at)
+            : $query;
     }
 
     public function icon(): string
     {
         return self::ICONS[$this->type] ?? 'bi-bell';
+    }
+
+    public function tone(): string
+    {
+        return self::TONES[$this->type] ?? 'neutral';
+    }
+
+    /** "Hoy", "Ayer" o la fecha, para agrupar la lista. */
+    public function dayLabel(): string
+    {
+        $date = $this->created_at->copy()->locale('es');
+
+        return match (true) {
+            $date->isToday() => 'Hoy',
+            $date->isYesterday() => 'Ayer',
+            $date->isCurrentYear() => ucfirst($date->translatedFormat('l j \d\e F')),
+            default => ucfirst($date->translatedFormat('j \d\e F \d\e Y')),
+        };
     }
 
     /** Nunca interrumpe la reserva o la fila: si falla al guardar, solo queda en el log. */

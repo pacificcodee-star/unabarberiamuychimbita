@@ -164,6 +164,7 @@ Route::middleware(['panel-desktop', 'auth'])->group(function () {
     Route::get('/notificaciones', [StaffNotificationController::class, 'index'])->name('staff-notifications.index');
     Route::get('/notificaciones/feed', [StaffNotificationController::class, 'feed'])->name('staff-notifications.feed');
     Route::post('/notificaciones/vistas', [StaffNotificationController::class, 'seen'])->name('staff-notifications.seen');
+    Route::delete('/notificaciones', [StaffNotificationController::class, 'clear'])->name('staff-notifications.clear');
 
     Route::get('/turns', [TurnController::class, 'index'])->name('turns.index');
     Route::post('/turns', [TurnController::class, 'store'])->name('turns.store');

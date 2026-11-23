@@ -260,36 +260,97 @@
     <link rel="stylesheet" href="{{ asset('css/admin-theme.css') }}?v={{ @filemtime(public_path('css/admin-theme.css')) }}">
     <script>(function(r){r.classList.add('sidebar-preload');try{var t=localStorage.getItem('admin:theme')||localStorage.getItem('sidebar:theme')||localStorage.getItem('sidebarTheme');if(t==='dark'){r.classList.add('admin-dark');r.setAttribute('data-bs-theme','dark')}}catch(e){}})(document.documentElement)</script>
     <style>
-        .staff-bell-menu { width: min(380px, calc(100vw - 24px)); z-index: 1311; }
+        /* ---------- Notificaciones del equipo (campana y página /notificaciones) ---------- */
+        .bell-btn { width: 42px; padding: 0; position: relative; }
+        .bell-btn .bell-badge {
+            position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 6px;
+            display: grid; place-items: center; border-radius: 999px; border: 2px solid var(--cream);
+            background: var(--gold); color: #fff; font-size: .68rem; font-weight: 800; line-height: 1;
+            font-variant-numeric: tabular-nums;
+        }
+        .bell-badge[hidden] { display: none; }
+
+        .staff-bell-menu {
+            width: min(400px, calc(100vw - 24px)); z-index: 1311; margin-top: 10px !important;
+            border: 1px solid var(--bs-border-color); border-radius: 16px !important; overflow: hidden;
+            box-shadow: 0 24px 60px rgba(22, 19, 14, .18), 0 2px 8px rgba(22, 19, 14, .06) !important;
+        }
         /* Velo con desenfoque: el panel queda por encima, nítido, en computadora, tablet y teléfono. */
-        .staff-bell-backdrop { position: fixed; inset: 0; z-index: 1305; background: rgba(8, 7, 5, .5); -webkit-backdrop-filter: blur(10px) saturate(.85); backdrop-filter: blur(10px) saturate(.85); touch-action: none; overscroll-behavior: contain; }
+        .staff-bell-backdrop { position: fixed; inset: 0; z-index: 1305; background: rgba(8, 7, 5, .42); -webkit-backdrop-filter: blur(8px) saturate(.85); backdrop-filter: blur(8px) saturate(.85); touch-action: none; overscroll-behavior: contain; }
         .staff-bell-backdrop[hidden] { display: none; }
-        .staff-bell-list { max-height: min(60vh, 460px); overflow-y: auto; overscroll-behavior: contain; }
-        .staff-bell-item { display: flex; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--bs-border-color); color: inherit; text-decoration: none; }
-        .staff-bell-item:last-child { border-bottom: 0; }
-        .staff-bell-item:hover { background: rgba(127, 127, 127, .10); color: inherit; }
-        .staff-bell-item.is-unread { background: rgba(200, 165, 90, .14); }
-        .staff-bell-item i { font-size: 1.2rem; color: #b8862f; }
-        .staff-bell-item strong { display: block; font-size: .88rem; }
-        .staff-bell-item span { display: block; font-size: .8rem; opacity: .75; }
-        .staff-bell-item time { display: block; font-size: .72rem; opacity: .6; margin-top: 2px; }
-        .staff-bell-item > div { min-width: 0; }
-        .staff-bell-item strong, .staff-bell-item span { overflow-wrap: anywhere; }
+
+        .nt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 14px 12px 18px; border-bottom: 1px solid var(--bs-border-color); }
+        .nt-head h2 { margin: 0; font-size: 1rem; font-weight: 800; letter-spacing: -.01em; }
+        .nt-head p { margin: 1px 0 0; font-size: .75rem; color: var(--bs-secondary-color); }
+        .nt-icon-btn {
+            display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0;
+            border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--bs-secondary-color);
+            transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+        }
+        .nt-icon-btn:hover { background: rgba(192, 57, 43, .09); color: var(--danger); border-color: rgba(192, 57, 43, .18); }
+        .nt-icon-btn[hidden] { display: none; }
+
+        .nt-confirm { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 18px; background: rgba(192, 57, 43, .07); border-bottom: 1px solid rgba(192, 57, 43, .16); font-size: .82rem; }
+        .nt-confirm[hidden] { display: none; }
+        .nt-confirm span { flex: 1 1 180px; font-weight: 600; }
+        .nt-confirm .btn { min-height: 32px; padding: .25rem .7rem; font-size: .78rem; }
+
+        .staff-bell-list { max-height: min(62vh, 480px); overflow-y: auto; overscroll-behavior: contain; }
+        .nt-day {
+            position: sticky; top: 0; z-index: 1; padding: 9px 18px 6px;
+            background: var(--bs-body-bg); color: var(--bs-secondary-color);
+            font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+        }
+        .nt-item {
+            position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 11px 34px 11px 18px;
+            color: inherit; text-decoration: none; transition: background-color .15s ease;
+        }
+        .nt-item + .nt-item { border-top: 1px solid var(--bs-border-color); }
+        a.nt-item:hover { background: rgba(160, 46, 37, .05); color: inherit; }
+        .nt-ico { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; font-size: 1.05rem; }
+        .nt-text { min-width: 0; flex: 1; display: grid; gap: 2px; }
+        .nt-text strong { font-size: .86rem; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+        .nt-text span { font-size: .8rem; line-height: 1.4; color: var(--bs-secondary-color); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .nt-text time { font-size: .72rem; color: var(--bs-secondary-color); opacity: .85; margin-top: 2px; }
+        .nt-item.is-unread strong { color: var(--bs-emphasis-color); }
+        .nt-item.is-unread::after { content: ''; position: absolute; top: 50%; right: 16px; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 3px rgba(160, 46, 37, .15); }
+
+        .tone-green   { background: rgba(31, 138, 91, .12);  color: #1a7a50; }
+        .tone-blue    { background: rgba(32, 107, 196, .12); color: #1f5fa8; }
+        .tone-amber   { background: rgba(196, 135, 24, .15); color: #96600a; }
+        .tone-red     { background: rgba(192, 57, 43, .12);  color: #b03a2e; }
+        .tone-brand   { background: rgba(160, 46, 37, .12);  color: var(--gold); }
+        .tone-neutral { background: rgba(127, 127, 127, .14); color: var(--bs-secondary-color); }
+        html.admin-dark .tone-green { color: #62d3a0; }
+        html.admin-dark .tone-blue { color: #7fb2ef; }
+        html.admin-dark .tone-amber { color: #f0b54e; }
+        html.admin-dark .tone-red, html.admin-dark .tone-brand { color: #f08a7e; }
+
+        .nt-empty { display: grid; justify-items: center; gap: 6px; padding: 38px 24px; text-align: center; color: var(--bs-secondary-color); }
+        .nt-empty .nt-ico { width: 52px; height: 52px; border-radius: 16px; font-size: 1.4rem; margin-bottom: 6px; }
+        .nt-empty strong { color: var(--bs-body-color); font-size: .92rem; }
+        .nt-empty p { margin: 0; max-width: 30ch; font-size: .8rem; line-height: 1.45; }
+        .nt-foot { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 12px; border-top: 1px solid var(--bs-border-color); color: var(--gold); font-size: .82rem; font-weight: 700; text-decoration: none; }
+        .nt-foot:hover { background: rgba(160, 46, 37, .05); color: var(--gold-ink); }
+        html.admin-dark .nt-foot, html.admin-dark .nt-foot:hover { color: #f08a7e; }
+
         /* En el teléfono la campana se abre como hoja inferior: así nunca se sale de la pantalla. */
         @media (max-width: 575.98px) {
             .staff-bell-menu {
                 position: fixed !important;
-                inset: auto 12px 12px 12px !important;
+                inset: auto 10px 10px 10px !important;
                 transform: none !important;
                 width: auto !important;
                 max-width: none;
-                max-height: min(75vh, 620px);
-                overflow: hidden;
-                border-radius: 16px;
+                max-height: min(80vh, 640px);
+                display: none; flex-direction: column;
+                border-radius: 20px !important;
                 z-index: 1310;
             }
-            .staff-bell-list { max-height: calc(min(75vh, 620px) - 52px); }
+            .staff-bell-menu.show { display: flex; }
+            .staff-bell-list { max-height: none; flex: 1 1 auto; min-height: 0; }
         }
+        @media (prefers-reduced-motion: reduce) { .nt-item, .nt-icon-btn { transition: none; } }
     </style>
     @stack('styles')
     @include('partials.speculation-rules')
@@ -318,20 +379,29 @@
             <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
                 @yield('actions')
                 {{-- Campana de avisos del equipo --}}
-                <div class="dropdown" id="staffBell" data-feed="{{ route('staff-notifications.feed') }}" data-seen="{{ route('staff-notifications.seen') }}">
-                    <button class="btn btn-outline-dark position-relative" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Notificaciones" title="Notificaciones">
-                        <i class="bi bi-bell"></i>
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" data-staff-bell-badge hidden>0</span>
+                <div class="dropdown" id="staffBell" data-feed="{{ route('staff-notifications.feed') }}" data-seen="{{ route('staff-notifications.seen') }}" data-clear="{{ route('staff-notifications.clear') }}">
+                    <button class="btn btn-outline-dark bell-btn" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Notificaciones" title="Notificaciones">
+                        <i class="bi bi-bell" aria-hidden="true"></i>
+                        <span class="bell-badge" data-staff-bell-badge hidden>0</span>
                     </button>
                     <div class="staff-bell-backdrop" data-staff-bell-backdrop hidden></div>
-                    <div class="dropdown-menu dropdown-menu-end shadow p-0 staff-bell-menu">
-                        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-                            <strong>Notificaciones</strong>
-                            <a class="small" href="{{ route('staff-notifications.index') }}">Ver todas</a>
+                    <div class="dropdown-menu dropdown-menu-end p-0 staff-bell-menu" aria-labelledby="staffBellTitle">
+                        <div class="nt-head">
+                            <div>
+                                <h2 id="staffBellTitle">Notificaciones</h2>
+                                <p data-staff-bell-summary role="status" aria-live="polite">Cargando…</p>
+                            </div>
+                            <button type="button" class="nt-icon-btn" data-staff-bell-clear title="Eliminar todas" aria-label="Eliminar todas las notificaciones" hidden>
+                                <i class="bi bi-trash3" aria-hidden="true"></i>
+                            </button>
                         </div>
-                        <div data-staff-bell-list class="staff-bell-list">
-                            <div class="text-center text-muted small p-4">Cargando…</div>
+                        <div class="nt-confirm" data-staff-bell-confirm hidden>
+                            <span>¿Eliminar todas tus notificaciones?</span>
+                            <button type="button" class="btn btn-outline-dark" data-staff-bell-cancel>Cancelar</button>
+                            <button type="button" class="btn btn-danger" data-staff-bell-confirm-yes>Eliminar</button>
                         </div>
+                        <div data-staff-bell-list class="staff-bell-list"></div>
+                        <a class="nt-foot" href="{{ route('staff-notifications.index') }}">Ver todas las notificaciones <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                     </div>
                 </div>
                 <form method="POST" action="{{ route('logout') }}">
@@ -455,6 +525,12 @@
     };
     const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text) node.textContent = text; return node; };
 
+    const summary = root.querySelector('[data-staff-bell-summary]');
+    const clearBtn = root.querySelector('[data-staff-bell-clear]');
+    const confirmBox = root.querySelector('[data-staff-bell-confirm]');
+    const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const icon = (name, tone) => { const box = el('span', 'nt-ico tone-' + (tone || 'neutral')); box.setAttribute('aria-hidden', 'true'); box.append(el('i', 'bi ' + name)); return box; };
+
     let revision = null;
     const live = document.querySelector('[data-booking-region]');
     const paint = (data) => {
@@ -465,25 +541,57 @@
         revision = latest;
         badge.hidden = !data.unread;
         badge.textContent = data.unread > 9 ? '9+' : String(data.unread);
+        summary.textContent = !data.total ? 'Estás al día'
+            : (data.unread ? `${data.unread} ${data.unread === 1 ? 'nueva' : 'nuevas'} · ${data.total} en total` : `${data.total} ${data.total === 1 ? 'notificación' : 'notificaciones'}`);
+        clearBtn.hidden = !data.total;
+        if (!data.total) confirmBox.hidden = true;
+
         list.replaceChildren();
         if (!data.items.length) {
-            list.append(el('div', 'text-center text-muted small p-4', 'Todavía no hay avisos.'));
+            const empty = el('div', 'nt-empty');
+            empty.append(icon('bi-bell-slash', 'neutral'), el('strong', '', 'No tienes notificaciones'), el('p', '', 'Aquí verás los turnos y citas nuevos, las cancelaciones y el avance de la fila.'));
+            list.append(empty);
             return;
         }
+        let day = null;
         data.items.forEach((item) => {
-            const row = el('a', 'staff-bell-item' + (item.unread ? ' is-unread' : ''));
-            row.href = item.url || '#';
-            const text = el('div');
+            if (item.day !== day) { day = item.day; list.append(el('div', 'nt-day', day)); }
+            const row = el(item.url ? 'a' : 'div', 'nt-item' + (item.unread ? ' is-unread' : ''));
+            if (item.url) row.href = item.url;
+            const text = el('span', 'nt-text');
             text.append(el('strong', '', item.title));
             if (item.body) text.append(el('span', '', item.body));
-            text.append(el('time', '', item.ago));
-            row.append(el('i', 'bi ' + item.icon), text);
+            const time = el('time', '', `${item.time} · ${item.ago}`);
+            text.append(time);
+            row.append(icon(item.icon, item.tone), text);
+            if (item.unread) row.setAttribute('aria-label', 'Nueva: ' + item.title);
             list.append(row);
         });
     };
 
-    const load = async () => {
-        if (document.hidden) return;
+    // Eliminar todas: confirmación dentro del mismo panel (sin ventanas del navegador).
+    clearBtn.addEventListener('click', () => { confirmBox.hidden = false; confirmBox.querySelector('[data-staff-bell-cancel]').focus(); });
+    confirmBox.querySelector('[data-staff-bell-cancel]').addEventListener('click', () => { confirmBox.hidden = true; clearBtn.focus(); });
+    confirmBox.querySelector('[data-staff-bell-confirm-yes]').addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        button.disabled = true;
+        try {
+            const response = await fetch(root.dataset.clear, {
+                method: 'DELETE', credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf() },
+            });
+            if (!response.ok) throw new Error();
+            confirmBox.hidden = true;
+            await load(true);
+        } catch (e) {
+            summary.textContent = 'No se pudieron eliminar. Inténtalo de nuevo.';
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    const load = async (force = false) => {
+        if (document.hidden && !force) return;
         try {
             const response = await fetch(root.dataset.feed, { headers: { Accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' });
             if (response.ok) paint(await response.json());
@@ -501,6 +609,7 @@
     });
     root.addEventListener('hidden.bs.dropdown', () => {
         backdrop.hidden = true;
+        confirmBox.hidden = true;
         load();
     });
     backdrop.addEventListener('click', closeMenu);
@@ -509,8 +618,8 @@
     });
 
     load();
-    setInterval(load, live ? 5000 : 30000);
-    document.addEventListener('visibilitychange', load);
+    setInterval(() => load(), live ? 5000 : 30000);
+    document.addEventListener('visibilitychange', () => load());
 })();
 </script>
 <script>

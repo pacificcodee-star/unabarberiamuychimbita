@@ -17,23 +17,45 @@ class StaffNotificationController extends Controller
         $user = $request->user();
         $seenAt = $user->notifications_seen_at;
 
-        $items = StaffNotification::visibleTo($user)->latest('id')->limit(15)->get();
+        $items = StaffNotification::visibleTo($user)->latest()->latest('id')->limit(15)->get();
         $unread = StaffNotification::visibleTo($user)
             ->when($seenAt, fn ($query) => $query->where('created_at', '>', $seenAt))
             ->count();
 
         return response()->json([
             'unread' => $unread,
+            'total' => StaffNotification::visibleTo($user)->count(),
             'items' => $items->map(fn (StaffNotification $n) => [
                 'id' => $n->id,
                 'icon' => $n->icon(),
+                'tone' => $n->tone(),
                 'title' => $n->title,
                 'body' => $n->body,
                 'url' => $n->url,
+                'day' => $n->dayLabel(),
+                'time' => $n->created_at->format('g:i a'),
                 'ago' => $n->created_at->locale('es')->diffForHumans(),
                 'unread' => ! $seenAt || $n->created_at->gt($seenAt),
             ]),
         ])->header('Cache-Control', 'no-store, private');
+    }
+
+    /**
+     * "Eliminar todas": vacía la bandeja de esta persona. No borra filas porque los avisos se comparten
+     * (el administrador y el barbero ven los mismos); los demás conservan los suyos.
+     */
+    public function clear(Request $request)
+    {
+        $request->user()->forceFill([
+            'notifications_cleared_at' => now(),
+            'notifications_seen_at' => now(),
+        ])->save();
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
+        return redirect()->route('staff-notifications.index')->with('success', 'Se eliminaron todas tus notificaciones.');
     }
 
     /** El usuario abrió la campana: el contador vuelve a cero. */
@@ -50,7 +72,7 @@ class StaffNotificationController extends Controller
         $tab = $request->input('tab') === 'clientes' ? 'clientes' : 'equipo';
 
         $staff = $tab === 'equipo'
-            ? StaffNotification::visibleTo($user)->with('barber')->latest('id')->paginate(30)->withQueryString()
+            ? StaffNotification::visibleTo($user)->with('barber')->latest()->latest('id')->paginate(30)->withQueryString()
             : null;
 
         $clients = $tab === 'clientes'
