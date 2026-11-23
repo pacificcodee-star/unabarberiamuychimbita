@@ -64,7 +64,7 @@
                 </aside>
 
                 <div class="ct-info">
-                    {{-- Canales de contacto: correo, visita, llamada y WhatsApp, con íconos SVG (public/images/contacto): Gmail, Google Maps y WhatsApp oficiales; teléfono de Material Symbols. --}}
+                    {{-- Canales de contacto: correo, visita, llamada y WhatsApp, con íconos SVG (public/images/contacto): Gmail, Google Maps y WhatsApp oficiales; teléfono en verde con el auricular de Material Symbols. --}}
                     <h2 class="ct-subtitle reveal">Escríbenos</h2>
                     <ul class="ct-channels">
                         <li class="reveal">
@@ -82,8 +82,8 @@
                             </a>
                         </li>
                         <li class="reveal">
-                            <a class="ct-channel" href="tel:{{ $siteSettings['phone_link'] }}">
-                                <span class="ct-channel-icon">{!! file_get_contents(public_path('images/contacto/telefono.svg')) !!}</span>
+                            <a class="ct-channel ct-channel--tel" href="tel:{{ $siteSettings['phone_link'] }}">
+                                <span class="ct-channel-icon"><img src="{{ asset('images/contacto/telefono.svg') }}" alt="" width="26" height="26"></span>
                                 <span class="ct-channel-text"><small>Llámanos</small><strong>{{ $siteSettings['phone'] }}</strong></span>
                                 <i class="bi bi-arrow-up-right ct-channel-arrow" aria-hidden="true"></i>
                             </a>
