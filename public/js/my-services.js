@@ -267,8 +267,19 @@
         loadTimes();
     });
 
-    back.addEventListener('click', () => dialog.close());
-    dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
+    // Cierre con animación corta (en el celular la hoja baja); sin animación si el sistema pide reducir movimiento.
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const closeDialog = after => {
+        if (!dialog.open || dialog.classList.contains('is-closing')) return;
+        if (reduceMotion.matches || typeof dialog.getAnimations !== 'function') { dialog.close(); after?.(); return; }
+        dialog.classList.add('is-closing');
+        let finished = false;
+        const done = () => { if (finished) return; finished = true; dialog.classList.remove('is-closing'); dialog.close(); after?.(); };
+        Promise.all(dialog.getAnimations().map(animation => animation.finished)).then(done, done);
+        setTimeout(done, 260);
+    };
+    back.addEventListener('click', () => closeDialog());
+    dialog.addEventListener('cancel', event => { event.preventDefault(); if (!saving) closeDialog(); });
     dialog.addEventListener('close', () => { ++slotRequest; });
     form.addEventListener('submit', async event => {
         event.preventDefault();
@@ -288,9 +299,9 @@
                 throw new Error(detail || ({419: 'La sesión venció. Abre Mis servicios de nuevo.', 429: 'Espera un momento antes de volver a intentarlo.'})[response.status] || 'No se pudo guardar el cambio. Revisa el estado de la reserva.');
             }
             try { localStorage.setItem('ubmc-service-change', String(Date.now())); } catch {} 
-            dialog.close();
             feedback.textContent = result.message;
-            feedback.focus();
+            // El aviso recibe el foco cuando la ventana ya se cerró (mientras está abierta, el resto de la página no lo acepta).
+            closeDialog(() => feedback.focus());
             await refresh(true);
         } catch (error) {
             message.textContent = error instanceof TypeError || error instanceof SyntaxError

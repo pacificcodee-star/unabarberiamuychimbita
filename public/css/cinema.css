@@ -3193,3 +3193,25 @@ section.wg:not(:has(~ :not(section.wg, script))) {
     .site-nav .nav-links { flex: 0 0 auto; min-width: 495px; justify-content: space-between; }
     .nav-links > a { flex: 0 0 auto; padding-inline: 10px; letter-spacing: .1em; font-size: 11.84px; white-space: nowrap; }
 }
+
+/* =====================================================================
+   Servicios: flechas del carrusel y píldora de duración más sólidas.
+   Antes eran casi transparentes sobre la foto; ahora llevan fondo crema
+   casi opaco, un leve desenfoque detrás y sombra suave para leerse bien.
+   ===================================================================== */
+.svc-page .svc-carousel.is-enhanced .svc-arrow {
+    background: rgba(251, 247, 239, .92);
+    border-color: rgba(21, 18, 14, .16);
+    color: var(--text);
+    box-shadow: 0 10px 24px rgba(21, 18, 14, .18), inset 0 1px 0 rgba(255, 255, 255, .85);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+}
+.svc-page .svc-carousel.is-enhanced .svc-arrow:hover { background: var(--button-gold); border-color: var(--button-gold); color: var(--ink); }
+.svc-media-duration {
+    border-color: rgba(178, 141, 39, .5);
+    background: linear-gradient(135deg, rgba(251, 242, 220, .95), rgba(245, 234, 207, .92));
+    box-shadow: 0 12px 28px rgba(21, 18, 14, .18), inset 0 1px 0 rgba(255, 255, 255, .75);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+}

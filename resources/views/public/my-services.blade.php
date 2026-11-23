@@ -138,6 +138,9 @@
 .msv-count { display: inline-grid; place-items: center; min-width: 1.7rem; height: 1.7rem; padding: 0 .5rem; border-radius: 999px; background: rgba(21, 18, 14, .08); color: var(--text-muted); font-family: var(--font-body, system-ui); font-size: .78rem; font-weight: 700; }
 .msv-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 23rem), 1fr)); }
 .msv-card { position: relative; display: grid; gap: 1rem; padding: 1.15rem; border: 1px solid var(--line); border-radius: 1.1rem; background: linear-gradient(180deg, #fbf7ef, #f4ecdf); box-shadow: 0 14px 32px rgba(64, 46, 20, .08); overflow-wrap: anywhere; transition: border-color .2s ease, transform .2s ease; }
+/* La tarjeta es contenedor: la fila de botones se acomoda a su ancho real, no al de la pantalla. */
+.msv-card { container: msv / inline-size; }
+.msv-card > * { min-width: 0; }
 .msv-card:hover { border-color: var(--line-strong); }
 .msv-card.is-next { border-color: var(--gold-line); background: linear-gradient(180deg, #fdf4dd, #f7ecd2); box-shadow: 0 18px 40px rgba(138, 106, 18, .16); }
 .msv-card.is-history { opacity: .88; }
@@ -174,11 +177,21 @@
 .service-actions .btn { min-height: 44px; display: inline-flex; align-items: center; gap: .4rem; }
 /* Confirmar (verde), reprogramar (gris) y cancelar (rojo): píldoras compactas en una fila al pie de la
    tarjeta que se reparten el ancho por partes iguales, separadas del contenido por una línea. */
-.service-actions.has-actions { justify-content: flex-end; gap: .45rem; padding-top: .85rem; border-top: 1px solid var(--line); }
+.service-actions.has-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: .5rem; padding-top: .85rem; border-top: 1px solid var(--line); }
+/* Tres botones en una tarjeta angosta: Confirmar arriba a lo ancho y los otros dos debajo, mitad y mitad. */
+@container msv (max-width: 34rem) {
+    .service-actions.has-actions:has(> :nth-child(3)) { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .service-actions.has-actions:has(> :nth-child(3)) > :first-child { grid-column: 1 / -1; }
+}
+/* Tarjetas muy angostas: los botones quedan solo con el texto para que nunca se salgan. */
+@container msv (max-width: 19rem) {
+    .service-actions.has-actions .btn > i { display: none; }
+    .service-actions.has-actions .btn { padding-inline: .35rem; font-size: .72rem; letter-spacing: .03em; }
+}
 .msv-btn-confirm, .msv-btn-reschedule, .msv-btn-cancel { border-radius: 999px; border: 1px solid transparent; color: #fff; }
 .service-actions .msv-btn-confirm, .service-actions .msv-btn-reschedule, .service-actions .msv-btn-cancel {
-    flex: 1 1 0; min-width: 0; min-height: 38px; justify-content: center; gap: .35rem; padding: .35rem .85rem;
-    font-size: .8rem; font-weight: 600; line-height: 1.2; white-space: nowrap;
+    min-width: 0; min-height: 40px; justify-content: center; gap: .4rem; padding: .4rem .7rem;
+    font-size: .76rem; font-weight: 600; letter-spacing: .06em; line-height: 1.2; white-space: nowrap; overflow: hidden;
 }
 .service-actions .msv-btn-confirm > i, .service-actions .msv-btn-reschedule > i, .service-actions .msv-btn-cancel > i { font-size: .95rem; line-height: 1; }
 .msv-btn-confirm { background: #2f8a5b; border-color: #2f8a5b; }
@@ -195,9 +208,6 @@
     .msv-when { min-width: 3.9rem; min-height: 4.2rem; }
     .msv-when.is-turn strong { font-size: 1.25rem; }
     .service-actions .btn { flex: 1 1 auto; justify-content: center; }
-    /* En el celular los tres botones ocupan la fila por partes iguales, sin crecer de alto. */
-    .service-actions.has-actions { flex-wrap: nowrap; }
-    .service-actions .msv-btn-confirm, .service-actions .msv-btn-reschedule, .service-actions .msv-btn-cancel { flex: 1 1 0; padding-inline: .55rem; font-size: .76rem; gap: .25rem; }
 }
 @media (prefers-reduced-motion: reduce) { .msv-card { transition: none; } }
 /* Diálogo de reprogramar: superficie crema (la misma de la página), compacto y sin tarjetas blancas
@@ -214,8 +224,9 @@
     background: var(--dlg-bg); color: var(--text);
     box-shadow: 0 24px 60px rgba(21, 18, 14, .22), 0 2px 8px rgba(21, 18, 14, .08);
 }
-#service-dialog::backdrop { background: rgb(21 18 14 / .3); }
-#service-dialog h2 { margin: 0 0 .15rem; font-size: 1.3rem; color: var(--text); }
+/* El fondo de atrás se desenfoca (solo el fondo; la ventana no se anima con desenfoque, para que vaya fluida). */
+#service-dialog::backdrop { background: rgb(21 18 14 / .26); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+#service-dialog h2 { margin: 0 0 .15rem; font-size: 1.2rem; color: var(--text); }
 #service-context { margin: 0; color: rgba(21, 18, 14, .62); font-size: .86rem; }
 #service-schedule { margin: 0; padding: 0; border: 0; min-width: 0; }
 #service-schedule .rs-label { display: block; float: none; width: auto; margin: 1rem 0 .5rem; padding: 0; font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(21, 18, 14, .6); }
@@ -223,9 +234,10 @@
 /* Computador: dos columnas; la lista de horas se desplaza dentro de su columna si es larga,
    así la ventana queda baja y sin barra de desplazamiento propia. */
 @media (min-width: 768px) {
-    #service-dialog { width: min(44rem, calc(100% - 3rem)); --dlg-pad: 1.5rem; }
-    #service-schedule .rs-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 1.75rem; align-items: start; }
-    #service-dialog .slot-card { grid-template-columns: repeat(3, minmax(0, 1fr)); max-height: 19.5rem; overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 2px 2px; scrollbar-width: thin; scrollbar-color: rgba(21, 18, 14, .2) transparent; }
+    #service-dialog { width: min(39rem, calc(100% - 3rem)); --dlg-pad: 1.25rem; }
+    #service-schedule .rs-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.35rem; align-items: start; }
+    #service-dialog .cal-day { height: 2.15rem; font-size: .84rem; }
+    #service-dialog .slot-card { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; max-height: 16.4rem; overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 2px 2px; scrollbar-width: thin; scrollbar-color: rgba(21, 18, 14, .2) transparent; }
 }
 #service-schedule small { display: block; margin-top: .75rem; color: rgba(21, 18, 14, .6); font-size: .8rem; }
 #service-dialog-message { margin-block: .6rem; min-height: 1.2em; font-size: .88rem; }
@@ -268,19 +280,29 @@
     /* Hoja inferior: ocupa el ancho y solo la altura que necesita, deja ver la página arriba. */
     #service-dialog { --dlg-pad: 1rem; width: 100%; max-height: 88dvh; margin: auto 0 0; border-radius: 1.25rem 1.25rem 0 0; border-bottom: 0; padding-top: 1.35rem; }
     #service-dialog::before { content: ""; position: absolute; top: .5rem; left: 50%; width: 2.25rem; height: 4px; border-radius: 4px; background: rgba(21, 18, 14, .16); transform: translateX(-50%); }
-    #service-dialog .cal-day { height: 2.3rem; }
+    #service-dialog .cal-day { height: 2.2rem; }
+    /* Las horas se desplazan dentro de su recuadro (3 filas y un poco de la 4.ª), así la hoja no crece de más. */
+    #service-dialog .slot-card { max-height: 9.6rem; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
     .service-dialog-actions { padding-bottom: calc(var(--dlg-pad) + env(safe-area-inset-bottom, 0px)); }
     .service-dialog-actions .btn { flex: 1 1 0; }
 }
+/* Entrada y salida cortas. Computador: aparece en su sitio. Celular: sube desde abajo como hoja
+   (solo transform y opacidad, que el navegador mueve sin recalcular la página). */
 @media (prefers-reduced-motion: no-preference) {
     #service-dialog[open] { animation: service-enter .2s cubic-bezier(.22, 1, .36, 1); }
     #service-dialog[open]::backdrop { animation: service-fade .2s ease-out; }
-    @keyframes service-enter { from { opacity: 0; transform: translateY(8px) scale(.985); } }
+    #service-dialog.is-closing { animation: service-leave .14s ease-in forwards; }
+    #service-dialog.is-closing::backdrop { animation: service-fade-out .14s ease-in forwards; }
+    @keyframes service-enter { from { opacity: 0; transform: translate3d(0, 8px, 0) scale(.985); } }
+    @keyframes service-leave { to { opacity: 0; transform: translate3d(0, 6px, 0) scale(.985); } }
     @keyframes service-fade { from { opacity: 0; } }
+    @keyframes service-fade-out { to { opacity: 0; } }
 }
 @media (prefers-reduced-motion: no-preference) and (max-width: 575.98px) {
-    #service-dialog[open] { animation-name: service-sheet; animation-duration: .24s; }
-    @keyframes service-sheet { from { transform: translateY(100%); } }
+    #service-dialog[open] { animation: service-sheet .28s cubic-bezier(.32, .72, 0, 1); }
+    #service-dialog.is-closing { animation: service-sheet-out .2s cubic-bezier(.4, 0, 1, 1) forwards; }
+    @keyframes service-sheet { from { transform: translate3d(0, 100%, 0); } }
+    @keyframes service-sheet-out { to { transform: translate3d(0, 100%, 0); } }
 }
 </style>
 @endpush
