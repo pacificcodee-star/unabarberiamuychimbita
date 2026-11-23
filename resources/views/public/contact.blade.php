@@ -139,11 +139,13 @@
     z-index: -1;
     pointer-events: none;
     background: url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat, #efe8dc;
+    /* Espejada: el marco y el poste quedan a la derecha, y el título descansa sobre la pared lisa. */
+    transform: scaleX(-1);
 }
-.contact-page .ct-hero {
-    /* Solo la zona del texto se aclara con un degradado suave: el resto de la foto queda a todo color. */
-    background: radial-gradient(85% 130% at 0% 40%, rgba(250, 248, 243, .94) 0%, rgba(250, 248, 243, .72) 36%, rgba(250, 248, 243, 0) 64%) !important;
-}
+.contact-page .ct-hero { background: transparent !important; }
+/* Sin velo: la foto se ve completa; el halo claro solo separa el texto donde cruza zonas oscuras. */
+.contact-page .ct-hero .ct-title,
+.contact-page .ct-hero .ct-lead { text-shadow: 0 1px 2px rgba(250, 248, 243, .95), 0 0 4px rgba(250, 248, 243, .9), 0 0 22px rgba(250, 248, 243, .8); }
 </style>
 @endpush
 
