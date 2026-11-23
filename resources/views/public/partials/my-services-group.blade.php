@@ -27,7 +27,7 @@
                         <p class="msv-flag"><i class="bi bi-stars" aria-hidden="true"></i> Tu próximo servicio</p>
                     @endif
                     <div class="msv-main">
-                        <div class="msv-when" aria-hidden="true">
+                        <div class="msv-when{{ $turn ? ' is-turn' : '' }}" aria-hidden="true">
                             @if($turn)
                                 <span>Turno</span>
                                 <strong>#{{ str_pad((string) $subject->turn_number, 3, '0', STR_PAD_LEFT) }}</strong>
@@ -78,7 +78,7 @@
                                     data-date="{{ $turn ? '' : $subject->appointment_date->toDateString() }}"><i class="bi {{ $icons[$action] ?? 'bi-arrow-right' }}" aria-hidden="true"></i> {{ $labels[$action] }}</button>
                             @endforeach
                             @if($history && $subject->service?->active)
-                                <a class="btn btn-sm btn-ghost-light" href="{{ route('public.booking', ['tipo' => $type, 'servicio' => $subject->service_id]) }}"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Volver a reservar</a>
+                                <a class="btn btn-sm btn-ghost-light msv-btn-rebook" href="{{ route('public.booking', ['tipo' => $type, 'servicio' => $subject->service_id]) }}"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Volver a reservar</a>
                             @endif
                         </div>
                     @endif

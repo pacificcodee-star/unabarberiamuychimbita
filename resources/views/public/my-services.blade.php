@@ -143,9 +143,12 @@
 .msv-card.is-history { opacity: .88; }
 .msv-flag { margin: 0; display: inline-flex; align-items: center; gap: .4rem; color: var(--gold); font-size: .72rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .msv-main { display: flex; gap: 1rem; align-items: flex-start; }
-.msv-when { flex: none; display: grid; justify-items: center; align-content: center; width: 4.4rem; min-height: 4.6rem; padding: .45rem .3rem; border-radius: .9rem; background: #fffdf8; border: 1px solid var(--line); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8); text-align: center; line-height: 1.05; }
+.msv-when { flex: none; display: grid; justify-items: center; align-content: center; width: auto; min-width: 4.4rem; overflow-wrap: normal; white-space: nowrap; min-height: 4.6rem; padding: .45rem .3rem; border-radius: .9rem; background: #fffdf8; border: 1px solid var(--line); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8); text-align: center; line-height: 1.05; }
 .msv-when span { color: var(--text-muted); font-size: .66rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .msv-when strong { margin: .15rem 0; font-family: var(--font-display, Georgia, serif); font-size: 1.65rem; font-weight: 600; color: var(--text); }
+/* El número de turno (#003) va completo en una sola línea dentro de su recuadro. */
+.msv-when.is-turn { padding-inline: .55rem; }
+.msv-when.is-turn strong { font-size: 1.4rem; letter-spacing: -.01em; }
 .msv-card.is-next .msv-when { background: rgba(201, 162, 39, .16); border-color: var(--gold-line); }
 .msv-body { min-width: 0; flex: 1; display: grid; gap: .55rem; }
 .service-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem .75rem; flex-wrap: wrap; }
@@ -170,11 +173,11 @@
 .service-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .service-actions .btn { min-height: 44px; display: inline-flex; align-items: center; gap: .4rem; }
 /* Confirmar (verde), reprogramar (gris) y cancelar (rojo): píldoras compactas en una fila al pie de la
-   tarjeta, alineadas a la derecha y separadas del contenido por una línea. */
+   tarjeta que se reparten el ancho por partes iguales, separadas del contenido por una línea. */
 .service-actions.has-actions { justify-content: flex-end; gap: .45rem; padding-top: .85rem; border-top: 1px solid var(--line); }
 .msv-btn-confirm, .msv-btn-reschedule, .msv-btn-cancel { border-radius: 999px; border: 1px solid transparent; color: #fff; }
 .service-actions .msv-btn-confirm, .service-actions .msv-btn-reschedule, .service-actions .msv-btn-cancel {
-    flex: 0 0 auto; min-height: 36px; justify-content: center; gap: .35rem; padding: .35rem .85rem;
+    flex: 1 1 0; min-width: 0; min-height: 38px; justify-content: center; gap: .35rem; padding: .35rem .85rem;
     font-size: .8rem; font-weight: 600; line-height: 1.2; white-space: nowrap;
 }
 .service-actions .msv-btn-confirm > i, .service-actions .msv-btn-reschedule > i, .service-actions .msv-btn-cancel > i { font-size: .95rem; line-height: 1; }
@@ -184,13 +187,17 @@
 .msv-btn-reschedule:hover, .msv-btn-reschedule:focus-visible { background: #5b574f; border-color: #5b574f; color: #fff; }
 .msv-btn-cancel { background: #a23b34; border-color: #a23b34; }
 .msv-btn-cancel:hover, .msv-btn-cancel:focus-visible { background: #872f29; border-color: #872f29; color: #fff; }
+/* Botón para repetir una reserva del historial: píldora redondeada a lo ancho de la tarjeta. */
+.service-actions .msv-btn-rebook { flex: 1 1 100%; justify-content: center; min-height: 40px; border-radius: 999px; border-color: var(--line-strong); color: var(--text); font-size: .8rem; font-weight: 600; }
+.service-actions .msv-btn-rebook:hover, .service-actions .msv-btn-rebook:focus-visible { background: var(--text); border-color: var(--text); color: #fbf7ef; }
 @media (max-width: 575.98px) {
     .msv-card { padding: 1rem; }
-    .msv-when { width: 3.9rem; min-height: 4.2rem; }
+    .msv-when { min-width: 3.9rem; min-height: 4.2rem; }
+    .msv-when.is-turn strong { font-size: 1.25rem; }
     .service-actions .btn { flex: 1 1 auto; justify-content: center; }
     /* En el celular los tres botones ocupan la fila por partes iguales, sin crecer de alto. */
     .service-actions.has-actions { flex-wrap: nowrap; }
-    .service-actions .msv-btn-confirm, .service-actions .msv-btn-reschedule, .service-actions .msv-btn-cancel { flex: 1 1 auto; min-width: 0; padding-inline: .55rem; font-size: .76rem; gap: .25rem; }
+    .service-actions .msv-btn-confirm, .service-actions .msv-btn-reschedule, .service-actions .msv-btn-cancel { flex: 1 1 0; padding-inline: .55rem; font-size: .76rem; gap: .25rem; }
 }
 @media (prefers-reduced-motion: reduce) { .msv-card { transition: none; } }
 /* Diálogo de reprogramar: superficie crema (la misma de la página), compacto y sin tarjetas blancas
