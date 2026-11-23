@@ -185,7 +185,7 @@
         $route = ['type' => $type, 'token' => $s->public_token];
 
         return [
-            'key' => $type.'-'.substr($s->public_token, 0, 12), // misma clave que push-box (seguimiento)
+            'key' => $type.'-'.substr($s->public_token, 0, 12), // clave de la reserva en este dispositivo (campana y avisos)
             'label' => $type === 'turno' ? 'Tu turno #'.str_pad((string) $s->turn_number, 3, '0', STR_PAD_LEFT) : 'Tu cita',
             'url' => route('track.show', $route),
             'statusUrl' => route('track.status', $route),

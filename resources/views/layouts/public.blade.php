@@ -149,12 +149,6 @@
         .bell-clear:active { transform: scale(.92); }
         .bell-clear.is-busy { pointer-events: none; opacity: .6; }
         .bell-clear[hidden] { display: none; }
-        /* Caja de activación de avisos (página de seguimiento y confirmación de reserva) */
-        .track-push { padding: 1.1rem 1.25rem; border: 1px solid var(--line-strong); border-radius: 14px; margin-bottom: 1.25rem; }
-        .track-push h2 { font-size: 1.05rem; margin: 0 0 .4rem; }
-        .track-push p { margin: 0 0 .85rem; opacity: .88; }
-        .track-push ul { margin: 0 0 .85rem; padding-left: 1.1rem; opacity: .88; }
-        .track-push .is-on { display: flex; align-items: center; gap: .5rem; font-weight: 600; margin-bottom: .6rem; }
     </style>
     @stack('styles')
     @include('partials.speculation-rules')
@@ -385,7 +379,6 @@
         <div class="footer-bottom">
             <span class="footer-copy">&copy; {{ now()->year }} {{ $brandName }}. Todos los derechos reservados.</span>
             <nav class="footer-legal" aria-label="Información legal">
-                <a href="{{ route('my-services.recover') }}">Recuperar mis servicios</a>
                 <a href="{{ route('legal.notice') }}">Aviso legal</a>
                 <a href="{{ route('legal.privacy') }}">Privacidad</a>
                 <button type="button" class="footer-legal-btn" data-cookie-settings>Preferencias de cookies</button>

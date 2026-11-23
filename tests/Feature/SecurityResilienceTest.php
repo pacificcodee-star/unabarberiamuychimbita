@@ -220,7 +220,8 @@ class SecurityResilienceTest extends TestCase
         $barber = $this->barber();
         $appointment = Appointment::create(['barber_id' => $barber->id, 'client_name' => 'Ana', 'client_phone' => '3115550199', 'appointment_date' => '2026-11-19', 'appointment_time' => '11:00', 'status' => 'pendiente']);
 
-        $this->get(route('track.show', ['type' => 'cita', 'token' => $appointment->public_token]))->assertOk()->assertDontSee('3115550199');
+        // El enlace correcto ya no muestra una página: vincula el dispositivo y lleva a Mis servicios.
+        $this->get(route('track.show', ['type' => 'cita', 'token' => $appointment->public_token]))->assertRedirect(route('my-services.index'));
         // Con el id numérico o un token inventado no se llega a nada.
         $this->get('/seguimiento/cita/'.$appointment->id)->assertNotFound();
         $this->get(route('track.show', ['type' => 'cita', 'token' => Str::random(40)]))->assertNotFound();

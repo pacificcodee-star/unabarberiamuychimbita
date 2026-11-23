@@ -281,24 +281,17 @@ class PublicBookingController extends Controller
             'access_url' => ClientServiceAccess::recoveryUrl($turn),
         ]);
 
-        return redirect()->route('public.booking', ['tipo' => 'turno']);
+        // Sin pantalla de confirmación: va directo a Mis servicios, donde ve su turno (igual que la cita).
+        return redirect()->route('my-services.index');
     }
 
     /**
-     * Deja lista la pantalla de éxito en la sesión normal, no como flash.
-     *
-     * La página de reservas consulta la agenda cada 5 segundos (y el navegador puede disparar otras
-     * peticiones) justo entre la reserva y la redirección: esas peticiones envejecen el flash y la
-     * confirmación desaparecía sin haberse visto. La vista la retira (pull) al mostrarla, así no
-     * queda un éxito de un viaje anterior.
+     * Datos de la reserva recién hecha. Ya no hay pantalla de confirmación (cita y turno van a Mis
+     * servicios); solo se usan en esta petición para la caché de idempotencia y para volver a vincular
+     * el dispositivo si la respuesta se perdió.
      */
     private function rememberSuccess(Request $request, array $data): void
     {
-        // La cita ya no muestra el panel de confirmación en /reservar (va a Mis servicios): no se guarda
-        // en la sesión para que el panel no aparezca después al volver a reservar.
-        if (($data['type'] ?? null) !== 'cita') {
-            $request->session()->put('booking_success', $data);
-        }
         // En la petición actual, para decidir qué se guarda en la caché de idempotencia.
         $request->attributes->set('booking_success', $data);
     }
@@ -326,7 +319,7 @@ class PublicBookingController extends Controller
     /** Teléfono: entre 7 y 15 dígitos; se permiten espacios, guiones, paréntesis y el + inicial. */
     /**
      * ¿Ya se procesó la reserva con esta clave? Lo consulta el navegador cuando se perdió la respuesta
-     * (sin internet, tiempo agotado). Si quedó hecha, vuelve a dejar lista la confirmación y responde
+     * (sin internet, tiempo agotado). Si quedó hecha, vuelve a vincular el dispositivo y responde
      * a dónde ir. La clave es un UUID aleatorio que solo conoce quien llenó el formulario.
      */
     public function bookingStatus(Request $request, string $key)

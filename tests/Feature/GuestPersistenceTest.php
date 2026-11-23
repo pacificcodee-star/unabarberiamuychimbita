@@ -98,133 +98,20 @@ class GuestPersistenceTest extends TestCase
         $this->get('/mis-servicios')->assertDontSee('Volver a reservar');
     }
 
-    public function test_empty_active_tab_offers_a_new_service_and_recovery(): void
+    public function test_empty_active_tab_offers_a_new_service_without_recovery(): void
     {
         $this->book($this->barber())->update(['status' => 'atendida']);
 
         $this->get('/mis-servicios')->assertSee('No tienes servicios activos')
-            ->assertSee('Solicitar nuevo servicio')->assertSee('Recuperar mis servicios');
+            ->assertSee('Solicitar nuevo servicio')->assertDontSee('Recuperar mis servicios');
     }
 
-    public function test_phone_recovery_sends_a_hashed_single_use_code_and_restores_bookings(): void
+    public function test_recovery_pages_were_retired_and_lead_to_my_services(): void
     {
-        $appointment = $this->book($this->barber());
-        $this->withCookie('mis_servicios', 'dispositivo-nuevo-sin-credencial');
-        $this->get('/mis-servicios')->assertDontSee('Corte clásico');
-
-        $sent = null;
-        $this->mock(WhatsAppService::class, function ($mock) use (&$sent) {
-            $mock->shouldReceive('isConfigured')->andReturn(true);
-            $mock->shouldReceive('sendText')->once()->andReturnUsing(function (string $to, string $message) use (&$sent) {
-                $sent = $message;
-
-                return true;
-            });
-        });
-
-        $this->post('/mis-servicios/recuperar', ['phone' => '300 123 4567', 'consent' => '1'])
-            ->assertRedirect(route('my-services.recover.verify'));
-        $this->assertNotNull($sent);
-        preg_match('/\b(\d{6})\b/', $sent, $match);
-        $code = $match[1];
-
-        $record = GuestVerificationCode::latest('id')->firstOrFail();
-        $this->assertNotSame($code, $record->code_hash);
-        $this->assertSame(GuestVerificationCode::hashCode($code), $record->code_hash);
-
-        $this->post('/mis-servicios/recuperar/codigo', ['code' => $code === '000000' ? '111111' : '000000'])
-            ->assertSessionHasErrors('code');
-        $this->assertSame(1, $record->fresh()->attempts);
-        $this->get('/mis-servicios')->assertDontSee('Corte clásico');
-
-        $response = $this->post('/mis-servicios/recuperar/codigo', ['code' => $code])
-            ->assertRedirect(route('my-services.index'));
-        $this->withCookie('mis_servicios', $response->getCookie('mis_servicios')->getValue());
-
-        $this->assertNotNull($record->fresh()->consumed_at);
-        $this->assertNotNull(GuestVisitor::where('verified_phone', '3001234567')->first()?->recovery_consent_at);
-        $this->get('/mis-servicios')->assertSee('Corte clásico');
-        $this->assertSame($appointment->guest_visitor_id, GuestVisitor::where('verified_phone', '3001234567')->value('id'));
-    }
-
-    public function test_recovery_code_expires_and_blocks_after_five_attempts(): void
-    {
-        $this->book($this->barber());
-        $this->withCookie('mis_servicios', 'otro-navegador');
-
-        $sent = null;
-        $this->mock(WhatsAppService::class, function ($mock) use (&$sent) {
-            $mock->shouldReceive('isConfigured')->andReturn(true);
-            $mock->shouldReceive('sendText')->andReturnUsing(function ($to, $message) use (&$sent) {
-                $sent = $message;
-
-                return true;
-            });
-        });
-
-        $this->post('/mis-servicios/recuperar', ['phone' => '3001234567', 'consent' => '1']);
-        preg_match('/\b(\d{6})\b/', (string) $sent, $match);
-        $code = $match[1];
-        $wrong = $code === '123456' ? '654321' : '123456';
-
-        $this->travel(11)->minutes();
-        $this->post('/mis-servicios/recuperar/codigo', ['code' => $code])->assertSessionHasErrors('code');
-        $this->assertNull(GuestVerificationCode::latest('id')->first()->consumed_at);
-
-        $this->travel(-11)->minutes();
-        for ($attempt = 1; $attempt <= 5; $attempt++) {
-            $this->post('/mis-servicios/recuperar/codigo', ['code' => $wrong])->assertSessionHasErrors('code');
-        }
-        $this->assertSame(5, GuestVerificationCode::latest('id')->first()->attempts);
-        $this->post('/mis-servicios/recuperar/codigo', ['code' => $code])->assertSessionHasErrors('code');
-        $this->assertNull(GuestVerificationCode::latest('id')->first()->consumed_at);
-    }
-
-    public function test_unknown_phone_gets_the_same_answer_without_sending_a_code(): void
-    {
-        $this->mock(WhatsAppService::class, function ($mock) {
-            $mock->shouldReceive('isConfigured')->andReturn(true);
-            $mock->shouldNotReceive('sendText');
-        });
-
-        $this->post('/mis-servicios/recuperar', ['phone' => '3110000000', 'consent' => '1'])
-            ->assertRedirect(route('my-services.recover.verify'));
+        $this->get('/mis-servicios/recuperar')->assertRedirect('/mis-servicios');
+        $this->get('/mis-servicios/recuperar/codigo')->assertRedirect('/mis-servicios');
+        $this->post('/mis-servicios/recuperar', ['phone' => '3001234567', 'consent' => '1'])->assertRedirect('/mis-servicios');
         $this->assertSame(0, GuestVerificationCode::count());
-    }
-
-    public function test_recovery_does_not_claim_to_send_when_whatsapp_is_not_configured(): void
-    {
-        $this->book($this->barber());
-        $this->mock(WhatsAppService::class, function ($mock) {
-            $mock->shouldReceive('isConfigured')->andReturn(false);
-            $mock->shouldNotReceive('sendText');
-        });
-
-        $this->from('/mis-servicios/recuperar')
-            ->post('/mis-servicios/recuperar', ['phone' => '3001234567', 'consent' => '1'])
-            ->assertRedirect('/mis-servicios/recuperar')
-            ->assertSessionHasErrors('phone');
-        $this->assertSame(0, GuestVerificationCode::count());
-    }
-
-    public function test_recovery_requires_phone_ownership_consent(): void
-    {
-        $this->book($this->barber());
-        $this->mock(WhatsAppService::class, fn ($mock) => $mock->shouldReceive('isConfigured')->andReturn(true));
-
-        $this->post('/mis-servicios/recuperar', ['phone' => '3001234567'])
-            ->assertSessionHasErrors('consent');
-        $this->assertSame(0, GuestVerificationCode::count());
-    }
-
-    public function test_recovery_page_is_not_indexable_and_respects_privacy(): void
-    {
-        $this->mock(WhatsAppService::class, fn ($mock) => $mock->shouldReceive('isConfigured')->andReturn(true));
-
-        $this->get('/mis-servicios/recuperar')->assertOk()
-            ->assertSee('Recuperar mis servicios')
-            ->assertSee('noindex, nofollow', false)
-            ->assertSee('Enviar código');
-        $this->get('/mis-servicios/recuperar/codigo')->assertRedirect('/mis-servicios/recuperar');
+        $this->get('/')->assertDontSee('Recuperar mis servicios');
     }
 }

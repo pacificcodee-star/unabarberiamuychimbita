@@ -118,14 +118,16 @@ class NotificationSystemTest extends TestCase
             'client_phone' => '300 123 4567',
             'payment_method' => 'efectivo',
         ]);
-        $response->assertSessionHas('booking_success');
+        // Sin pantalla de confirmación: va directo a Mis servicios.
+        $response->assertRedirect(route('my-services.index'))->assertSessionMissing('booking_success');
 
         $turn = Turn::firstOrFail();
         $this->assertSame(40, strlen($turn->public_token));
         $this->assertSame([], $this->push->sent); // todavía no hay dispositivos
 
+        // El enlace secreto ya no muestra una página propia: vincula el dispositivo y lleva a Mis servicios.
         $url = ['type' => 'turno', 'token' => $turn->public_token];
-        $this->get(route('track.show', $url))->assertOk()->assertSee('Activar avisos');
+        $this->get(route('track.show', $url))->assertRedirect(route('my-services.index'));
 
         $this->postJson(route('track.push.store', $url), [
             'endpoint' => 'https://fcm.googleapis.com/fcm/send/dispositivo-1',
@@ -304,7 +306,7 @@ class NotificationSystemTest extends TestCase
             'client_name' => 'Cliente Web',
             'client_phone' => '300 123 4567',
             'payment_method' => 'efectivo',
-        ])->assertSessionHas('booking_success');
+        ])->assertRedirect(route('my-services.index'));
 
         $this->get(route('staff-notifications.feed'))->assertRedirect(route('login'));
 

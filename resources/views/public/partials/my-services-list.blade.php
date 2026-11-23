@@ -17,9 +17,7 @@
             <p>Puedes solicitar una nueva cita o turno cuando quieras.</p>
             <div class="service-empty-actions">
                 <a class="btn btn-gold" href="{{ route('public.booking') }}">Solicitar nuevo servicio</a>
-                <a class="btn btn-outline-gold" href="{{ route('my-services.recover') }}">Recuperar mis servicios</a>
             </div>
-            <p class="service-empty-note">¿Ya reservaste antes desde otro navegador o desde la app? Verifica tu celular y recupera tus citas y turnos aquí.</p>
         </div>
     @endif
 </section>

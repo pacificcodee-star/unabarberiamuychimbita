@@ -11,8 +11,6 @@
         $turnoBarber = old('_form') === 'turno' ? old('barber_id', $selectedBarberId) : $selectedBarberId;
         $citaService = old('_form') === 'cita' ? old('service_id') : $requestedService;
         $turnoService = old('_form') === 'turno' ? old('service_id') : $requestedService;
-        // Se retira (pull): la confirmación vive en la sesión normal y solo debe verse una vez.
-        $success = session()->pull('booking_success');
         $fieldError = fn (string $form, string $field) => old('_form') === $form ? ($errors->first($field) ?: null) : null;
         $closedOn = fn ($day) => \App\Models\SiteSetting::isClosedOn($day, $siteSettings);
         $selectedDate = old('_form') === 'cita' ? old('appointment_date', now()->toDateString()) : now()->toDateString();
@@ -39,79 +37,6 @@
 
     <section class="section">
         <div class="container">
-            @if($success)
-                <div class="booking-success" id="bookingSuccess" tabindex="-1" role="status">
-                    <div class="booking-success-head">
-                        <span class="booking-success-icon"><i class="bi bi-check-lg" aria-hidden="true"></i></span>
-                        <div>
-                            <h2>{{ $success['title'] }}</h2>
-                            <span class="code">{{ $success['code'] }}</span>
-                        </div>
-                    </div>
-                    <dl>
-                        @if($success['type'] !== 'cita')
-                            <div>
-                                <dt>Tu número de turno</dt>
-                                <dd class="turn-number">#{{ $success['turn_number'] }}</dd>
-                            </div>
-                        @endif
-                        <div>
-                            <dt>Cliente</dt>
-                            <dd>{{ $success['client'] }}</dd>
-                        </div>
-                        <div>
-                            <dt>Barbero</dt>
-                            <dd>{{ $success['barber'] }}</dd>
-                        </div>
-                        <div>
-                            <dt>Servicio</dt>
-                            <dd>{{ $success['service'] }}</dd>
-                        </div>
-                        @if($success['type'] === 'cita')
-                            <div>
-                                <dt>Fecha</dt>
-                                <dd>{{ \Illuminate\Support\Str::ucfirst($success['date']) }}</dd>
-                            </div>
-                            <div>
-                                <dt>Hora</dt>
-                                <dd>{{ $success['time'] }}</dd>
-                            </div>
-                        @endif
-                        @if(!empty($success['payment']))
-                            <div>
-                                <dt>Método de pago</dt>
-                                <dd>{{ $success['payment'] }}</dd>
-                            </div>
-                        @endif
-                        <div>
-                            <dt>Estado</dt>
-                            <dd>{{ $success['status'] }}</dd>
-                        </div>
-                    </dl>
-                    @if(!empty($success['track_token']))
-                        {{-- Los avisos se activan solos aquí mismo, sin pasos extra. --}}
-                        @include('public.partials.push-box', [
-                            'pushType' => $success['track_type'],
-                            'pushToken' => $success['track_token'],
-                            'pushOpen' => true,
-                            'pushLabel' => $success['type'] === 'cita' ? 'Tu cita' : 'Tu turno #'.str_pad((string) $success['turn_number'], 3, '0', STR_PAD_LEFT),
-                        ])
-                    @endif
-                    <div class="d-flex flex-wrap gap-2">
-                        @if(!empty($success['track_url']))
-                            <a href="{{ $success['track_url'] }}" class="btn btn-gold"><i class="bi bi-eye" aria-hidden="true"></i> {{ $success['type'] === 'cita' ? 'Ver mi cita' : 'Ver mi turno en vivo' }}</a>
-                        @endif
-                        @if(!empty($success['access_url']))
-                            <a href="{{ $success['access_url'] }}" class="btn btn-outline-gold">Mis servicios</a>
-                        @endif
-                        <a href="{{ route('public.booking') }}" class="btn btn-ghost-light">Hacer otra reserva</a>
-                        @if(!empty($siteSettings['whatsapp']))
-                            <a href="https://wa.me/{{ $siteSettings['whatsapp'] }}" class="btn btn-outline-gold" target="_blank" rel="noopener"><i class="bi bi-whatsapp" aria-hidden="true"></i> Escribirnos</a>
-                        @endif
-                    </div>
-                </div>
-            @endif
-
             @if($errors->any())
                 <div class="alert alert-danger mb-4" role="alert">
                     <strong><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i> Revisa la información marcada:</strong>
@@ -431,17 +356,10 @@
 @endsection
 
 @push('scripts')
-@if($success)
-<script>window.addEventListener('load', () => window.trackEvent?.('generate_lead', { booking_type: @json($success['type'] ?? 'reserva') }));</script>
-@endif
-<script src="{{ asset('js/push-client.js') }}?v={{ @filemtime(public_path('js/push-client.js')) }}" defer></script>
 {{-- Envío resiliente: borrador, idempotencia, verificación si se pierde la conexión y permiso de avisos. --}}
 <script src="{{ asset('js/booking-submit.js') }}?v={{ @filemtime(public_path('js/booking-submit.js')) }}" defer></script>
 <script>
     (() => {
-        const success = document.getElementById('bookingSuccess');
-        if (success) success.focus({ preventScroll: false });
-
         // Los turnos dejan de aceptarse al llegar al límite (30 min antes del cierre), sin esperar recarga.
         const turnForm = document.querySelector('[data-booking-form="turno"]');
         const closeTurnRequests = () => {

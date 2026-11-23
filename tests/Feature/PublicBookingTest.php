@@ -110,8 +110,10 @@ class PublicBookingTest extends TestCase
             'payment_method' => 'efectivo',
         ]);
 
-        $response->assertRedirect(route('public.booking', ['tipo' => 'turno']));
-        $response->assertSessionHas('booking_success');
+        // Sin pantalla de confirmación: va directo a Mis servicios, como la cita.
+        $response->assertRedirect(route('my-services.index'));
+        $response->assertSessionMissing('booking_success');
+        $this->get(route('public.booking', ['tipo' => 'turno']))->assertOk()->assertDontSee('quedó registrado');
 
         $this->assertDatabaseHas('turns', [
             'barber_id' => $barber->id,
@@ -126,7 +128,7 @@ class PublicBookingTest extends TestCase
             'client_name' => 'Segundo Cliente',
             'client_phone' => '300 111 2222',
             'payment_method' => 'efectivo',
-        ])->assertRedirect(route('public.booking', ['tipo' => 'turno']));
+        ])->assertRedirect(route('my-services.index'));
 
         $this->assertSame(2, Turn::where('barber_id', $barber->id)->max('turn_number'));
         $this->assertSame('esperando', Turn::where('barber_id', $barber->id)->where('turn_number', 2)->value('status'));

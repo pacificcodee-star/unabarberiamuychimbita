@@ -1851,12 +1851,9 @@ main p { line-height: 1.65; }
 .booking-layout .slot input:hover + label { background-color: var(--gold-soft); }
 .booking-layout .date-chip.is-selected { background-color: var(--gold); }
 .booking-layout .slot label { min-height: 50px; }
-.booking-layout .btn,
-.booking-success .btn { border-radius: 999px; }
-.booking-layout .btn:not(.xbtn),
-.booking-success .btn { min-height: 48px; padding-inline: 22px; }
-.booking-layout .btn:not(:disabled):active,
-.booking-success .btn:not(:disabled):active { transform: translateY(1px); }
+.booking-layout .btn { border-radius: 999px; }
+.booking-layout .btn:not(.xbtn) { min-height: 48px; padding-inline: 22px; }
+.booking-layout .btn:not(:disabled):active { transform: translateY(1px); }
 .booking-layout .form-control:focus-visible,
 .booking-layout .form-select:focus-visible,
 .booking-layout .date-chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
@@ -2610,8 +2607,6 @@ section.wg:not(:has(~ :not(section.wg, script))) {
     }
     .booking-page .page-hero-media { width: var(--hero-media-w); }
 }
-/* Mensaje de reserva enviada: con fondo sólido para que se lea igual sobre el crema. */
-.booking-page .booking-success { background-color: var(--surface-2); }
 
 /* Medios de pago: "Efectivo" del mismo tamaño que los logos (misma casilla blanca de 48 px de alto),
    en una cuadrícula de dos columnas iguales. */
@@ -2665,10 +2660,9 @@ section.wg:not(:has(~ :not(section.wg, script))) {
    (ya no se queda pegada arriba al hacer scroll). */
 .booking-aside { position: static !important; top: auto !important; }
 
-/* Reservas: las tarjetas (formulario, "Tu reserva", "Cómo funciona" y el mensaje de éxito) pasan de café oscuro
+/* Reservas: las tarjetas (formulario, "Tu reserva" y "Cómo funciona") pasan de café oscuro
    a grafito neutro, que combina con el fondo crema. Los campos, pestañas y listas heredan estos tonos. */
-.booking-page .booking-card,
-.booking-page .booking-success {
+.booking-page .booking-card {
     --bg: #141518;
     --bg-rgb: 20, 21, 24;
     --surface: #1c1d21;

@@ -87,11 +87,12 @@ class MyServicesTest extends TestCase
         }
     }
 
-    public function test_empty_page_offers_recovery_from_another_browser(): void
+    public function test_empty_page_no_longer_offers_recovery(): void
     {
         $this->get('/mis-servicios')->assertOk()
-            ->assertSee('Recuperar mis servicios')
-            ->assertSee(route('my-services.recover'));
+            ->assertSee('Solicitar nuevo servicio')
+            ->assertDontSee('Recuperar mis servicios')
+            ->assertDontSee('/mis-servicios/recuperar');
     }
 
     public function test_the_saved_track_link_can_relink_the_device_after_the_cookie_is_lost(): void

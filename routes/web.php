@@ -11,7 +11,6 @@ use App\Http\Controllers\CommissionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EvolutionWebhookController;
 use App\Http\Controllers\ExpenseController;
-use App\Http\Controllers\GuestRecoveryController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MyServicesController;
@@ -90,15 +89,8 @@ Route::get('/reservar/estado/{key}', [PublicBookingController::class, 'bookingSt
 Route::get('/sesion/token', fn () => response()->json(['token' => csrf_token()])->header('Cache-Control', 'no-store'))
     ->middleware('throttle:30,1,session.token')->name('session.token');
 
-// Recuperar el acceso desde otro dispositivo verificando el celular.
-Route::get('/mis-servicios/recuperar', [GuestRecoveryController::class, 'show'])
-    ->middleware('throttle:20,1,guest.recovery.show')->name('my-services.recover');
-Route::post('/mis-servicios/recuperar', [GuestRecoveryController::class, 'send'])
-    ->middleware('throttle:5,1,guest.recovery.send')->name('my-services.recover.send');
-Route::get('/mis-servicios/recuperar/codigo', [GuestRecoveryController::class, 'verifyForm'])
-    ->middleware('throttle:30,1,guest.recovery.form')->name('my-services.recover.verify');
-Route::post('/mis-servicios/recuperar/codigo', [GuestRecoveryController::class, 'verify'])
-    ->middleware('throttle:10,1,guest.recovery.check')->name('my-services.recover.check');
+// «Recuperar mis servicios» se retiró: cualquier enlace viejo a esas páginas lleva a Mis servicios.
+Route::redirect('/mis-servicios/recuperar/{rest?}', '/mis-servicios')->where('rest', '.*');
 
 Route::prefix('mis-servicios')->name('my-services.')->controller(MyServicesController::class)->group(function () {
     Route::get('/', 'index')->middleware('throttle:90,1,my-services.index')->name('index');

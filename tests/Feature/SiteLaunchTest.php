@@ -120,9 +120,8 @@ class SiteLaunchTest extends TestCase
         $this->assertSame(0, Turn::count());
     }
 
-    public function test_tracking_pages_are_not_indexed(): void
+    public function test_booking_forms_keep_the_honeypot_field(): void
     {
-        $this->assertStringContainsString("@section('robots', 'noindex, nofollow')", file_get_contents(resource_path('views/public/track.blade.php')));
         // Los dos formularios de reserva llevan el campo trampa.
         $this->assertSame(2, substr_count(file_get_contents(resource_path('views/public/booking.blade.php')), 'name="website"'));
     }

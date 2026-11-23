@@ -600,16 +600,6 @@ textarea.form-control { min-height: 96px; }
 .how-list strong { display: block; font-size: .9rem; font-weight: 600; }
 .how-list p { margin: 2px 0 0; color: var(--text-muted); font-size: .84rem; line-height: 1.55; }
 
-.booking-success { padding: clamp(24px, 4vw, 40px); margin-bottom: 28px; border: 1px solid rgba(95,174,127,.4); border-radius: var(--radius-lg); background: linear-gradient(180deg, rgba(95,174,127,.08), transparent 60%), var(--surface); }
-.booking-success-head { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
-.booking-success-icon { width: 52px; height: 52px; flex: 0 0 52px; display: grid; place-items: center; border-radius: 50%; background: var(--success); color: var(--bg); font-size: 1.5rem; }
-.booking-success h2, .booking-success h3 { margin: 0; font-size: clamp(1.7rem, 3vw, 2.2rem); }
-.booking-success .code { display: inline-block; margin-top: 4px; color: var(--success); font-size: .75rem; font-weight: 600; letter-spacing: .16em; }
-.booking-success dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0; margin: 0 0 24px; border-top: 1px solid var(--line); }
-.booking-success dl > div { padding: 14px 0; border-bottom: 1px solid var(--line); }
-.booking-success dt { color: var(--text-subtle); font-size: .7rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
-.booking-success dd { margin: 4px 0 0; font-size: 1rem; font-weight: 500; }
-.booking-success .turn-number { font-family: var(--font-display); font-size: 2.6rem; line-height: 1; color: var(--gold); }
 
 /* Alertas */
 .alert { border-radius: var(--radius); border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); padding: 16px 20px; }

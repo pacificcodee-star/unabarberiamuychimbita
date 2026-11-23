@@ -34,20 +34,16 @@ class TrackController extends Controller
         '.push.services.mozilla.com',
     ];
 
-    public function show(string $type, string $token, TurnQueueService $queue)
+    public function show(string $type, string $token)
     {
         $subject = $this->find($type, $token);
 
+        // La página de seguimiento se retiró: el enlace (WhatsApp, avisos push, enlaces guardados) vincula
+        // este dispositivo con la reserva y lleva a Mis servicios, donde se ve, confirma o cancela.
         ClientServiceAccess::remember(request(), $subject);
 
-        return response()
-            ->view('public.track', [
-                'type' => $type,
-                'subject' => $subject,
-                'state' => $this->state($subject, $queue),
-                'vapidPublicKey' => (string) config('services.webpush.public_key'),
-                'hasDevices' => $subject->pushSubscriptions()->exists(),
-            ])
+        return redirect()
+            ->route('my-services.index')
             ->header('Referrer-Policy', 'no-referrer') // el enlace secreto no se filtra a otros sitios
             ->header('X-Robots-Tag', 'noindex, nofollow')
             ->header('Cache-Control', 'no-store, private');
@@ -81,7 +77,7 @@ class TrackController extends Controller
     public function cancel(string $type, string $token, ClientBookingActions $actions)
     {
         $subject = $this->find($type, $token);
-        $back = redirect()->route('track.show', compact('type', 'token'));
+        $back = redirect()->route('my-services.index');
         try {
             return $back->with('track_success', $actions->apply($subject, 'cancelar'));
         } catch (ValidationException $e) {
