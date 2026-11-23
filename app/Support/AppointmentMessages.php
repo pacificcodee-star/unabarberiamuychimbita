@@ -11,7 +11,7 @@ use Carbon\Carbon;
  *
  *  1. Al sacar la cita (queda pendiente): saludo con todos los detalles y la petición de confirmar.
  *  2. Al confirmarla: "¡Hola, Ana! Tu cita en Una Barbería Muy Chimbita quedó confirmada" con el
- *     servicio, el tipo de servicio, la fecha, la hora, el barbero, el valor y la dirección.
+ *     servicio, la fecha, la hora, el barbero, el valor y la dirección.
  *
  * Usa *negrita* de WhatsApp; el push la quita antes de enviarse (ClientNotifier::plainText).
  */
@@ -100,7 +100,6 @@ final class AppointmentMessages
         $lines = array_filter([
             trim((string) $appointment->client_name) !== '' ? '👤 *Cliente:* '.trim((string) $appointment->client_name) : null,
             $service ? '✂️ *Servicio:* '.$service->name : null,
-            $service ? '🏷️ *Tipo de servicio:* '.$service->categoryLabel() : null,
             '📅 *Fecha:* '.ucfirst($start->copy()->locale('es')->translatedFormat('l j \d\e F')),
             '🕒 *Hora:* '.self::time($start),
             '💈 *Barbero:* '.($appointment->barber?->name ?? 'Por asignar'),

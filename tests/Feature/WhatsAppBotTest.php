@@ -88,6 +88,32 @@ class WhatsAppBotTest extends TestCase
         $this->assertGreaterThan(0, $conversation->messages()->where('direction', 'out')->count());
     }
 
+    public function test_el_bot_confirma_con_si_aunque_haya_un_menu_abierto_antes(): void
+    {
+        $cita = $this->cita(['status' => 'pendiente']);
+
+        // Conversación vieja con el bot: queda el menú a la espera de un número.
+        $this->escribir('hola')->assertOk();
+        $this->assertSame('pendiente', $cita->fresh()->status);
+
+        // El cliente responde SÍ al aviso de la cita: se confirma igual.
+        $this->escribir('SÍ')->assertOk();
+
+        $this->assertSame('confirmada', $cita->fresh()->status);
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'gracias por confirmar'));
+        Http::assertNotSent(fn ($request) => str_contains((string) $request['text'], 'Tipo de servicio'));
+    }
+
+    public function test_el_bot_encuentra_la_cita_aunque_el_telefono_se_haya_guardado_con_espacios(): void
+    {
+        // Formulario web: el teléfono puede quedar guardado como "300 123 4567".
+        $cita = $this->cita(['status' => 'pendiente', 'client_phone' => '300 123 4567']);
+
+        $this->escribir('sí')->assertOk();
+
+        $this->assertSame('confirmada', $cita->fresh()->status);
+    }
+
     public function test_el_bot_cancela_una_cita_y_avisa_al_equipo(): void
     {
         $cita = $this->cita(['status' => 'confirmada', 'client_name' => 'Ana Gómez']);

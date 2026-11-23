@@ -98,8 +98,20 @@ class WhatsappBotService
             return $surveyReply;
         }
 
-        $numeric = preg_match('/^\s*(\d{1,3})\s*$/u', $text, $match) ? (int) $match[1] : null;
+        // "SÍ" confirma la cita pendiente aunque quede un menú abierto de una conversación anterior:
+        // el mensaje de la reserva se responde a veces después de haber usado el bot. No se aplica
+        // dentro de los pasos de reserva o cancelación, donde la respuesta ya tiene otro significado.
         $flow = $this->flow($conversation->phone);
+        $normalized = $this->normalize($text);
+        $confirmable = $flow === null || in_array((string) ($flow['step'] ?? ''), ['menu', 'done', 'book_done', 'cancel_done'], true);
+
+        if ($confirmable && ($this->isAffirmative($normalized) || $this->has($normalized, ['confirmar', 'confirmo', 'asisto']))) {
+            if ($appointment = $this->pendingAppointment($conversation->phone) ?? $this->activeAppointment($conversation->phone)) {
+                return $this->confirmAppointment($conversation, $appointment);
+            }
+        }
+
+        $numeric = preg_match('/^\s*(\d{1,3})\s*$/u', $text, $match) ? (int) $match[1] : null;
 
         if ($numeric === 98) {
             return $this->mainMenu($conversation);
@@ -1215,19 +1227,18 @@ class WhatsappBotService
 
     private function historyText(string $phone): string
     {
-        $local = substr($phone, -10);
-
-        if ($local === '') {
+        if ($this->lastTenDigits($phone) === '') {
             return '⚠️ No fue posible identificar tu número para consultar tu historial.'."\n\n".'98. 🏠 Volver al menú principal.';
         }
 
         $appointments = Appointment::query()
             ->with(['service', 'barber', 'sale'])
-            ->where('client_phone', 'like', '%'.$local)
             ->where('status', 'atendida')
             ->orderByDesc('appointment_date')
-            ->limit(5)
+            ->limit(100)
             ->get()
+            ->filter(fn (Appointment $appointment) => $this->phoneMatches((string) $appointment->client_phone, $phone))
+            ->take(5)
             ->map(fn (Appointment $appointment) => [
                 'at' => $appointment->appointment_date?->toDateString().' '.substr((string) $appointment->appointment_time, 0, 5),
                 'service' => $appointment->service?->name,
@@ -1237,11 +1248,12 @@ class WhatsappBotService
 
         $turns = Turn::query()
             ->with(['service', 'barber', 'sale'])
-            ->where('client_phone', 'like', '%'.$local)
             ->where('status', 'atendido')
             ->orderByDesc('turn_date')
-            ->limit(5)
+            ->limit(100)
             ->get()
+            ->filter(fn (Turn $turn) => $this->phoneMatches((string) $turn->client_phone, $phone))
+            ->take(5)
             ->map(fn (Turn $turn) => [
                 'at' => $turn->turn_date?->toDateString().' 00:00',
                 'service' => $turn->service?->name,
@@ -2414,11 +2426,18 @@ class WhatsappBotService
      */
     private function optOut(WhatsAppConversation $conversation): string
     {
-        $local = substr(preg_replace('/\D/', '', $conversation->phone), -10);
         $ids = ['appointment' => [], 'turn' => []];
-        if ($local !== '') {
-            $ids['appointment'] = Appointment::where('client_phone', 'like', '%'.$local)->where('whatsapp_consent', true)->pluck('id')->all();
-            $ids['turn'] = Turn::where('client_phone', 'like', '%'.$local)->where('whatsapp_consent', true)->pluck('id')->all();
+        if ($this->lastTenDigits($conversation->phone) !== '') {
+            $ids['appointment'] = Appointment::query()
+                ->where('whatsapp_consent', true)
+                ->get()
+                ->filter(fn (Appointment $appointment) => $this->phoneMatches((string) $appointment->client_phone, $conversation->phone))
+                ->pluck('id')->all();
+            $ids['turn'] = Turn::query()
+                ->where('whatsapp_consent', true)
+                ->get()
+                ->filter(fn (Turn $turn) => $this->phoneMatches((string) $turn->client_phone, $conversation->phone))
+                ->pluck('id')->all();
             Appointment::whereIn('id', $ids['appointment'])->update(['whatsapp_consent' => false]);
             Turn::whereIn('id', $ids['turn'])->update(['whatsapp_consent' => false]);
             foreach ($ids as $type => $list) {
@@ -2439,55 +2458,48 @@ class WhatsappBotService
 
     private function pendingAppointment(string $phone): ?Appointment
     {
-        $local = substr($phone, -10);
-
-        if ($local === '') {
-            return null;
-        }
-
-        return Appointment::query()
-            ->with(['barber', 'service'])
-            ->where('client_phone', 'like', '%'.$local)
-            ->where('status', 'pendiente')
-            ->whereDate('appointment_date', '>=', now()->toDateString())
-            ->orderBy('appointment_date')
-            ->orderBy('appointment_time')
-            ->first();
+        return $this->appointmentsForPhone($phone, ['pendiente'])->first();
     }
 
     private function activeAppointment(string $phone): ?Appointment
     {
-        $local = substr($phone, -10);
+        return $this->appointmentsForPhone($phone, ['pendiente', 'confirmada'])->first();
+    }
 
-        if ($local === '') {
-            return null;
+    /**
+     * Citas activas de este WhatsApp. El teléfono pudo escribirse en la página con espacios,
+     * guiones o indicativo ("+57 300 123 4567"), así que se comparan los últimos 10 dígitos.
+     */
+    private function appointmentsForPhone(string $phone, array $statuses): \Illuminate\Support\Collection
+    {
+        if ($this->lastTenDigits($phone) === '') {
+            return collect();
         }
 
         return Appointment::query()
             ->with(['barber', 'service'])
-            ->where('client_phone', 'like', '%'.$local)
-            ->whereIn('status', ['pendiente', 'confirmada'])
+            ->whereIn('status', $statuses)
             ->whereDate('appointment_date', '>=', now()->toDateString())
             ->orderBy('appointment_date')
             ->orderBy('appointment_time')
-            ->first();
+            ->get()
+            ->filter(fn (Appointment $appointment) => $this->phoneMatches((string) $appointment->client_phone, $phone))
+            ->values();
     }
 
     private function activeTurn(string $phone): ?Turn
     {
-        $local = substr($phone, -10);
-
-        if ($local === '') {
+        if ($this->lastTenDigits($phone) === '') {
             return null;
         }
 
         return Turn::query()
             ->with(['barber', 'service'])
-            ->where('client_phone', 'like', '%'.$local)
             ->whereDate('turn_date', now()->toDateString()) // los turnos de días anteriores ya no cuentan
             ->whereIn('status', ['esperando', 'llamado', 'atendiendo'])
             ->orderBy('turn_number')
-            ->first();
+            ->get()
+            ->first(fn (Turn $turn) => $this->phoneMatches((string) $turn->client_phone, $phone));
     }
 
     private function subjectTurn(array $data): ?Turn
@@ -2687,5 +2699,17 @@ class WhatsappBotService
         }
 
         return false;
+    }
+
+    private function lastTenDigits(?string $phone): string
+    {
+        return substr((string) preg_replace('/\D+/', '', (string) $phone), -10);
+    }
+
+    private function phoneMatches(?string $stored, string $phone): bool
+    {
+        $local = $this->lastTenDigits($phone);
+
+        return $local !== '' && $this->lastTenDigits($stored) === $local;
     }
 }

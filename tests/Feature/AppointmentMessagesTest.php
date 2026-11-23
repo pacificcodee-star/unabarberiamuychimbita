@@ -33,7 +33,7 @@ class AppointmentMessagesTest extends TestCase
         $this->assertStringContainsString('¡Hola, Ana!', $pedido);
         $this->assertStringContainsString('Por favor confirma tu cita', $pedido);
         $this->assertStringContainsString('✂️ *Servicio:* Corte degradado', $pedido);
-        $this->assertStringContainsString('🏷️ *Tipo de servicio:* Cortes', $pedido);
+        $this->assertStringNotContainsString('Tipo de servicio', $pedido);
         $this->assertStringContainsString('🕒 *Hora:* 3:30 p. m.', $pedido);
         $this->assertStringNotContainsString('Te esperamos', $pedido);
 
@@ -45,7 +45,7 @@ class AppointmentMessagesTest extends TestCase
         $this->assertStringContainsString('¡Hola, Ana!', $confirmada);
         $this->assertStringContainsString('quedó *confirmada*', $confirmada);
         $this->assertStringContainsString('✂️ *Servicio:* Corte degradado', $confirmada);
-        $this->assertStringContainsString('🏷️ *Tipo de servicio:* Cortes', $confirmada);
+        $this->assertStringNotContainsString('Tipo de servicio', $confirmada);
         $this->assertStringContainsString('💈 *Barbero:* Carlos Mendoza', $confirmada);
         $this->assertStringContainsString('💰 *Valor:* $25.000', $confirmada);
 
