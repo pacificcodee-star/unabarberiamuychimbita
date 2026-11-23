@@ -17,6 +17,9 @@ Schedule::command('app:send-service-reminders')->everyMinute();
 //   en el servidor:    * * * * * cd /ruta/del/proyecto && php artisan schedule:run >> /dev/null 2>&1
 Schedule::command('barberia:tick')->everyMinute()->withoutOverlapping(5);
 
+// Copias WebP livianas de las fotos que se suban desde el panel (el original no se toca; ver ConvertImagesToWebp).
+Schedule::command('barberia:webp --solo-storage')->everyFiveMinutes()->withoutOverlapping(30)->runInBackground();
+
 // Retención mínima: códigos de recuperación viejos y credenciales inactivas hace más de 30 días.
 Schedule::call(function (): void {
     GuestVerificationCode::where('created_at', '<', now()->subDays(7))->delete();

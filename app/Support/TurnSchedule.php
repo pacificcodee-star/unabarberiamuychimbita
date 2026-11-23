@@ -78,8 +78,11 @@ final class TurnSchedule
         $now = $now === null ? now() : Carbon::instance($now);
         $closing = self::closingAt($now, $settings);
 
+        $next = self::nextOpeningText($now, $settings);
+
         if ($closing === null) {
-            $message = 'Hoy la barbería está cerrada, así que no se pueden tomar turnos. Puedes agendar una cita para otro día.';
+            $message = 'Hoy la barbería está cerrada, así que no se pueden tomar turnos.'
+                .($next ? " Podrás pedir turno {$next}." : '').' Si prefieres, agenda una cita para otro día.';
 
             return self::state(false, 'closed', null, null, null, $message);
         }
@@ -90,17 +93,21 @@ final class TurnSchedule
 
         $closingLabel = self::timeLabel($closing);
         $deadlineLabel = self::timeLabel($deadline);
-        $cutoffMessage = "Ya no se pueden tomar turnos hoy: las solicitudes cierran a las {$deadlineLabel}, ".
-            "30 minutos antes del cierre de las {$closingLabel}. Puedes agendar una cita para otro día.";
+        $cutoffMessage = "Los turnos de hoy ya cerraron: se reciben hasta las {$deadlineLabel}, ".
+            "30 minutos antes del cierre de las {$closingLabel}."
+            .($next ? " Podrás pedir turno {$next}." : '').' Si prefieres, agenda una cita para otro día.';
 
         if ($now->lt($opening)) {
+            $openingLabel = self::timeLabel($opening);
+
             return self::state(
                 false,
                 'before_open',
                 $opening,
                 $closing,
                 $deadline,
-                'Aún no abrimos. Hoy atendemos de '.self::timeLabel($opening)." a {$closingLabel} y puedes pedir turno hasta las {$deadlineLabel}.",
+                "Aún no abrimos. Podrás pedir turno hoy desde las {$openingLabel} hasta las {$deadlineLabel} ".
+                    "(atendemos de {$openingLabel} a {$closingLabel}).",
                 $cutoffMessage,
             );
         }
@@ -118,6 +125,29 @@ final class TurnSchedule
             "Hoy puedes tomar turno hasta las {$deadlineLabel} (30 minutos antes del cierre).",
             $cutoffMessage,
         );
+    }
+
+    /**
+     * Cuándo se vuelve a poder pedir turno después de hoy: "mañana desde las 9:00 a. m." o
+     * "el lunes desde las 9:00 a. m.". Null si en la próxima semana no hay ningún día abierto.
+     */
+    public static function nextOpeningText(CarbonInterface $now, array $settings): ?string
+    {
+        $names = ['mon' => 'lunes', 'tue' => 'martes', 'wed' => 'miércoles', 'thu' => 'jueves', 'fri' => 'viernes', 'sat' => 'sábado', 'sun' => 'domingo'];
+
+        for ($offset = 1; $offset <= 7; $offset++) {
+            $day = Carbon::instance($now)->startOfDay()->addDays($offset);
+            if (self::closingTime($day, $settings) === null) {
+                continue;
+            }
+
+            $opening = self::openingTime($day, $settings);
+            $when = $offset === 1 ? 'mañana' : 'el '.$names[self::dayKey($day)];
+
+            return $opening === null ? $when : $when.' desde las '.self::timeLabel(self::at($day, $opening));
+        }
+
+        return null;
     }
 
     public static function timeLabel(CarbonInterface $moment): string

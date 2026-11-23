@@ -24,6 +24,10 @@ RUN apk add --no-cache caddy supervisor icu-dev gmp-dev $PHPIZE_DEPS \
     && docker-php-ext-install -j"$(nproc)" pdo_mysql bcmath pcntl opcache intl gmp \
     && apk del $PHPIZE_DEPS
 
+# cwebp: copias WebP livianas de las imágenes (php artisan barberia:webp). Capa aparte para no
+# volver a descargar los paquetes de arriba, que en este servidor bajan muy lento.
+RUN apk add --no-cache libwebp-tools
+
 WORKDIR /var/www/html
 
 COPY --from=vendor /app /var/www/html

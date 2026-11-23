@@ -7,6 +7,21 @@ www.{$APP_HOST} {
 {$APP_HOST} {
 	root * /var/www/html/public
 	# Nunca ejecutar PHP subido: solo public/index.php pasa a PHP.
+	# Imágenes en WebP: si existe foto.png.webp (php artisan barberia:webp) y el navegador acepta WebP,
+	# se entrega esa copia liviana en lugar del PNG/JPG. Rutas, base de datos y vistas no cambian.
+	@images {
+		path /storage/* /images/*
+		path_regexp \.(?i:png|jpe?g)$
+	}
+	header @images Vary Accept
+	@webp {
+		path /storage/* /images/*
+		path_regexp \.(?i:png|jpe?g)$
+		header Accept *image/webp*
+		file {path}.webp
+	}
+	rewrite @webp {path}.webp
+
 	@noPhpStorage path /storage/* /images/* /videos/* /icons/* /vendor/* /css/* /js/*
 	handle @noPhpStorage {
 		header X-Content-Type-Options nosniff

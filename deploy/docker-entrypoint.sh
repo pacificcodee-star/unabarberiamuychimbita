@@ -38,6 +38,8 @@ case "${ROLE:-web}" in
     php artisan migrate --force
     php artisan config:cache
     php artisan view:cache
+    # Copias WebP de las imágenes del sitio y de las subidas, en segundo plano para no demorar el arranque.
+    (php artisan barberia:webp >/proc/1/fd/1 2>&1 || true) &
     exec supervisord -c /etc/supervisord.conf
     ;;
 esac
