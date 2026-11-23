@@ -199,14 +199,17 @@ class ClientNotifier
             // Agendada en el último cuarto de hora: queda confirmada sola, sin pregunta de confirmación.
             $title = '✅ Tu cita quedó confirmada';
             $body = AppointmentMessages::confirmed($appointment, automatic: true);
+            $push = AppointmentMessages::short($appointment).'. Ya quedó confirmada.';
         } elseif ($appointment->status === 'confirmada') {
             // Agendada ya confirmada (p. ej. desde el panel): se envía directamente la confirmación completa.
             $title = '✅ Tu cita quedó confirmada';
             $body = AppointmentMessages::confirmed($appointment);
+            $push = AppointmentMessages::short($appointment);
         } else {
             // Primero se pide confirmar; al confirmar llega el mensaje "¡Hola…! Tu cita quedó confirmada".
             $title = '📅 Confirma tu cita';
             $body = AppointmentMessages::confirmationRequest($appointment);
+            $push = AppointmentMessages::short($appointment).'. Toca para confirmarla.';
         }
 
         $this->queue(
@@ -215,6 +218,7 @@ class ClientNotifier
             $title,
             $body,
             ttlMinutes: (int) config('notificaciones.ttl_minutes.confirmation', 120),
+            pushBody: $push,
         );
         $this->scheduleAppointmentReminders($appointment);
     }
@@ -260,13 +264,14 @@ class ClientNotifier
         $ttl = (int) config('notificaciones.ttl_minutes.change', 120);
         $only = $by === 'bot' ? ['push'] : null;
         $stamp = now()->format('YmdHis');
+        $short = AppointmentMessages::short($appointment); // resumen de una línea para el aviso del navegador
 
         if (! $active) {
             $this->cancelPending($appointment);
 
             if ($to === 'cancelada' && $from !== 'cancelada') {
                 $this->queue($appointment, 'appt_cancelled', 'Cita cancelada', $this->cancellationBody($appointment),
-                    ttlMinutes: $ttl, stamp: $stamp, only: $only);
+                    ttlMinutes: $ttl, stamp: $stamp, only: $only, pushBody: $short.'. Si quieres, agenda otra cita.');
             } elseif ($to === 'atendida' && $from !== 'atendida') {
                 $this->serviceThanks($appointment);
             }
@@ -277,7 +282,7 @@ class ClientNotifier
         if (! $wasActive) { // se reactivó una cita cancelada o atendida
             $this->scheduleAppointmentReminders($appointment);
             $this->queue($appointment, 'appt_reactivated', 'Tu cita fue reactivada', AppointmentMessages::reactivated($appointment),
-                ttlMinutes: $ttl, stamp: $stamp, only: $only);
+                ttlMinutes: $ttl, stamp: $stamp, only: $only, pushBody: $short.($appointment->status === 'pendiente' ? '. Toca para confirmarla.' : ''));
 
             return;
         }
@@ -286,7 +291,7 @@ class ClientNotifier
             $this->cancelPending($appointment, self::REMINDER_TYPES);
             $this->scheduleAppointmentReminders($appointment);
             $this->queue($appointment, 'appt_rescheduled', '🔄 Tu cita fue reprogramada', AppointmentMessages::rescheduled($appointment),
-                ttlMinutes: $ttl, stamp: $start->format('YmdHi'), only: $only);
+                ttlMinutes: $ttl, stamp: $start->format('YmdHi'), only: $only, pushBody: 'Nuevo horario: '.$short);
 
             return;
         }
@@ -294,11 +299,11 @@ class ClientNotifier
         if ($from === 'pendiente' && $to === 'confirmada') {
             $this->queue($appointment, 'appt_confirmed', '✅ Tu cita quedó confirmada',
                 AppointmentMessages::confirmed($appointment, thanks: $by !== 'staff'),
-                ttlMinutes: $ttl, stamp: $stamp, only: $only);
+                ttlMinutes: $ttl, stamp: $stamp, only: $only, pushBody: $short);
         } elseif ($from === 'confirmada' && $to === 'pendiente') {
             $this->queue($appointment, 'appt_pending', '📅 Confirma tu cita',
                 AppointmentMessages::confirmationRequest($appointment, 'Tu cita en *'.$this->brand().'* quedó *pendiente de confirmación*.'),
-                ttlMinutes: $ttl, stamp: $stamp, only: $only);
+                ttlMinutes: $ttl, stamp: $stamp, only: $only, pushBody: $short.'. Toca para confirmarla.');
         }
     }
 
@@ -361,7 +366,7 @@ class ClientNotifier
      * Guarda el aviso (push siempre; WhatsApp solo si el cliente lo autorizó y dejó teléfono).
      * $stamp distingue avisos del mismo tipo que sí deben repetirse (p. ej. recordatorios tras reprogramar).
      */
-    public function queue(Model $subject, string $type, string $title, string $body, ?Carbon $at = null, int $ttlMinutes = 60, string $stamp = '', ?string $url = null, ?array $only = null): void
+    public function queue(Model $subject, string $type, string $title, string $body, ?Carbon $at = null, int $ttlMinutes = 60, string $stamp = '', ?string $url = null, ?array $only = null, ?string $pushBody = null): void
     {
         $at = $at ?: now();
         $channels = ['push'];
@@ -380,7 +385,8 @@ class ClientNotifier
                 'type' => $type,
                 'channel' => $channel,
                 'title' => Str::limit($title, 140, ''),
-                'body' => $body,
+                // WhatsApp lleva el mensaje completo; el aviso del navegador, un resumen corto y sin asteriscos.
+                'body' => $channel === 'push' ? $this->pushSummary($pushBody ?? $body) : $body,
                 'url' => $url ?? $this->trackUrl($subject),
                 'scheduled_for' => $at,
                 'expires_at' => $at->copy()->addMinutes(max(1, $ttlMinutes)),
@@ -671,6 +677,19 @@ class ClientNotifier
     }
 
     /** Quita la negrita de WhatsApp (*texto*) para los canales que la muestran tal cual. */
+    /**
+     * Texto para la notificación del navegador o de la app: sin asteriscos, sin opciones de menú
+     * ("1. Volver…") ni enlaces sueltos, y en máximo 160 caracteres.
+     */
+    private function pushSummary(string $text): string
+    {
+        $lines = collect(preg_split('/\R/u', str_replace('*', '', $text)))
+            ->map(fn ($line) => trim($line))
+            ->filter(fn ($line) => $line !== '' && ! preg_match('/^\d+\.\s/u', $line) && ! preg_match('~^https?://~u', $line));
+
+        return Str::limit(trim((string) preg_replace('/\s+/u', ' ', $lines->take(2)->implode(' '))), 160, '…');
+    }
+
     private function plainText(string $text): string
     {
         return (string) preg_replace('/\*{1,2}([^*\n]+)\*{1,2}/u', '$1', $text);

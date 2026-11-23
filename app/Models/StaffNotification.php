@@ -114,8 +114,8 @@ class StaffNotification extends Model
             foreach ($recipients as $recipient) {
                 foreach ($recipient->pushSubscriptions as $subscription) {
                     $result = $sender->send($subscription, [
-                        'title' => $notification->title,
-                        'body' => $notification->body ?? '',
+                        'title' => str_replace('*', '', $notification->title),
+                        'body' => Str::limit(str_replace('*', '', (string) $notification->body), 160, '…'),
                         'url' => $notification->url ?: '/dashboard',
                         'tag' => 'staff-'.$notification->id,
                     ], 3600);

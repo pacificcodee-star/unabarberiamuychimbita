@@ -41,7 +41,7 @@ class GuestPersistenceTest extends TestCase
             'barber_id' => $barber->id, 'service_id' => $service->id, 'client_name' => 'Ana',
             'client_phone' => '3001234567', 'payment_method' => 'efectivo',
             'appointment_date' => '2026-11-19', 'appointment_time' => $time,
-        ])->assertSessionHas('booking_success');
+        ])->assertSessionHasNoErrors()->assertRedirect();
         $this->deviceCookie = $response->getCookie('mis_servicios');
         $this->deviceToken = $this->deviceCookie->getValue();
         $this->withCookie('mis_servicios', $this->deviceToken);

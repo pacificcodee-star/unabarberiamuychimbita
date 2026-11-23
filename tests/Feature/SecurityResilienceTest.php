@@ -64,7 +64,7 @@ class SecurityResilienceTest extends TestCase
     {
         $barber = $this->barber();
 
-        $this->post(route('public.booking.appointment'), $this->bookingPayload($barber))->assertSessionHas('booking_success');
+        $this->post(route('public.booking.appointment'), $this->bookingPayload($barber))->assertRedirect(route('my-services.index'));
         $this->post(route('public.booking.appointment'), $this->bookingPayload($barber, ['client_name' => 'Otra Persona']))
             ->assertSessionHasErrors('appointment_time');
 
@@ -141,7 +141,7 @@ class SecurityResilienceTest extends TestCase
 
         $this->postJson(route('public.booking.appointment'), $this->bookingPayload($barber, ['idempotency_key' => $key]))->assertOk();
 
-        $this->getJson(route('public.booking.status', $key))->assertOk()->assertJson(['status' => 'done'])->assertSessionHas('booking_success');
+        $this->getJson(route('public.booking.status', $key))->assertOk()->assertJson(['status' => 'done', 'redirect' => route('my-services.index')]);
         $this->get(route('public.booking.status', 'no-es-uuid'))->assertNotFound();
     }
 

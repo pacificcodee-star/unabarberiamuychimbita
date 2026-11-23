@@ -111,4 +111,32 @@
 @endpush
 @push('scripts')
 <script src="{{ asset('js/my-services.js') }}?v={{ filemtime(public_path('js/my-services.js')) }}" defer></script>
+@php
+    // Reservas activas de este dispositivo: se guardan para la campana y para registrar los avisos
+    // (js/notify-permission.js), así no hace falta abrir la página de seguimiento.
+    $deviceBookings = collect($activeCitas ?? [])->concat($activeTurns ?? [])->filter(fn ($s) => filled($s->public_token))->map(function ($s) {
+        $type = $s instanceof \App\Models\Turn ? 'turno' : 'cita';
+        $route = ['type' => $type, 'token' => $s->public_token];
+
+        return [
+            'key' => $type.'-'.substr($s->public_token, 0, 12), // misma clave que push-box (seguimiento)
+            'label' => $type === 'turno' ? 'Tu turno #'.str_pad((string) $s->turn_number, 3, '0', STR_PAD_LEFT) : 'Tu cita',
+            'url' => route('track.show', $route),
+            'statusUrl' => route('track.status', $route),
+            'pushUrl' => route('track.push.store', $route),
+        ];
+    })->values();
+@endphp
+<script>
+(() => {
+    const incoming = @json($deviceBookings);
+    if (!incoming.length) return;
+    try {
+        const list = JSON.parse(localStorage.getItem('ubmc-bookings') || '[]').filter((item) => item && !incoming.some((b) => b.key === item.key));
+        incoming.forEach((b) => list.unshift(Object.assign({ savedAt: Date.now() }, b)));
+        localStorage.setItem('ubmc-bookings', JSON.stringify(list.slice(0, 5)));
+        window.dispatchEvent(new Event('ubmc:bookings'));
+    } catch (e) {}
+})();
+</script>
 @endpush

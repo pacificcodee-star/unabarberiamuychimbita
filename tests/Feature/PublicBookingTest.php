@@ -55,8 +55,10 @@ class PublicBookingTest extends TestCase
             'notes' => 'Primera visita',
         ]);
 
-        $response->assertRedirect(route('public.booking', ['tipo' => 'cita']));
-        $response->assertSessionHas('booking_success');
+        // Sin panel de "cita registrada": va directo a Mis servicios, donde puede confirmarla.
+        $response->assertRedirect(route('my-services.index'));
+        $response->assertSessionHas('status');
+        $response->assertSessionMissing('booking_success');
 
         $this->assertDatabaseHas('appointments', [
             'barber_id' => $barber->id,
@@ -65,11 +67,8 @@ class PublicBookingTest extends TestCase
         ]);
     }
 
-    /**
-     * La página de reservas consulta la agenda cada 5 segundos; esas consultas no pueden borrar
-     * la confirmación antes de que el navegador muestre la pantalla de éxito.
-     */
-    public function test_the_success_screen_survives_the_pages_own_agenda_polling(): void
+    /** La cita ya no deja el panel de "cita registrada": se ve en Mis servicios y /reservar queda limpio. */
+    public function test_the_booked_appointment_shows_in_my_services_without_the_old_panel(): void
     {
         $barber = $this->barber('citas');
         $date = now()->addDay()->toDateString();
@@ -82,13 +81,16 @@ class PublicBookingTest extends TestCase
             'payment_method' => 'efectivo',
             'appointment_date' => $date,
             'appointment_time' => '10:30',
-        ])->assertSessionHas('booking_success');
+        ])->assertRedirect(route('my-services.index'));
 
-        $this->getJson(route('public.booking.slots', ['barber_id' => $barber->id, 'date' => $date]))->assertOk();
+        $this->get(route('my-services.index'))
+            ->assertOk()
+            ->assertSee('Tu cita quedó registrada')
+            ->assertSee('Confirmar cita');
 
         $this->get(route('public.booking', ['tipo' => 'cita']))
-            ->assertSee('booking-success', false)
-            ->assertSee('mis-servicios', false);
+            ->assertOk()
+            ->assertDontSee('id="bookingSuccess"', false);
     }
 
     public function test_a_visitor_can_take_a_turn_without_logging_in(): void

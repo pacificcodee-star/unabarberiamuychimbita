@@ -27,12 +27,12 @@ class BookingMessenger
             return false;
         }
 
-        $body = $this->greeting($appointment->client_name).' Tu cita en *'.$this->brand().'* quedó registrada para *'
-            .$this->when($appointment->appointment_date?->toDateString(), $appointment->appointment_time).'*'
-            .($appointment->barber?->name ? ' con *'.$appointment->barber->name.'*' : '')
-            .($appointment->service?->name ? ' ('.$appointment->service->name.')' : '').".\n\n"
-            ."Para confirmarla, responde *SÍ*.\n"
-            .'Si no vas a poder asistir, responde *CANCELAR*.';
+        // Si el cliente autorizó WhatsApp, ClientNotifier ya le manda esta misma petición: no se duplica.
+        if ($appointment->whatsapp_consent) {
+            return false;
+        }
+
+        $body = \App\Support\AppointmentMessages::confirmationRequest($appointment);
 
         return $this->send($appointment->client_phone, $appointment->client_name, $body);
     }

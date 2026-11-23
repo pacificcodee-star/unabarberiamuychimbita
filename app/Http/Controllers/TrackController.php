@@ -262,7 +262,8 @@ class TrackController extends Controller
             ->map(fn (ClientNotification $n) => [
                 'id' => $n->id,
                 'title' => $n->title,
-                'body' => $n->body,
+                // Sin la negrita de WhatsApp (*texto*): en la campana y en la notificación se verían los asteriscos.
+                'body' => \Illuminate\Support\Str::limit(trim(str_replace('*', '', (string) $n->body)), 220, '…'),
                 'at' => $this->time($n->scheduled_for, withDate: ! $n->scheduled_for->isToday()),
             ])
             ->all();

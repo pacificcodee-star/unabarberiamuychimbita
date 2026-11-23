@@ -74,6 +74,20 @@ final class AppointmentMessages
             : self::confirmationRequest($appointment, 'Tu cita en *'.self::brand().'* fue *reactivada*. 💈');
     }
 
+    /**
+     * Resumen de una línea para la notificación del navegador o de la app (sin asteriscos ni saludos):
+     * "Corte degradado · mié 18 nov, 3:30 p. m. con Carlos".
+     */
+    public static function short(Appointment $appointment): string
+    {
+        $appointment->loadMissing(['service', 'barber']);
+        $start = $appointment->startsAt()->copy()->locale('es');
+        $barber = $appointment->barber?->name ? ' con '.explode(' ', trim($appointment->barber->name))[0] : '';
+        $when = str_replace('.', '', $start->isoFormat('ddd D MMM')).', '.self::time($start); // "mié 18 nov"
+
+        return trim(($appointment->service?->name ? $appointment->service->name.' · ' : '').$when.$barber);
+    }
+
     /** Detalles en renglones separados, cada uno con su emoji. */
     public static function details(Appointment $appointment): string
     {

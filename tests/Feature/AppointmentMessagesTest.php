@@ -65,21 +65,21 @@ class AppointmentMessagesTest extends TestCase
 
         $cambiar(['status' => 'confirmada']);                       // la barbería la confirma
         $this->assertSame(['push', 'whatsapp'], $canales('appt_confirmed'));
-        $this->assertStringNotContainsString('gracias por confirmar', ClientNotification::where('type', 'appt_confirmed')->first()->body);
+        $this->assertStringNotContainsString('gracias por confirmar', ClientNotification::where('type', 'appt_confirmed')->where('channel', 'whatsapp')->first()->body);
 
         $cambiar(['status' => 'pendiente']);                        // vuelve a pendiente
         $this->assertSame(['push', 'whatsapp'], $canales('appt_pending'));
 
         $cambiar(['appointment_time' => '17:00']);                  // reprogramada
         $this->assertSame(['push', 'whatsapp'], $canales('appt_rescheduled'));
-        $this->assertStringContainsString('🕒 *Hora:* 5:00 p. m.', ClientNotification::where('type', 'appt_rescheduled')->first()->body);
+        $this->assertStringContainsString('🕒 *Hora:* 5:00 p. m.', ClientNotification::where('type', 'appt_rescheduled')->where('channel', 'whatsapp')->first()->body);
 
         $cambiar(['status' => 'cancelada']);                        // cancelada
         $this->assertSame(['push', 'whatsapp'], $canales('appt_cancelled'));
 
         $cambiar(['status' => 'confirmada']);                       // reactivada
         $this->assertSame(['push', 'whatsapp'], $canales('appt_reactivated'));
-        $this->assertStringContainsString('fue *reactivada*', ClientNotification::where('type', 'appt_reactivated')->first()->body);
+        $this->assertStringContainsString('fue *reactivada*', ClientNotification::where('type', 'appt_reactivated')->where('channel', 'whatsapp')->first()->body);
 
         $cambiar(['status' => 'atendida']);                         // atendida
         $this->assertSame(['push', 'whatsapp'], $canales('service_thanks'));
@@ -95,7 +95,10 @@ class AppointmentMessagesTest extends TestCase
         app(ClientNotifier::class)->appointmentChanged($cita, $before, 'bot');
 
         $this->assertSame(['push'], ClientNotification::where('type', 'appt_confirmed')->pluck('channel')->all());
-        $this->assertStringContainsString('gracias por confirmar', ClientNotification::where('type', 'appt_confirmed')->first()->body);
+        // El aviso del navegador es corto y sin asteriscos: "Corte degradado · mié 18 nov, 3:30 p. m. con Carlos".
+        $push = ClientNotification::where('type', 'appt_confirmed')->first()->body;
+        $this->assertSame('Corte degradado · mié 18 nov, 3:30 p. m. con Carlos', $push);
+        $this->assertStringNotContainsString('*', $push);
     }
 
     private function cita(array $attributes = []): Appointment

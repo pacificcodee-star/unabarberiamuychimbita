@@ -41,7 +41,7 @@ class MyServicesTest extends TestCase
         $response = $this->post('/reservar/'.$type, [
             'barber_id' => $barber->id, 'service_id' => $service->id, 'client_name' => 'Ana', 'client_phone' => '3001234567',
             'payment_method' => 'efectivo', 'appointment_date' => '2026-11-19', 'appointment_time' => '10:00',
-        ])->assertSessionHas('booking_success');
+        ])->assertSessionHasNoErrors()->assertRedirect();
         if ($device = $response->getCookie('mis_servicios')) {
             $this->withCookie('mis_servicios', $device->getValue());
         }

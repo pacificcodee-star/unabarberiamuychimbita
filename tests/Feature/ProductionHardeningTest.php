@@ -188,7 +188,7 @@ class ProductionHardeningTest extends TestCase
         $this->post(route('public.booking.appointment'), [
             'barber_id' => $barber->id, 'service_id' => $this->service()->id, 'client_name' => 'Ana', 'client_phone' => '300 123 4567', 'payment_method' => 'efectivo',
             'appointment_date' => '2026-11-19', 'appointment_time' => '10:30', 'whatsapp_consent' => '1',
-        ])->assertSessionHas('booking_success');
+        ])->assertRedirect(route('my-services.index'));
         $this->post(route('public.reviews.store'), ['client_name' => 'Ana', 'rating' => 5, 'comment' => 'Muy buena atención y buen corte.']);
 
         $appointment = Appointment::firstOrFail();
