@@ -123,11 +123,18 @@
             const url = new URL(a.href, location.href);
             if (a.target === '_blank' || a.hasAttribute('download') || url.origin !== location.origin || (url.pathname === location.pathname && url.hash)) return;
             if (/^(mailto|tel|https?:\/\/wa\.me)/.test(a.getAttribute('href'))) return;
-            if (a.closest('.mnav')) return; // la barra inferior navega al instante y muestra su propia carga
-            e.preventDefault();
-            curtain.classList.add('is-leaving');
-            setTimeout(() => { location.href = url.href; }, 160); // igual a la transición de .page-curtain (site.css)
+            if (a.closest('.mnav')) return; // la barra inferior muestra su propia carga
+            // La navegación empieza de inmediato (antes se frenaba 160 ms con preventDefault + setTimeout);
+            // la cortina solo acompaña mientras llega la página. Se espera a que termine el clic para no
+            // cubrir la página si otro script lo canceló.
+            setTimeout(() => {
+                if (e.defaultPrevented) return;
+                curtain.classList.add('is-leaving');
+                clearTimeout(curtainTimer);
+                curtainTimer = setTimeout(() => curtain.classList.remove('is-leaving'), 3000); // si al final no se cambió de página
+            }, 0);
         });
-        addEventListener('pageshow', () => curtain.classList.remove('is-leaving'));
+        let curtainTimer = 0;
+        addEventListener('pageshow', () => { clearTimeout(curtainTimer); curtain.classList.remove('is-leaving'); });
     }
 })();

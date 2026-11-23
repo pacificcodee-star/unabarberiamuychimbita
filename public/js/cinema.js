@@ -631,13 +631,10 @@
     // Las medidas cambian cuando terminan de cargar fuentes e imágenes.
     document.fonts?.ready.then(() => refreshScroll());
     window.addEventListener('load', () => refreshScroll(), { once: true });
-    // Limpieza al salir (no en bfcache: la página puede volver tal cual con el botón "atrás").
-    window.addEventListener('pagehide', (event) => {
-        if (event.persisted) return;
-        mm.revert();
-        ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
-        cleanups.forEach((fn) => fn());
-    });
+    // Al salir no se deshace nada: si la página no queda guardada (bfcache) el navegador la descarta entera.
+    // Antes aquí se revertían todas las animaciones (mm.revert + kill de cada ScrollTrigger) en `pagehide`, y eso
+    // recalculaba estilos y medidas justo durante el cambio de página: medido en un celular simulado (CPU 4x),
+    // 50-70 ms más de espera antes de que empezara a mostrarse la página nueva.
 
     window.Cinema = { refresh: () => ScrollTrigger.refresh() };
 })();

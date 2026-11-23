@@ -1935,11 +1935,8 @@ body:has(.pwa-prompt.is-visible) .whatsapp-float { bottom: 120px; }
    DINAMISMO GLOBAL (motion.js): títulos, imágenes, texto detrás del objeto,
    progreso, botones magnéticos y transiciones entre páginas
    ===================================================================== */
-@view-transition { navigation: auto; }
-::view-transition-old(root) { animation: vt-out .45s cubic-bezier(.7,0,.3,1) both; }
-::view-transition-new(root) { animation: vt-in .6s cubic-bezier(.16,1,.3,1) both; }
-@keyframes vt-out { to { opacity: 0; transform: translateY(-24px) scale(.985); filter: blur(4px); } }
-@keyframes vt-in { from { opacity: 0; transform: translateY(32px); clip-path: inset(18% 0 0 0); } to { opacity: 1; transform: none; clip-path: inset(0); } }
+/* Las transiciones entre páginas (View Transitions) se definen solo en cinema.css (sección 19.9 y 25.3);
+   aquí había una versión anterior de 0,45 s + 0,6 s que cinema.css ya anulaba. */
 
 .page-curtain { position: fixed; inset: 0; z-index: 9999; pointer-events: none; background: linear-gradient(120deg, var(--bg) 60%, var(--gold)); transform: translateY(100%); transition: transform .16s cubic-bezier(.7,0,.3,1); }
 .page-curtain.is-leaving { transform: translateY(0); }

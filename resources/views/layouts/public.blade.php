@@ -15,6 +15,10 @@
             try { internal = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (e) {}
             try { seen = sessionStorage.getItem('ubmc-intro') === '1'; sessionStorage.setItem('ubmc-intro', '1'); } catch (e) {}
             if (!internal && !seen) document.documentElement.classList.add('is-loading');
+            // Llegada desde otra página del sitio (no al recargar): el contenido entra con un fundido breve en el celular (cinema.css, .pt-enter).
+            var reload = false;
+            try { var entry = performance.getEntriesByType('navigation')[0]; reload = !!entry && entry.type === 'reload'; } catch (e) {}
+            if (internal && !reload) document.documentElement.classList.add('pt-enter');
         })();
         // Transiciones entre páginas con dirección: según el orden del menú se avanza (izquierda) o se regresa (derecha).
         // Debe ir en el <head>, antes de que la página se pinte. Los navegadores sin esta función cambian de página normalmente.
@@ -22,12 +26,18 @@
             var order = ['/', '/servicios', '/barberos', '/mis-servicios', '/contacto', '/reservar'];
             var place = function (url) { try { return order.indexOf((new URL(url).pathname.replace(/\/+$/, '')) || '/'); } catch (e) { return -1; } };
             var mark = function (transition, from, to) {
-                if (!transition || !transition.types || !from || !to) return;
+                if (!transition) return;
+                // Si el navegador anula la transición (p. ej. cambió el alto de la ventana), no es un error de la página.
+                var quiet = function () {};
+                if (transition.ready) transition.ready.catch(quiet);
+                if (transition.finished) transition.finished.catch(quiet);
+                if (transition.updateCallbackDone) transition.updateCallbackDone.catch(quiet);
+                if (!transition.types || !from || !to) return;
                 var a = place(from), b = place(to);
                 transition.types.add(a < 0 || b < 0 || a === b ? 'nav-fade' : (b > a ? 'nav-forward' : 'nav-back'));
             };
-            window.addEventListener('pageswap', function (e) { if (e.activation && e.activation.from) mark(e.viewTransition, e.activation.from.url, e.activation.entry.url); });
-            window.addEventListener('pagereveal', function (e) { var act = window.navigation && navigation.activation; if (act && act.from) mark(e.viewTransition, act.from.url, act.entry.url); });
+            window.addEventListener('pageswap', function (e) { var act = e.activation; mark(e.viewTransition, act && act.from && act.from.url, act && act.entry && act.entry.url); });
+            window.addEventListener('pagereveal', function (e) { var act = window.navigation && navigation.activation; mark(e.viewTransition, act && act.from && act.from.url, act && act.entry && act.entry.url); });
         })();
     </script>
     <meta charset="UTF-8">
