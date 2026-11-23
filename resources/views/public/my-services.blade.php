@@ -5,7 +5,10 @@
 @section('content')
     <div class="my-services-page">
         @include('public.partials.page-hero', ['crumb' => 'Mis servicios', 'title' => 'Mis servicios', 'ghost' => false,
-            'description' => 'Consulta tus reservas, confirma tu asistencia o elige un nuevo horario.'])
+            'description' => 'Consulta tus reservas, confirma tu asistencia o elige un nuevo horario.',
+            'image' => asset('images/mis-servicios-herramientas.webp'),
+            'image_fallback' => asset('images/mis-servicios-herramientas.jpg'),
+            'image_alt' => 'Herramientas de barbería: máquina, tijeras, peine, brocha y navaja sobre una repisa de mármol.'])
     <div class="container service-manager" data-services data-slots="{{ route('public.booking.slots') }}">
         @if(session('status'))
             <p class="service-alert" role="status">{{ session('status') }}</p>
@@ -71,7 +74,8 @@
 .my-services-page .page-hero { background: transparent !important; }
 /* Sobre la foto: la ruta y las pestañas llevan su propia cápsula crema para leerse. */
 .my-services-page .breadcrumb-public {
-    width: fit-content;
+    flex-wrap: nowrap;
+    width: max-content;
     padding: .4rem .8rem;
     border: 1px solid rgba(21, 18, 14, .12);
     border-radius: 999px;
@@ -82,6 +86,44 @@
 .my-services-page .breadcrumb-public a { color: var(--text-muted); }
 .my-services-page .breadcrumb-public [aria-current] { color: var(--gold); }
 .my-services-page .service-tabs { background: rgba(250, 248, 243, .92); border-color: rgba(21, 18, 14, .18); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+/* Herramientas al lateral derecho de la cabecera: de arriba hasta la frase «…nuevo horario.».
+   El borde izquierdo y el inferior se difuminan para fundirse con la foto de fondo. */
+.my-services-page .page-hero.has-media { --hero-media-w: clamp(220px, 33vw, 430px); }
+.my-services-page .page-hero.has-media .page-hero-grid {
+    padding-right: calc(var(--hero-media-w) + clamp(20px, 3vw, 56px) - max(0px, (100vw - 100%) / 2));
+}
+.my-services-page .page-hero-media {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: clamp(28px, 4vw, 52px);
+    width: var(--hero-media-w);
+    margin: 0;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 26%), linear-gradient(0deg, transparent 0, #000 14%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 26%), linear-gradient(0deg, transparent 0, #000 14%);
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
+}
+.my-services-page .page-hero-media,
+.my-services-page .page-hero-media picture,
+.my-services-page .page-hero-media img {
+    clip-path: none !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+}
+.my-services-page .page-hero-media picture,
+.my-services-page .page-hero-media img {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+.my-services-page .page-hero-media img { object-fit: cover; object-position: 50% 40%; }
+@media (max-width: 767.98px) {
+    .my-services-page .page-hero.has-media { --hero-media-w: clamp(140px, 44vw, 300px); }
+    .my-services-page .page-hero.has-media .page-hero-grid { padding-right: calc(var(--hero-media-w) + 14px - max(0px, (100vw - 100%) / 2)); }
+}
 .service-manager { padding-block: 2rem 5rem; }
 .service-alert { margin-block: 0 1.25rem; padding: .8rem 1rem; border: 1px solid rgba(138, 106, 18, .35); border-radius: .6rem; background: rgba(225, 186, 112, .22); color: #5c4a0f; }
 .service-tabs { display: inline-flex; gap: .25rem; margin-block: 0 2rem; padding: .3rem; border: 1px solid var(--line); border-radius: 999px; background: rgba(21, 18, 14, .05); }
