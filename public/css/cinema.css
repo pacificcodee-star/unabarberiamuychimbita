@@ -3215,3 +3215,8 @@ section.wg:not(:has(~ :not(section.wg, script))) {
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
 }
+
+/* Contacto: íconos SVG oficiales (correo, ubicación y teléfono de Material Symbols; WhatsApp oficial).
+   Toman el color de cada recuadro con currentColor. */
+.ct-channel-icon > svg { display: block; width: 1.4rem; height: 1.4rem; flex: none; }
+.ct-channel-icon > img { display: block; width: 1.6rem; height: 1.6rem; }
