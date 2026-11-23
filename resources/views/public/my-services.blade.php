@@ -110,11 +110,11 @@
 /* Confirmar (verde), reprogramar (gris) y cancelar (rojo): tarjetas altas con el ícono arriba. */
 .msv-btn-confirm, .msv-btn-reschedule, .msv-btn-cancel { border-radius: 1rem; border: 1px solid transparent; color: #fff; }
 .service-actions .msv-btn-confirm, .service-actions .msv-btn-reschedule, .service-actions .msv-btn-cancel {
-    flex: 1 1 0; min-width: 5.4rem; min-height: 7rem; justify-content: center; flex-direction: column;
-    gap: .55rem; padding: 1rem .25rem; font-size: .68rem; font-weight: 700; letter-spacing: .03em;
+    flex: 1 1 0; min-width: 5.4rem; min-height: 4.4rem; justify-content: center; flex-direction: column;
+    gap: .3rem; padding: .6rem .25rem; font-size: .66rem; font-weight: 700; letter-spacing: .03em;
     line-height: 1.3; text-align: center; text-transform: uppercase;
 }
-.service-actions .msv-btn-confirm > i, .service-actions .msv-btn-reschedule > i, .service-actions .msv-btn-cancel > i { font-size: 2rem; line-height: 1; }
+.service-actions .msv-btn-confirm > i, .service-actions .msv-btn-reschedule > i, .service-actions .msv-btn-cancel > i { font-size: 1.35rem; line-height: 1; }
 .msv-btn-confirm { background: #2f8a5b; border-color: #2f8a5b; }
 .msv-btn-confirm:hover, .msv-btn-confirm:focus-visible { background: #26714b; border-color: #26714b; color: #fff; }
 .msv-btn-reschedule { background: #6f6a62; border-color: #6f6a62; }
