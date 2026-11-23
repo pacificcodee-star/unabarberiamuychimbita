@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="my-services-page">
-        @include('public.partials.page-hero', ['crumb' => 'Mis servicios', 'title' => 'Mis servicios',
+        @include('public.partials.page-hero', ['crumb' => 'Mis servicios', 'title' => 'Mis servicios', 'ghost' => false,
             'description' => 'Consulta tus reservas, confirma tu asistencia o elige un nuevo horario.'])
     <div class="container service-manager" data-services data-slots="{{ route('public.booking.slots') }}">
         @if(session('status'))
@@ -56,7 +56,6 @@
     color: var(--text);
 }
 .my-services-page .page-hero { background: transparent !important; }
-.my-services-page .page-hero-ghost { color: rgba(21, 18, 14, .07) !important; }
 .service-manager { padding-block: 2rem 5rem; }
 .service-alert { margin-block: 0 1.25rem; padding: .8rem 1rem; border: 1px solid rgba(138, 106, 18, .35); border-radius: .6rem; background: rgba(225, 186, 112, .22); color: #5c4a0f; }
 .service-tabs { display: inline-flex; gap: .25rem; margin-block: 0 2rem; padding: .3rem; border: 1px solid var(--line); border-radius: 999px; background: rgba(21, 18, 14, .05); }
@@ -72,7 +71,6 @@
 .service-empty-state h2 { margin: 0 0 .5rem; font-size: 1.45rem; }
 .service-empty-state p { margin: 0 0 1.25rem; color: var(--text-muted); }
 .service-empty-state .btn { min-height: 44px; }
-.service-recover-link { display: block; margin-top: 1rem; color: var(--gold); text-decoration: underline; text-underline-offset: 3px; }
 .service-group h2 { display: flex; align-items: center; gap: .6rem; margin: 0 0 1rem; font-size: 1.35rem; }
 .msv-count { display: inline-grid; place-items: center; min-width: 1.7rem; height: 1.7rem; padding: 0 .5rem; border-radius: 999px; background: rgba(21, 18, 14, .08); color: var(--text-muted); font-family: var(--font-body, system-ui); font-size: .78rem; font-weight: 700; }
 .msv-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 23rem), 1fr)); }

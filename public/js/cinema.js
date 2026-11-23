@@ -166,7 +166,7 @@
         chars.forEach((c, i) => tl.to(c, { ...show, duration: 0.6 }, i * 0.12));
     };
     gsap.utils.toArray('main .purpose-title, main .purpose-label h3, main .cx-outro-title, main .page-hero h1, main .ct-title, main .section-title, main .cta-band h2, main .ct-subtitle, main .rv-title, main .cx-proof-title, main .svc-head h1')
-        .filter((el) => !el.closest('.booking-page, .contact-page')) // Reservas y Contacto: títulos quietos, sin animación de letras.
+        .filter((el) => !el.closest('.booking-page, .contact-page, .my-services-page')) // Reservas, Contacto y Mis servicios: títulos quietos, sin animación de letras.
         .forEach((el) => lettersOnScroll(el));
 
     // Textos largos: palabra por palabra con el scroll ("Nuestra esencia", Misión y Visión).

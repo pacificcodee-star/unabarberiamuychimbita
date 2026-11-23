@@ -14,7 +14,7 @@
     root.classList.add('motion-ready');
 
     /* ---------- 1. Títulos palabra por palabra ---------- */
-    const SKIP = '.booking-page .page-hero, .contact-page, [data-xh], [data-xq], [data-cx-chars], [data-bx], .svc-slide, .home-quote, .barber-chapter-word, .xq-card, .nav-links, .ct-map';
+    const SKIP = '.booking-page .page-hero, .contact-page, .my-services-page, [data-xh], [data-xq], [data-cx-chars], [data-bx], .svc-slide, .home-quote, .barber-chapter-word, .xq-card, .nav-links, .ct-map';
     const splitTargets = [...document.querySelectorAll('main h1, main h2, main .section-kicker, main [data-split]')]
         .filter((el) => !el.closest(SKIP) && !el.querySelector('.word, .xh-line, .qw, .sw') && el.textContent.trim().length > 0 && el.children.length <= 2);
     splitTargets.forEach((el) => {

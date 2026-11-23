@@ -16,7 +16,6 @@
             <h2>No tienes servicios activos.</h2>
             <p>Puedes solicitar una nueva cita o turno cuando quieras.</p>
             <a class="btn btn-gold" href="{{ route('public.booking') }}">Solicitar nuevo servicio</a>
-            <a class="service-recover-link" href="{{ route('my-services.recover') }}">¿Perdiste el acceso? Recupera tus servicios</a>
         </div>
     @endif
 </section>
@@ -29,7 +28,6 @@
             <span class="msv-empty-ico" aria-hidden="true"><i class="bi bi-clock-history"></i></span>
             <h2>Todavía no tienes servicios anteriores.</h2>
             <p>Cuando termines o canceles una reserva, aparecerá aquí para que puedas volver a reservarla.</p>
-            <a class="service-recover-link" href="{{ route('my-services.recover') }}">¿Perdiste el acceso? Recupera tus servicios</a>
         </div>
     @endif
 </section>
