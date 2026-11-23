@@ -3224,3 +3224,9 @@ section.wg:not(:has(~ :not(section.wg, script))) {
 .contact-page .ct-channels > li > .ct-channel--maps .ct-channel-icon,
 .contact-page .ct-channels > li > .ct-channel--tel .ct-channel-icon,
 .contact-page .ct-channels > li > .ct-channel--wa .ct-channel-icon { background: #fff; border-color: var(--line); }
+
+/* Pie de página, «Visítanos»: los mismos íconos a color de Contacto (Google Maps, teléfono, Gmail y reloj),
+   en una columna fija de 20 px para que los textos queden alineados. */
+.footer-list li { align-items: flex-start; }
+.footer-list .footer-ico { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 1px; object-fit: contain; }
+.footer-list li:has(> a) .footer-ico { margin-top: 4px; }

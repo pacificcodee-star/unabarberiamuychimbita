@@ -366,11 +366,12 @@
             </div>
             <div>
                 <div class="footer-title">Visítanos</div>
+                {{-- Mismos íconos que Contacto (public/images/contacto): Google Maps, teléfono, Gmail y reloj. --}}
                 <ul class="footer-list">
-                    <li><i class="bi bi-geo-alt" aria-hidden="true"></i><span>{{ $siteSettings['address'] }}, {{ $siteSettings['city'] }}</span></li>
-                    @if(!empty($siteSettings['phone']))<li><i class="bi bi-telephone" aria-hidden="true"></i><a href="tel:{{ $siteSettings['phone_link'] ?? $siteSettings['phone'] }}">{{ $siteSettings['phone'] }}</a></li>@endif
-                    @if(!empty($siteSettings['email']))<li><i class="bi bi-envelope" aria-hidden="true"></i><a href="mailto:{{ $siteSettings['email'] }}">{{ $siteSettings['email'] }}</a></li>@endif
-                    <li><i class="bi bi-clock" aria-hidden="true"></i><span>@foreach(\App\Models\SiteSetting::groupedHours($siteSettings) as $group){{ $group['label'] }}: {{ $group['value'] }}@unless($loop->last)<br>@endunless @endforeach</span></li>
+                    <li><img class="footer-ico" src="{{ asset('images/contacto/ubicacion.svg') }}" alt="" width="14" height="20" loading="lazy" decoding="async"><span>{{ $siteSettings['address'] }}, {{ $siteSettings['city'] }}</span></li>
+                    @if(!empty($siteSettings['phone']))<li><img class="footer-ico" src="{{ asset('images/contacto/telefono.svg') }}" alt="" width="20" height="20" loading="lazy" decoding="async"><a href="tel:{{ $siteSettings['phone_link'] ?? $siteSettings['phone'] }}">{{ $siteSettings['phone'] }}</a></li>@endif
+                    @if(!empty($siteSettings['email']))<li><img class="footer-ico" src="{{ asset('images/contacto/correo.svg') }}" alt="" width="20" height="16" loading="lazy" decoding="async"><a href="mailto:{{ $siteSettings['email'] }}">{{ $siteSettings['email'] }}</a></li>@endif
+                    <li><img class="footer-ico" src="{{ asset('images/contacto/horario.svg') }}" alt="" width="20" height="20" loading="lazy" decoding="async"><span>@foreach(\App\Models\SiteSetting::groupedHours($siteSettings) as $group){{ $group['label'] }}: {{ $group['value'] }}@unless($loop->last)<br>@endunless @endforeach</span></li>
                 </ul>
             </div>
             <div>
