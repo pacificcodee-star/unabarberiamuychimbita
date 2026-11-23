@@ -18,7 +18,11 @@ class SurveyController extends Controller
 
     public function show(string $type, string $token)
     {
-        $invitation = $this->invitation($type, $token);
+        $invitation = $this->surveys->invitationFor($type, $token);
+        if (! $invitation) {
+            return $this->unavailable();
+        }
+        $invitation->loadMissing(['subject', 'barber', 'service', 'session.answers']);
         $session = $this->surveys->session($invitation, 'web');
         $subject = $invitation->subject;
 
@@ -33,6 +37,19 @@ class SurveyController extends Controller
                 'serviceDate' => $invitation->service_date,
             ])
             ->header('Referrer-Policy', 'no-referrer') // el enlace secreto no se filtra a otros sitios
+            ->header('X-Robots-Tag', 'noindex, nofollow')
+            ->header('Cache-Control', 'no-store, private');
+    }
+
+    /**
+     * Enlace inválido, recortado (p. ej. al copiarlo de WhatsApp) o encuesta cancelada: nunca la página
+     * de error genérica («Ese corte no está en la carta»), sino un aviso con el diseño de la encuesta.
+     * Se mantiene el código 404 para que los buscadores no lo indexen.
+     */
+    public function unavailable()
+    {
+        return response()
+            ->view('public.survey', ['unavailable' => true], 404)
             ->header('X-Robots-Tag', 'noindex, nofollow')
             ->header('Cache-Control', 'no-store, private');
     }

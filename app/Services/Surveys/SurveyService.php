@@ -169,7 +169,7 @@ class SurveyService
         return route('survey.show', $this->routeParams($subject));
     }
 
-    /** Invitación abierta para el enlace secreto del servicio, o null (404). */
+    /** Invitación que se puede responder con el enlace secreto del servicio, o null si no hay (cancelada o enlace inválido). */
     public function invitationFor(string $type, string $token): ?SurveyInvitation
     {
         $model = $type === 'turno' ? Turn::class : Appointment::class;
@@ -179,7 +179,7 @@ class SurveyService
         }
         $invitation = SurveyInvitation::where('subject_type', $subject->getMorphClass())->where('subject_id', $subject->getKey())->first();
 
-        return $invitation && $invitation->isOpen() && $invitation->send_after->lte(now()) ? $invitation : null;
+        return $invitation && $invitation->isOpen() ? $invitation : null;
     }
 
     public function session(SurveyInvitation $invitation, string $channel): SurveySession

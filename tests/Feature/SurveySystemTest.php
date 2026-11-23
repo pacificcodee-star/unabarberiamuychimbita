@@ -98,8 +98,8 @@ class SurveySystemTest extends TestCase
         $this->assertTrue($invitation->send_after->eq(now()->addMinutes(30)));
         $this->assertSame(2, ClientNotification::where('type', 'survey_invite')->count()); // push + WhatsApp (tiene consentimiento)
 
-        // Antes del margen todavía no se puede abrir.
-        $this->get($this->url($appointment))->assertNotFound();
+        // Si el cliente abre el enlace antes del aviso, igual puede responder (el servicio ya terminó).
+        $this->get($this->url($appointment))->assertOk()->assertSee('¿Cómo te fue');
         $this->travel(31)->minutes();
         app(SurveyService::class)->tick();
         $this->assertSame('enviada', $invitation->fresh()->status);
@@ -296,13 +296,26 @@ class SurveySystemTest extends TestCase
         $this->getJson('/encuestas/opiniones')->assertUnauthorized();
     }
 
-    public function test_expired_invitations_cannot_be_answered(): void
+    public function test_expired_invitations_can_still_be_answered_without_error_page(): void
     {
         $appointment = $this->finishedAndSent();
         $this->travel(15)->days();
         app(SurveyService::class)->tick();
         $this->assertSame('vencida', SurveyInvitation::first()->status);
-        $this->get($this->url($appointment))->assertNotFound();
+        $this->get($this->url($appointment))->assertOk()->assertSee('¿Cómo te fue')->assertDontSee('no está en la carta');
+        $this->fullHappyPath($appointment)->assertOk();
+        $this->assertSame('completada', SurveyInvitation::first()->status);
+    }
+
+    public function test_unavailable_survey_shows_friendly_notice_instead_of_error_page(): void
+    {
+        $appointment = $this->appointment();
+        $appointment->update(['status' => 'confirmada']);
+        $this->get($this->url($appointment))->assertNotFound()
+            ->assertSee('Esta encuesta no está disponible')->assertDontSee('no está en la carta');
+        // Enlace recortado al copiarlo: mismo aviso.
+        $this->get('/encuesta/cita/'.substr($appointment->public_token, 0, 20))->assertNotFound()
+            ->assertSee('Esta encuesta no está disponible')->assertDontSee('no está en la carta');
     }
 
     // 12. Cambiar preguntas → las encuestas empezadas conservan su versión.

@@ -130,6 +130,8 @@ Route::prefix('encuesta/{type}/{token}')
         Route::get('/estado', [SurveyController::class, 'state'])->middleware('throttle:60,1,survey.state')->name('survey.state');
         Route::post('/respuesta', [SurveyController::class, 'answer'])->middleware('throttle:40,1,survey.answer')->name('survey.answer');
     });
+// Cualquier otro enlace de encuesta (recortado o mal copiado) muestra el aviso de la encuesta, no la 404 genérica.
+Route::get('/encuesta/{rest?}', [SurveyController::class, 'unavailable'])->where('rest', '.*')->middleware('throttle:60,1,survey.show')->name('survey.unavailable');
 
 // Renovación automática de la suscripción desde el Service Worker (sin página abierta, por eso va sin CSRF).
 Route::post('/push/renovar', [TrackController::class, 'renew'])->middleware('throttle:20,1,push.renew')->name('push.renew');

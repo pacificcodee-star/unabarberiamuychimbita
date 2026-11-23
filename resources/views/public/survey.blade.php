@@ -6,6 +6,19 @@
 
 @section('content')
     <div class="survey-page">
+    @if(!empty($unavailable))
+    <section class="sv" aria-labelledby="sv-title">
+        <div class="container sv-wrap">
+            <header class="sv-head"><div class="section-kicker">Tu opinión</div></header>
+            <h1 class="sv-title" id="sv-title">Esta encuesta no está disponible</h1>
+            <p class="sv-help">Puede que el servicio no se haya completado o que el enlace esté incompleto. Si quieres contarnos cómo te fue, escríbenos por WhatsApp; con gusto te leemos.</p>
+            <div class="sv-actions">
+                <a class="xbtn" href="{{ route('public.booking') }}"><span>Reservar</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                <a class="xlink" href="{{ route('landing') }}">Ir al inicio</a>
+            </div>
+        </div>
+    </section>
+    @else
     <section class="sv" data-survey
              data-state-url="{{ route('survey.state', ['type' => $type, 'token' => $token]) }}"
              data-answer-url="{{ route('survey.answer', ['type' => $type, 'token' => $token]) }}"
@@ -45,6 +58,7 @@
         </div>
         <script type="application/json" data-sv-initial>@json($state)</script>
     </section>
+    @endif
     </div>
 @endsection
 
@@ -145,6 +159,8 @@
 </style>
 @endpush
 
+@if(empty($unavailable))
 @push('scripts')
     <script src="{{ asset('js/survey.js') }}?v={{ @filemtime(public_path('js/survey.js')) }}" defer></script>
 @endpush
+@endif

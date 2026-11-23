@@ -45,9 +45,14 @@ class SurveyInvitation extends Model
         return $this->belongsTo(Service::class);
     }
 
-    /** ¿Se puede responder ahora? (ni cancelada ni vencida). */
+    /**
+     * ¿Se puede responder por el enlace web? Sí mientras el servicio siga atendido (no cancelada),
+     * aunque el cliente llegue antes del aviso o después del plazo: nunca se le muestra un error
+     * por falta de tiempo. El plazo (expires_at) solo marca la invitación como «vencida» para
+     * dejar de recordarla y para las estadísticas.
+     */
     public function isOpen(): bool
     {
-        return in_array($this->status, ['programada', 'enviada', 'completada'], true) && $this->expires_at->isFuture();
+        return in_array($this->status, ['programada', 'enviada', 'completada', 'vencida'], true);
     }
 }
