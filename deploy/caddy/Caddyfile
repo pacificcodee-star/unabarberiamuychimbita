@@ -1,4 +1,9 @@
 # Sitio Laravel (panel + web pública) con HTTPS automático.
+# www redirige al dominio principal para no duplicar contenido ni certificados.
+www.{$APP_HOST} {
+	redir https://{$APP_HOST}{uri} permanent
+}
+
 {$APP_HOST} {
 	root * /var/www/html/public
 	# Nunca ejecutar PHP subido: solo public/index.php pasa a PHP.
