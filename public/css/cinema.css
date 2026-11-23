@@ -161,7 +161,7 @@ html.js:not(.cx-ready):not(.cx-static) .cx-hero [data-cx-in] { visibility: hidde
     position: relative; isolation: isolate; overflow: clip;
     min-height: 100svh; display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr)); grid-template-rows: auto 1fr auto; column-gap: clamp(16px, 2vw, 32px);
-    padding: calc(var(--header-h) + clamp(18px, 3vh, 40px)) var(--gutter) clamp(24px, 4vh, 44px);
+    padding: calc(var(--header-space) + clamp(18px, 3vh, 40px)) var(--gutter) clamp(24px, 4vh, 44px);
     background: radial-gradient(90% 70% at 12% 100%, rgba(var(--brand-rgb), .16), transparent 62%), var(--bg);
 }
 /* La ventana de la foto de portada siempre tiene esquinas redondeadas (también al expandirse y con cualquier imagen):
@@ -229,7 +229,7 @@ html.js:not(.cx-ready):not(.cx-static) .cx-hero [data-cx-in] { visibility: hidde
     min-height: 100svh; display: grid; align-items: center;
     grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); grid-template-rows: auto auto; align-content: center;
     column-gap: clamp(32px, 6vw, 110px); row-gap: clamp(24px, 4vh, 44px);
-    padding: calc(var(--header-h) + 24px) var(--gutter) clamp(28px, 5vh, 56px);
+    padding: calc(var(--header-space) + 24px) var(--gutter) clamp(28px, 5vh, 56px);
 }
 .cx-film-head { grid-column: 1; grid-row: 1; align-self: end; }
 .cx-film-title { margin: 0 0 18px; font-size: var(--fs-h2); font-weight: 400; letter-spacing: -.035em; line-height: 1; }
@@ -326,7 +326,7 @@ html.js:not(.cx-ready):not(.cx-static) .cx-hero [data-cx-in] { visibility: hidde
 .whatsapp-float { border-radius: var(--radius-lg); }
 
 /* ---------- 12. Cabecera de páginas internas ---------- */
-.page-hero { padding-top: calc(var(--header-h) + clamp(48px, 9vw, 120px)); padding-bottom: clamp(40px, 6vw, 88px); background: radial-gradient(60% 90% at 100% 0%, rgba(var(--accent-rgb), .08), transparent 60%), var(--bg); border-bottom: 1px solid var(--line); }
+.page-hero { padding-top: calc(var(--header-space) + clamp(48px, 9vw, 120px)); padding-bottom: clamp(40px, 6vw, 88px); background: radial-gradient(60% 90% at 100% 0%, rgba(var(--accent-rgb), .08), transparent 60%), var(--bg); border-bottom: 1px solid var(--line); }
 .page-hero h1, .ct-title { font-size: var(--fs-h1); font-weight: 380; letter-spacing: -.04em; line-height: .96; max-width: 17ch; }
 .page-hero p, .ct-lead { font-size: var(--fs-lead); color: var(--text-muted); max-width: 52ch; }
 .breadcrumb-public a { color: var(--text-subtle); }
@@ -541,7 +541,7 @@ h1 em, h2 em, .section-title em, .is-split .sw-em, .cx-hero-title em, .purpose-t
 /* ---------- 19.5 Galería de trabajos ---------- */
 .wg { position: relative; overflow: clip; background: radial-gradient(70% 60% at 80% 10%, rgba(var(--accent-rgb), .12), transparent 65%), var(--bg); }
 .wg[hidden] { display: none; }
-.wg-stage { position: relative; isolation: isolate; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; row-gap: clamp(14px, 2.4vh, 30px); min-height: 100svh; padding: calc(var(--header-h) + clamp(18px, 3vh, 36px)) 0 clamp(20px, 3.5vh, 40px); }
+.wg-stage { position: relative; isolation: isolate; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; row-gap: clamp(14px, 2.4vh, 30px); min-height: 100svh; padding: calc(var(--header-space) + clamp(18px, 3vh, 36px)) 0 clamp(20px, 3.5vh, 40px); }
 .wg-ghost { position: absolute; z-index: -1; left: 0; top: 54%; translate: 0 -50%; white-space: nowrap; pointer-events: none; user-select: none; font-family: var(--font-display); font-style: italic; font-weight: 300; font-size: clamp(8rem, 4rem + 20vw, 20rem); line-height: 1; letter-spacing: -.04em; color: rgba(var(--text-rgb), .055); will-change: transform; }
 .wg-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; column-gap: 32px; padding: 0 var(--gutter); }
 .wg-head .section-kicker { grid-column: 1 / -1; }
@@ -584,7 +584,7 @@ h1 em, h2 em, .section-title em, .is-split .sw-em, .cx-hero-title em, .purpose-t
 @media (prefers-reduced-motion: reduce) { .wg-item { transform: none; opacity: 1; transition: none; } }
 
 /* ---------- 19.6 Barberos: carrusel ---------- */
-.bx { --mx: 0; --my: 0; position: relative; isolation: isolate; overflow: clip; display: grid; grid-template-rows: minmax(0, 1fr) auto auto; min-height: 100svh; padding: calc(var(--header-h) + 12px) 0 clamp(16px, 3vh, 30px); background: radial-gradient(60% 70% at 72% 55%, rgba(var(--accent-rgb), .2), transparent 68%), radial-gradient(50% 50% at 8% 100%, rgba(var(--brand-rgb), .18), transparent 70%), var(--bg); }
+.bx { --mx: 0; --my: 0; position: relative; isolation: isolate; overflow: clip; display: grid; grid-template-rows: minmax(0, 1fr) auto auto; min-height: 100svh; padding: calc(var(--header-space) + 12px) 0 clamp(16px, 3vh, 30px); background: radial-gradient(60% 70% at 72% 55%, rgba(var(--accent-rgb), .2), transparent 68%), radial-gradient(50% 50% at 8% 100%, rgba(var(--brand-rgb), .18), transparent 70%), var(--bg); }
 .bx-viewport { position: relative; display: grid; min-height: 0; }
 .bx-slide { position: relative; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: center; column-gap: clamp(20px, 4vw, 72px); padding: 0 var(--gutter); min-height: 0; }
 .bx-figure { position: relative; z-index: 1; grid-column: 2; grid-row: 1; height: min(76svh, 820px); translate: calc(var(--mx) * 20px) calc(var(--my) * 8px); }
@@ -1456,8 +1456,8 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
     /* Reserva inferior para que la barra no cubra el final del contenido.
        Va dentro del pie y no como relleno del body: así el footer llega al borde
        de la pantalla y la foto de fondo no asoma por debajo. */
-    .site-footer { padding-bottom: calc(var(--mnav-clear) + 16px); }
-    html { scroll-padding-bottom: calc(var(--mnav-clear) + 16px); }
+    .site-footer { padding-bottom: calc(var(--mnav-clear) + 28px); }
+    html { scroll-padding-bottom: calc(var(--mnav-clear) + 28px); }
 
     /* La portada y el carrusel de barberos ocupan toda la pantalla: su contenido
        se sube para que los botones no queden debajo de la barra inferior. */
@@ -1796,7 +1796,7 @@ main p { line-height: 1.65; }
 .section-pad, .about-section, .rv-section { padding-block: clamp(72px, 9vw, 140px); }
 
 /* ---------- 25.2 Encabezado de páginas internas: más compacto para que el contenido se vea pronto ---------- */
-.page-hero { padding: calc(var(--header-h) + clamp(40px, 6vw, 88px)) 0 clamp(28px, 4vw, 52px); }
+.page-hero { padding: calc(var(--header-space) + clamp(40px, 6vw, 88px)) 0 clamp(28px, 4vw, 52px); }
 .page-hero h1 { max-width: 20ch; margin-bottom: 18px; }
 .page-hero p { margin: 0; }
 /* En celular la palabra decorativa de fondo tapaba la introducción: se oculta. */
@@ -2974,7 +2974,7 @@ section.wg:not(:has(~ :not(section.wg, script))) {
     color: var(--text);
 }
 .contact-page .ct-hero {
-    padding: calc(var(--header-h) + clamp(24px, 4vw, 54px)) 0 clamp(24px, 3vw, 40px);
+    padding: calc(var(--header-space) + clamp(24px, 4vw, 54px)) 0 clamp(24px, 3vw, 40px);
     background:
         radial-gradient(55% 70% at 100% 0%, rgba(224, 180, 90, .20), transparent 62%),
         linear-gradient(180deg, #f2ebdf, var(--bg) 82%);

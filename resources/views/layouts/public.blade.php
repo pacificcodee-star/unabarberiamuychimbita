@@ -814,5 +814,7 @@
 <script src="{{ asset('js/live-content.js') }}?v={{ file_exists(public_path('js/live-content.js')) ? filemtime(public_path('js/live-content.js')) : '1' }}" defer></script>
 {{-- Vuelve a vincular el dispositivo con sus reservas si la cookie de «Mis servicios» se perdió. --}}
 <script src="{{ asset('js/device-recovery.js') }}?v={{ file_exists(public_path('js/device-recovery.js')) ? filemtime(public_path('js/device-recovery.js')) : '1' }}" defer></script>
+{{-- Con los enlaces legales a la vista, aparta los avisos flotantes para que no tapen el pie. --}}
+<script src="{{ asset('js/footer-guard.js') }}?v={{ file_exists(public_path('js/footer-guard.js')) ? filemtime(public_path('js/footer-guard.js')) : '1' }}" defer></script>
 </body>
 </html>
