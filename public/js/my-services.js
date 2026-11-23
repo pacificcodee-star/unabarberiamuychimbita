@@ -99,22 +99,54 @@
         }
     }
 
+    async function sendAction(button) {
+        if (saving) return;
+        saving = true;
+        ++listRequest;
+        button.disabled = true;
+        try {
+            const response = await fetch(button.dataset.url, {
+                method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content }
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                const detail = Object.values(result.errors || {}).flat()[0];
+                throw new Error(detail || ({419: 'La sesión venció. Abre Mis servicios de nuevo.', 429: 'Espera un momento antes de volver a intentarlo.'})[response.status] || 'No se pudo aplicar el cambio. Revisa el estado de la reserva.');
+            }
+            try { localStorage.setItem('ubmc-service-change', String(Date.now())); } catch {}
+            feedback.textContent = result.message;
+            feedback.focus();
+            await refresh(true);
+        } catch (error) {
+            feedback.textContent = error instanceof TypeError || error instanceof SyntaxError
+                ? 'Se interrumpió la conexión. Vuelve a Mis servicios para comprobar el estado.' : error.message;
+            feedback.focus();
+        } finally {
+            saving = false;
+            button.disabled = false;
+        }
+    }
+
     list.addEventListener('click', event => {
         const button = event.target.closest('button[data-action]');
         if (!button) return;
         trigger = button;
+        // Confirmar y cancelar se aplican de inmediato; solo reprogramar abre el diálogo.
+        if (button.dataset.action !== 'reprogramar') {
+            sendAction(button);
+            return;
+        }
         ++listRequest;
-        const move = button.dataset.action === 'reprogramar';
-        schedule.hidden = schedule.disabled = !move;
+        schedule.hidden = schedule.disabled = false;
         form.reset();
         date.value = button.dataset.date;
-        form.querySelector('h2').textContent = button.textContent;
+        form.querySelector('h2').textContent = button.textContent.trim();
         form.querySelector('#service-context').textContent = button.dataset.context;
-        submit.textContent = move ? 'Guardar nuevo horario' : button.textContent;
-        message.textContent = button.dataset.action === 'cancelar' ? '¿Quieres cancelar esta reserva?' : '';
+        submit.textContent = 'Guardar nuevo horario';
+        message.textContent = '';
         submit.disabled = false;
         dialog.showModal();
-        if (move) loadTimes();
+        loadTimes();
     });
 
     back.addEventListener('click', () => dialog.close());
