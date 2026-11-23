@@ -57,7 +57,7 @@
     background: #efe8dc;
     color: var(--text);
 }
-/* Foto de la barbería de fondo, fija detrás del contenido y con un velo crema para leer bien. */
+/* Foto de la barbería de fondo, fija detrás del contenido y sin velo: se ve a todo color. */
 .my-services-page::before {
     content: '';
     position: fixed;
@@ -65,11 +65,23 @@
     z-index: -1;
     pointer-events: none;
     background:
-        linear-gradient(180deg, rgba(239, 232, 220, .62), rgba(239, 232, 220, .8)),
         url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat,
         #efe8dc;
 }
 .my-services-page .page-hero { background: transparent !important; }
+/* Sobre la foto: la ruta y las pestañas llevan su propia cápsula crema para leerse. */
+.my-services-page .breadcrumb-public {
+    width: fit-content;
+    padding: .4rem .8rem;
+    border: 1px solid rgba(21, 18, 14, .12);
+    border-radius: 999px;
+    background: rgba(250, 248, 243, .82);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+.my-services-page .breadcrumb-public a { color: var(--text-muted); }
+.my-services-page .breadcrumb-public [aria-current] { color: var(--gold); }
+.my-services-page .service-tabs { background: rgba(250, 248, 243, .92); border-color: rgba(21, 18, 14, .18); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .service-manager { padding-block: 2rem 5rem; }
 .service-alert { margin-block: 0 1.25rem; padding: .8rem 1rem; border: 1px solid rgba(138, 106, 18, .35); border-radius: .6rem; background: rgba(225, 186, 112, .22); color: #5c4a0f; }
 .service-tabs { display: inline-flex; gap: .25rem; margin-block: 0 2rem; padding: .3rem; border: 1px solid var(--line); border-radius: 999px; background: rgba(21, 18, 14, .05); }
