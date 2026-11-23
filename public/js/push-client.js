@@ -195,6 +195,7 @@
             live.dataset.status = state.status;
             if (state.status !== lastStatus) {
                 lastStatus = state.status;
+                window.ubmcChime?.();
                 cfg.open = state.open ? '1' : '0';
                 if (!state.open) box.hidden = true;
             }

@@ -68,7 +68,7 @@ class LandingController extends Controller
                 'subtitle' => $cut->subtitle,
                 'description' => $cut->description,
                 'image' => $cut->image_path,
-                'image_url' => $cut->image_path ? asset('storage/'.$cut->image_path) : (! empty($settings['logo_path']) ? asset('storage/'.$settings['logo_path']) : asset('images/logo-una-barberia.png')),
+                'image_url' => $cut->image_path ? asset('storage/'.$cut->image_path) : (! empty($settings['logo_path']) ? asset('storage/'.$settings['logo_path']) : asset('images/logo-una-barberia-512.webp')),
                 'video_url' => $cut->video_path ? asset('storage/'.$cut->video_path) : null,
                 'placeholder' => false,
                 'cutout' => $cut->image_path ? $cut->hasCutoutImage() : false,
@@ -89,7 +89,7 @@ class LandingController extends Controller
 
         $scenes = $cuts->map(function (Service $service, int $i) use ($settings, $floats, $isCutout, $slidePaths) {
             $image = $service->image_path ?: ($slidePaths->isNotEmpty() ? $slidePaths[$i % $slidePaths->count()] : null);
-            $logo = ! empty($settings['logo_path']) ? asset('storage/'.$settings['logo_path']) : asset('images/logo-una-barberia.png');
+            $logo = ! empty($settings['logo_path']) ? asset('storage/'.$settings['logo_path']) : asset('images/logo-una-barberia-512.webp');
 
             return [
                 'headline' => $service->name,

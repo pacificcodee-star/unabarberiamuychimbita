@@ -97,7 +97,7 @@
             <div class="card-header"><h2 class="h6 mb-0">Logo</h2></div>
             <div class="card-body"><div class="row g-3 align-items-center">
                 <div class="col-md-4">
-                    <div class="settings-image-preview"><img src="{{ !empty($settings['logo_path']) ? asset('storage/'.$settings['logo_path']) : asset('images/logo-una-barberia.png') }}" alt="Logo actual"></div>
+                    <div class="settings-image-preview"><img src="{{ !empty($settings['logo_path']) ? asset('storage/'.$settings['logo_path']) : asset('images/logo-una-barberia-512.webp') }}" alt="Logo actual" loading="lazy" decoding="async"></div>
                 </div>
                 <div class="col-md-8">
                     <label class="form-label fw-semibold" for="logo">Cambiar logo (opcional)</label>

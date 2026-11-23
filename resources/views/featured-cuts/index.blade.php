@@ -21,7 +21,7 @@
             <div class="col-sm-6 col-xl-4">
                 <article class="card h-100 overflow-hidden">
                     <div class="cut-preview">
-                        <img src="{{ $cut->image_path ? asset('storage/'.$cut->image_path) : asset('images/logo-una-barberia.png') }}" alt="{{ $cut->title }}">
+                        <img src="{{ $cut->image_path ? asset('storage/'.$cut->image_path) : asset('images/logo-una-barberia-512.webp') }}" alt="{{ $cut->title }}" loading="lazy" decoding="async">
                         @if(count($cut->galleryPaths()))
                             <span class="cut-preview-count"><i class="bi bi-images"></i> +{{ count($cut->galleryPaths()) }}</span>
                         @endif

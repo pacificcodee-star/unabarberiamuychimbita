@@ -17,7 +17,7 @@
                 @csrf
                 @method('PUT')
                 <div class="col-md-5">
-                    <div class="anim-preview"><img src="{{ !empty($settings['hero_image_path']) ? asset('storage/'.$settings['hero_image_path']) : asset('images/portada-barberia.jpg') }}" alt="Fondo actual de la portada" style="width:100%;height:100%;object-fit:cover;filter:brightness(.45)"></div>
+                    <div class="anim-preview"><img src="{{ !empty($settings['hero_image_path']) ? asset('storage/'.$settings['hero_image_path']) : asset('images/portada-barberia.webp') }}" alt="Fondo actual de la portada" style="width:100%;height:100%;object-fit:cover;filter:brightness(.45)"></div>
                 </div>
                 <div class="col-md-7">
                     <label class="form-label fw-semibold" for="heroImage">Cambiar imagen de fondo</label>
@@ -152,7 +152,7 @@
                                 @elseif($cut->image_path)
                                     <img src="{{ asset('storage/'.$cut->image_path) }}" alt="{{ $cut->title }}">
                                 @else
-                                    <img src="{{ asset('images/logo-una-barberia.png') }}" alt="{{ $cut->title }}" style="object-fit:contain;padding:16px">
+                                    <img src="{{ asset('images/logo-una-barberia-512.webp') }}" alt="{{ $cut->title }}" style="object-fit:contain;padding:16px" loading="lazy" decoding="async">
                                 @endif
                             </div>
                             <div class="card-body">

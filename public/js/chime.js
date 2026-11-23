@@ -1,23 +1,26 @@
 /* Timbre corto para avisos que llegan con la página abierta.
-   Con la página cerrada o en segundo plano suena la notificación del sistema (sw.js) con el tono del
-   celular o del computador. Este timbre cubre el otro caso: la página está a la vista y el aviso llega
-   por la campana. Si el dispositivo ya tiene los avisos push activados, el sistema ya hace sonar la
-   notificación y aquí no se repite.
-   Los navegadores solo dejan sonar audio después de que la persona toca la página una vez. */
+   Suena en cualquier navegador (Brave incluido) sin instalar la app ni activar los avisos push.
+   Si el navegador aún no deja sonar audio, el timbre queda pendiente y suena en cuanto la persona
+   toca la página, que es la única condición que ponen los navegadores. */
 (() => {
     if (window.ubmcChime) return;
 
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     let ctx = null;
+    let pendingAt = 0; // momento del aviso que quedó esperando para sonar
 
     const unlock = () => {
         if (!AudioCtx) return;
         try {
             ctx = ctx || new AudioCtx();
-            if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+            if (ctx.state === 'suspended') {
+                ctx.resume().then(replay).catch(() => {});
+            } else {
+                replay();
+            }
         } catch (e) {}
     };
-    ['pointerdown', 'keydown', 'touchstart'].forEach((type) => window.addEventListener(type, unlock, { passive: true }));
+    ['pointerdown', 'keydown', 'touchstart', 'click'].forEach((type) => window.addEventListener(type, unlock, { passive: true }));
 
     const tone = (frequency, start, length) => {
         const osc = ctx.createOscillator();
@@ -32,12 +35,8 @@
         osc.stop(start + length + 0.05);
     };
 
-    const pushHandlesSound = () => 'Notification' in window && Notification.permission === 'granted';
-
-    /** Suena solo con la página a la vista y cuando el push no va a sonar por su cuenta. */
-    window.ubmcChime = ({ force = false } = {}) => {
+    const play = () => {
         if (document.hidden || !ctx || ctx.state !== 'running') return false;
-        if (!force && pushHandlesSound()) return false;
         try {
             const now = ctx.currentTime + 0.01;
             tone(880, now, 0.22);
@@ -48,4 +47,20 @@
         if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
         return true;
     };
+
+    const replay = () => {
+        if (!pendingAt) return;
+        if (Date.now() - pendingAt > 60000) { pendingAt = 0; return; }
+        if (play()) pendingAt = 0;
+    };
+
+    /** Suena siempre que la página esté a la vista; si el audio aún está bloqueado, queda pendiente. */
+    window.ubmcChime = () => {
+        if (document.hidden) return false;
+        if (play()) return true;
+        pendingAt = Date.now();
+        return false;
+    };
+
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) unlock(); });
 })();

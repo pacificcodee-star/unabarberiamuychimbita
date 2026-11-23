@@ -18,7 +18,7 @@
 
     <header class="sidebar-header">
         <a href="{{ route('dashboard') }}" class="header-logo" title="Ir al panel">
-            <span class="header-logo-mark"><img src="{{ asset('images/logo-una-barberia.png') }}" alt="Una Barbería Muy Chimbita"></span>
+            <span class="header-logo-mark"><img src="{{ asset('images/logo-una-barberia-128.webp') }}" alt="Una Barbería Muy Chimbita" width="42" height="42"></span>
             <span class="header-logo-text">
                 <strong>Una Barbería<br>Muy Chimbita</strong>
                 <small>Control total</small>

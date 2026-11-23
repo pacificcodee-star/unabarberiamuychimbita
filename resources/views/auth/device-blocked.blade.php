@@ -173,7 +173,7 @@
 <body>
 <main class="wrap">
     <a class="brand" href="{{ route('landing') }}">
-        <img src="{{ asset('images/logo-una-barberia.png') }}" alt="" width="42" height="42">
+        <img src="{{ asset('images/logo-una-barberia-128.webp') }}" alt="" width="42" height="42">
         <span>{{ $brandName }}</span>
     </a>
 

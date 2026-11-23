@@ -22,6 +22,7 @@
     function showTab(name) {
         if (!tabs.some(tab => tab.dataset.serviceTab === name)) name = 'activos';
         activeTab = name;
+        try { sessionStorage.setItem('ubmc-mis-tab', name); } catch (e) {}
         tabs.forEach(tab => {
             const selected = tab.dataset.serviceTab === name;
             tab.setAttribute('aria-selected', String(selected));
@@ -45,6 +46,12 @@
             showTab(tabs[target].dataset.serviceTab);
         });
     });
+
+    // Al volver o tras una actualización automática se conserva la pestaña que estaba abierta.
+    try {
+        const savedTab = sessionStorage.getItem('ubmc-mis-tab');
+        if (savedTab) showTab(savedTab);
+    } catch (e) {}
 
     async function refresh(force = false) {
         if (document.hidden || (dialog.open && !force)) return;

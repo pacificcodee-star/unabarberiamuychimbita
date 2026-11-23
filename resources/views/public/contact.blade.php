@@ -23,10 +23,6 @@
         <div class="container">
             <h1 class="ct-title" id="ct-title">{{ $siteSettings['contact_hero_title'] }}</h1>
             <p class="ct-lead">{{ $siteSettings['contact_hero_description'] }}</p>
-            <div class="ct-hero-actions">
-                <a href="{{ route('public.booking') }}" class="xbtn btn-booking-blue"><span>Reservar cita o turno</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-                <a href="https://wa.me/{{ $siteSettings['whatsapp'] }}" class="xlink" target="_blank" rel="noopener">Escribir por WhatsApp</a>
-            </div>
         </div>
     </section>
 
@@ -135,7 +131,11 @@
 .contact-page::before {
     content: '';
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    height: 100lvh;
     z-index: -1;
     pointer-events: none;
     background: url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat, #efe8dc;

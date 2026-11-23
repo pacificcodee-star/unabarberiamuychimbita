@@ -16,7 +16,7 @@
     <link href="{{ asset('css/cinema.css') }}?v={{ file_exists(public_path('css/cinema.css')) ? filemtime(public_path('css/cinema.css')) : '1' }}" rel="stylesheet">
     <style>
         .login-shell { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); }
-        .login-visual { position: relative; display: flex; flex-direction: column; justify-content: space-between; padding: clamp(40px, 5vw, 72px); border-right: 1px solid var(--line); background: linear-gradient(180deg, rgba(var(--bg-rgb), .72), rgba(var(--bg-rgb), .9)), url('{{ asset('images/portada-barberia.jpg') }}') 62% 50% / cover no-repeat, var(--surface); overflow: hidden; }
+        .login-visual { position: relative; display: flex; flex-direction: column; justify-content: space-between; padding: clamp(40px, 5vw, 72px); border-right: 1px solid var(--line); background: linear-gradient(180deg, rgba(var(--bg-rgb), .72), rgba(var(--bg-rgb), .9)), url('{{ asset('images/portada-barberia.webp') }}') 62% 50% / cover no-repeat, var(--surface); overflow: hidden; }
         .login-visual .brand-mark { width: 60px; height: 60px; }
         .login-visual h1 { font-size: clamp(2.8rem, 5.4vw, 5rem); font-weight: 360; letter-spacing: -.045em; line-height: .94; margin: 32px 0 22px; }
         .login-visual h1 em { color: var(--brand-red-text); font-weight: 300; }
@@ -54,7 +54,7 @@
 <main class="login-shell">
     <section class="login-visual" aria-hidden="true">
         <div>
-            <img class="brand-mark" src="{{ asset('images/logo-una-barberia.png') }}" alt="" width="60" height="60">
+            <img class="brand-mark" src="{{ asset('images/logo-una-barberia-128.webp') }}" alt="" width="60" height="60">
             <h1>Una Barberia<br><em>Muy Chimbita</em></h1>
             <p>Lleva el control de ventas, gastos, comisiones y ganancias de tu barbería de una forma fácil y organizada. Cada barbero, a su manera.</p>
             <ul class="feature-list">
