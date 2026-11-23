@@ -3230,3 +3230,14 @@ section.wg:not(:has(~ :not(section.wg, script))) {
 .footer-list li { align-items: flex-start; }
 .footer-list .footer-ico { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 1px; object-fit: contain; }
 .footer-list li:has(> a) .footer-ico { margin-top: 4px; }
+
+/* =====================================================================
+   Barra superior en celular y tablet (también con el zoom del navegador reducido, que hace la
+   pantalla «más ancha»): la barra siempre ocupa el ancho con los mismos márgenes y alto, y la
+   campana va siempre en el extremo derecho, en vez de quedarse pegada al nombre.
+   ===================================================================== */
+@media (max-width: 1099.98px) {
+    .site-nav .nav-inner > .nav-cta { margin-left: auto; }
+    .site-nav .nav-cta .menu-toggle { order: 1; }
+    .site-nav .nav-cta #clientBell { order: 2; }
+}
