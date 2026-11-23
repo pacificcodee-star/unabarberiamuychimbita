@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=JetBrains+Mono:wght@400..600&family=Manrope:wght@400..800&display=swap" rel="stylesheet">
-    @vite('resources/js/app.js')
+    <script src="{{ asset('js/panel.js') }}?v={{ @filemtime(public_path('js/panel.js')) }}"></script>
     <style>
         /* Campos compactos en todo el panel */
         .form-control, .form-select { padding: .34rem .65rem; font-size: .86rem; min-height: 34px; border-radius: 8px; }
