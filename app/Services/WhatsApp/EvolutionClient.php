@@ -287,6 +287,13 @@ class EvolutionClient
             return false;
         }
 
+        // Si WhatsApp atiende este número con su identificador nuevo (@lid), se recuerda la pareja: así se
+        // reconoce la respuesta del cliente aunque llegue solo con el @lid (App\Support\WhatsAppLid).
+        $sentKey = is_array($response['key'] ?? null) ? $response['key'] : [];
+        foreach ([$sentKey['remoteJid'] ?? null, $sentKey['remoteJidAlt'] ?? null, $sentKey['senderLid'] ?? null] as $jid) {
+            \App\Support\WhatsAppLid::remember(is_string($jid) ? $jid : null, $number);
+        }
+
         Log::info('WhatsApp (Evolution) enviado', ['to' => \App\Support\Pii::phone($number)]);
 
         return true;

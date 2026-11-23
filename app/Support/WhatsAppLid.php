@@ -1,0 +1,47 @@
+<?php
+
+namespace App\Support;
+
+use Illuminate\Support\Facades\Cache;
+
+/**
+ * WhatsApp está cambiando el remitente de los mensajes de "57300…@s.whatsapp.net" a un identificador
+ * opaco "1234…@lid". Evolution API suele mandar también el número (remoteJidAlt o senderPn), pero no
+ * siempre. Aquí se recuerda qué número corresponde a cada @lid cada vez que aparecen juntos (al enviar
+ * un mensaje o al recibir uno que trae ambos), para reconocer al cliente cuando llega solo el @lid.
+ */
+final class WhatsAppLid
+{
+    private const DAYS = 180;
+
+    public static function isLid(?string $jid): bool
+    {
+        return is_string($jid) && str_ends_with($jid, '@lid');
+    }
+
+    public static function remember(?string $lidJid, ?string $phone): void
+    {
+        $phone = preg_replace('/\D+/', '', (string) $phone);
+        if (! self::isLid($lidJid) || $phone === '' || strlen($phone) < 8) {
+            return;
+        }
+
+        Cache::put(self::key((string) $lidJid), $phone, now()->addDays(self::DAYS));
+    }
+
+    public static function phoneFor(?string $lidJid): ?string
+    {
+        if (! self::isLid($lidJid)) {
+            return null;
+        }
+
+        $phone = Cache::get(self::key((string) $lidJid));
+
+        return is_string($phone) && $phone !== '' ? $phone : null;
+    }
+
+    private static function key(string $lidJid): string
+    {
+        return 'wa.lid.'.strtolower(explode('@', $lidJid)[0]);
+    }
+}

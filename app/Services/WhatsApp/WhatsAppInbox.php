@@ -6,6 +6,7 @@ use App\Models\StaffNotification;
 use App\Models\WhatsAppConversation;
 use App\Models\WhatsAppMessage;
 use App\Services\WhatsAppService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -152,8 +153,23 @@ class WhatsAppInbox
             }
         }
 
+        if ($phone !== null) {
+            // Llegaron juntos el @lid y el número: se recuerda para cuando llegue solo el @lid.
+            \App\Support\WhatsAppLid::remember($remote, $phone);
+        } elseif (($known = \App\Support\WhatsAppLid::phoneFor($remote)) !== null) {
+            // Solo vino el @lid, pero ya sabemos de qué número es (lo vimos al enviarle un mensaje).
+            $phone = $known;
+            $jid = $known.'@s.whatsapp.net';
+        }
+
         if ($phone === null) {
-            return null; // sin teléfono
+            // Antes se descartaba sin dejar rastro: ahora queda en el registro para poder revisarlo.
+            Log::warning('WhatsApp: mensaje entrante sin número de teléfono (solo @lid); no se pudo atender', [
+                'remoteJid' => $remote,
+                'campos' => array_keys($key),
+            ]);
+
+            return null;
         }
 
         $phone = $this->whatsApp->normalizePhone($phone);
@@ -236,6 +252,13 @@ class WhatsAppInbox
 
         if (! $evolutionId || empty($key['fromMe'])) {
             return;
+        }
+
+        // Estado de un mensaje nuestro con el @lid del cliente: se aprende de qué número es.
+        if (\App\Support\WhatsAppLid::isLid($key['remoteJid'] ?? null)) {
+            $phone = self::phoneFromJid((string) ($key['remoteJidAlt'] ?? ''))
+                ?? WhatsAppMessage::query()->where('evolution_id', $evolutionId)->first()?->conversation?->phone;
+            \App\Support\WhatsAppLid::remember($key['remoteJid'], $phone);
         }
 
         $status = $data['update']['status'] ?? null;

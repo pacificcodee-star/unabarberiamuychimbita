@@ -50,20 +50,23 @@ class WhatsappBotService
     /** Procesa un mensaje entrante y envía la respuesta si corresponde. */
     public function handle(WhatsAppConversation $conversation, WhatsAppMessage $message): ?string
     {
-        if (! $this->enabled() || ! $conversation->bot_active) {
-            return null;
-        }
-
-        if ($message->direction !== WhatsAppMessage::DIRECTION_IN) {
+        if (! $this->enabled() || $message->direction !== WhatsAppMessage::DIRECTION_IN) {
             return null;
         }
 
         $text = trim((string) ($message->body ?? ''));
 
         try {
-            $reply = $text === ''
-                ? $this->mainMenu($conversation)
-                : $this->respond($conversation, $text);
+            if (! $conversation->bot_active) {
+                // Bot en pausa (el cliente pidió un asesor o el equipo lo pausó): el asesor atiende la charla,
+                // pero el "SÍ" a la confirmación de una cita y la baja de avisos se siguen procesando.
+                // Antes se ignoraban y la cita quedaba pendiente sin que nadie lo notara.
+                $reply = $text === '' ? null : $this->pausedReply($conversation, $text);
+            } else {
+                $reply = $text === ''
+                    ? $this->mainMenu($conversation)
+                    : $this->respond($conversation, $text);
+            }
         } catch (Throwable $e) {
             Log::error('WhatsApp bot: no se pudo procesar el mensaje', [
                 'phone' => \App\Support\Pii::phone($conversation->phone),
@@ -85,6 +88,30 @@ class WhatsappBotService
     // ------------------------------------------------------------------------------------------
     // Entrada y navegación
     // ------------------------------------------------------------------------------------------
+
+    /** Con el bot en pausa solo se atiende la confirmación de una cita pendiente y la baja (Ley 1581). */
+    private function pausedReply(WhatsAppConversation $conversation, string $text): ?string
+    {
+        if (in_array(trim($this->normalize($text), " .,!¡?¿"), self::OPT_OUT_WORDS, true)) {
+            return $this->optOut($conversation);
+        }
+
+        $normalized = $this->normalize($text);
+        if (! ($this->isAffirmative($normalized) || $this->isApprovalEmoji($text) || $this->asksToConfirm($normalized))) {
+            return null;
+        }
+
+        $appointment = $this->pendingAppointment($conversation->phone);
+        if (! $appointment) {
+            return null;
+        }
+
+        $reply = $this->confirmAppointment($conversation, $appointment);
+        $this->clearFlow($conversation->phone); // el asesor sigue a cargo: no se deja un menú abierto
+
+        // Sin el pie de menú: con el bot en pausa no se ofrecen opciones numeradas.
+        return trim((string) preg_replace('/\n\n1\. 🏠 Volver al menú principal\.\n2\. 👋 Finalizar conversación\.$/u', '', $reply));
+    }
 
     private function respond(WhatsAppConversation $conversation, string $text): ?string
     {

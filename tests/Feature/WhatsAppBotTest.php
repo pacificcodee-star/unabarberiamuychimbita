@@ -175,6 +175,51 @@ class WhatsAppBotTest extends TestCase
         $this->assertSame('confirmada', $tercera->fresh()->status);
     }
 
+    public function test_con_el_bot_en_pausa_el_si_igual_confirma_la_cita_pendiente(): void
+    {
+        $cita = $this->cita(['status' => 'pendiente']);
+        // El cliente había pedido un asesor antes: el bot quedó en pausa en su chat.
+        WhatsAppConversation::query()->create(['phone' => '573001234567', 'jid' => '573001234567@s.whatsapp.net', 'bot_active' => false]);
+
+        $this->escribir('hola')->assertOk();
+        Http::assertNotSent(fn ($request) => str_contains((string) ($request['text'] ?? ''), 'menú'));
+
+        $this->escribir('Si')->assertOk();
+
+        $this->assertSame('confirmada', $cita->fresh()->status);
+        Http::assertSent(fn ($request) => str_contains((string) ($request['text'] ?? ''), 'gracias por confirmar')
+            && ! str_contains((string) $request['text'], 'Volver al menú principal'));
+        $this->assertFalse(WhatsAppConversation::query()->firstOrFail()->bot_active, 'El asesor sigue a cargo.');
+    }
+
+    public function test_la_respuesta_con_solo_el_lid_se_reconoce_si_antes_le_escribimos(): void
+    {
+        $cita = $this->cita(['status' => 'pendiente']);
+        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::fake([
+            'evolution.test/message/sendText/*' => Http::response(['key' => ['remoteJid' => '210987654321098@lid', 'fromMe' => true, 'id' => 'ENV-1']]),
+            'evolution.test/*' => Http::response(['created' => true]),
+        ]);
+
+        // Le pedimos confirmar la cita: WhatsApp responde con su @lid.
+        app(\App\Services\WhatsAppService::class)->sendText('3001234567', 'Confirma tu cita respondiendo SÍ');
+
+        // El cliente responde y llega solo el @lid, sin número.
+        $this->escribir('sí', '210987654321098@lid')->assertOk();
+
+        $this->assertSame('confirmada', $cita->fresh()->status);
+    }
+
+    public function test_un_mensaje_con_solo_un_lid_desconocido_queda_en_el_registro(): void
+    {
+        \Illuminate\Support\Facades\Log::spy();
+
+        $this->escribir('sí', '555555555555555@lid')->assertOk();
+
+        $this->assertSame(0, WhatsAppMessage::query()->count());
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'sin número de teléfono'))->once();
+    }
+
     public function test_cita_web_sobre_la_hora_manda_un_solo_mensaje(): void
     {
         $barber = User::factory()->create(['role' => 'barbero', 'attention_mode' => 'citas', 'active' => true]);
