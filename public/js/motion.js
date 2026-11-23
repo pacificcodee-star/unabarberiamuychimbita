@@ -123,6 +123,7 @@
             const url = new URL(a.href, location.href);
             if (a.target === '_blank' || a.hasAttribute('download') || url.origin !== location.origin || (url.pathname === location.pathname && url.hash)) return;
             if (/^(mailto|tel|https?:\/\/wa\.me)/.test(a.getAttribute('href'))) return;
+            if (a.closest('.mnav')) return; // la barra inferior navega al instante y muestra su propia carga
             e.preventDefault();
             curtain.classList.add('is-leaving');
             setTimeout(() => { location.href = url.href; }, 160); // igual a la transición de .page-curtain (site.css)

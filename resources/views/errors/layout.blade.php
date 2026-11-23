@@ -11,7 +11,7 @@
     <meta name="robots" content="noindex">
     <meta name="color-scheme" content="dark">
     <title>@yield('title') · {{ config('sitio.brand_name', 'Una Barberia Muy Chimbita') }}</title>
-    <link rel="icon" href="/favicon.ico">
+    <link rel="icon" href="/favicon.ico?v=2">
     <style>
         :root { --bg: #0c0a08; --surface: #14110d; --text: #f3ebdd; --muted: #c0b4a2; --gold: #c9a227; --gold-hover: #e0be4e; --ink: #14110d; --red: #b32533; --line: rgba(243,235,221,.22); }
         * { box-sizing: border-box; }

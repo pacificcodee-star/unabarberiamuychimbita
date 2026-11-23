@@ -281,10 +281,10 @@
                             <div class="alert alert-warning mb-4" id="turnClosedAlert" role="alert" hidden>
                                 <i class="bi bi-clock-history me-1" aria-hidden="true"></i>
                                 <strong data-turn-closed-text>{{ $turnState['cutoff_message'] }}</strong>
-                                <div class="small mt-1">Puedes agendar una <strong>cita</strong> en un horario disponible.</div>
                             </div>
 
-                            @if(empty($businessOpenNow))
+                            {{-- El aviso de cierre se muestra una sola vez: en el recuadro de abajo, o aquí si no hay barberos por turno. --}}
+                            @if(empty($businessOpenNow) && $turnBarbers->isEmpty())
                                 <div class="alert alert-warning mb-4" role="alert">
                                     <i class="bi bi-clock-history me-1" aria-hidden="true"></i>
                                     <strong>{{ $turnState['message'] }}</strong>

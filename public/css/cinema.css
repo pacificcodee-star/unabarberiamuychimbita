@@ -1487,8 +1487,20 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
         background: linear-gradient(180deg, rgba(var(--accent-rgb), .22), rgba(var(--accent-rgb), .09));
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 6px 16px rgba(0, 0, 0, .24);
         transform: translateX(0);
-        transition: transform 420ms var(--ease-out);
+        transition: transform 260ms var(--ease-out);
         pointer-events: none;
+    }
+    /* Barrita de carga: confirma el toque mientras llega la página (mobile-bottom-nav.js). */
+    .mnav.is-navigating::after {
+        content: ''; position: absolute; z-index: 2; left: 22px; right: 22px; top: 1px; height: 2px;
+        border-radius: 2px; pointer-events: none;
+        background: linear-gradient(90deg, transparent, var(--gold), transparent) no-repeat;
+        background-size: 45% 100%;
+        animation: mnav-loading .8s linear infinite;
+    }
+    @keyframes mnav-loading {
+        from { background-position: -80% 0; }
+        to { background-position: 180% 0; }
     }
     .mnav__track.is-idle .mnav__indicator { opacity: 0; }
     .mnav__track:has(.mnav__cell:nth-child(3) .mnav__item.is-active) .mnav__indicator { transform: translateX(100%); }
@@ -1503,6 +1515,7 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
         gap: 3px; min-width: 0; min-height: 54px; padding: 4px 2px;
         color: rgba(var(--text-rgb), .68); text-decoration: none;
         -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation; /* el toque se atiende de una vez, sin esperar un posible doble toque */
         transition: color var(--dur-fast) ease, transform var(--dur-fast) var(--ease-out);
     }
     .mnav__item:hover, .mnav__item.is-active { color: var(--text); }
@@ -1535,6 +1548,7 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
     @media (prefers-reduced-motion: reduce) {
         .mnav__indicator, .mnav__item, .mnav__icon { transition: none; }
         .mnav__item.is-active .mnav__label { animation: none; }
+        .mnav.is-navigating::after { animation: none; background-position: 50% 0; }
     }
 }
 

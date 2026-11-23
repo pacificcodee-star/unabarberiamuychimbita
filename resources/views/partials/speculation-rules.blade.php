@@ -4,6 +4,8 @@
     Solo se descarga el HTML: no se ejecuta nada de la página hasta que la persona entra.
     Quedan fuera las páginas que cambian algo con solo abrirlas (marcar avisos o chats como leídos,
     enlaces de acceso de un solo uso, recibos para imprimir) y los enlaces con data-no-prefetch.
+    Las pestañas de la barra inferior del celular (.mnav) se descargan apenas carga la página, para que
+    cambiar de pestaña sea casi instantáneo (solo el HTML comprimido, unos 20 KB por página).
     Los navegadores que no conocen esta función la ignoran.
 --}}
 <script type="speculationrules">
@@ -25,6 +27,9 @@
             ]
         },
         "eagerness": "moderate"
+    }, {
+        "where": { "selector_matches": ".mnav__item:not([aria-current])" },
+        "eagerness": "immediate"
     }]
 }
 </script>

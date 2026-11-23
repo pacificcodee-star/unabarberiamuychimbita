@@ -80,9 +80,14 @@ final class TurnSchedule
 
         $next = self::nextOpeningText($now, $settings);
 
+        $nextSentence = $next ? self::sentence("Podrá solicitar su turno {$next}") : null;
+
         if ($closing === null) {
-            $message = 'Hoy la barbería está cerrada, así que no se pueden tomar turnos.'
-                .($next ? " Podrás pedir turno {$next}." : '').' Si prefieres, agenda una cita para otro día.';
+            $message = self::join([
+                'Le informamos que hoy la barbería no presta servicio, por lo que no es posible solicitar turnos.',
+                $nextSentence,
+                'Si lo prefiere, puede agendar una cita para otro día.',
+            ]);
 
             return self::state(false, 'closed', null, null, null, $message);
         }
@@ -93,9 +98,11 @@ final class TurnSchedule
 
         $closingLabel = self::timeLabel($closing);
         $deadlineLabel = self::timeLabel($deadline);
-        $cutoffMessage = "Los turnos de hoy ya cerraron: se reciben hasta las {$deadlineLabel}, ".
-            "30 minutos antes del cierre de las {$closingLabel}."
-            .($next ? " Podrás pedir turno {$next}." : '').' Si prefieres, agenda una cita para otro día.';
+        $cutoffMessage = self::join([
+            self::sentence("Le informamos que la recepción de turnos para hoy ha finalizado. Los turnos se reciben hasta las {$deadlineLabel}, 30 minutos antes del cierre a las {$closingLabel}"),
+            $nextSentence,
+            'Si lo prefiere, puede agendar una cita para otro día.',
+        ]);
 
         if ($now->lt($opening)) {
             $openingLabel = self::timeLabel($opening);
@@ -106,8 +113,8 @@ final class TurnSchedule
                 $opening,
                 $closing,
                 $deadline,
-                "Aún no abrimos. Podrás pedir turno hoy desde las {$openingLabel} hasta las {$deadlineLabel} ".
-                    "(atendemos de {$openingLabel} a {$closingLabel}).",
+                "Aún no hemos abierto. Podrá solicitar su turno hoy a partir de las {$openingLabel} y hasta las {$deadlineLabel} ".
+                    "(horario de atención: {$openingLabel} a {$closingLabel}).",
                 $cutoffMessage,
             );
         }
@@ -122,14 +129,14 @@ final class TurnSchedule
             $opening,
             $closing,
             $deadline,
-            "Hoy puedes tomar turno hasta las {$deadlineLabel} (30 minutos antes del cierre).",
+            "Hoy puede solicitar su turno hasta las {$deadlineLabel} (30 minutos antes del cierre).",
             $cutoffMessage,
         );
     }
 
     /**
-     * Cuándo se vuelve a poder pedir turno después de hoy: "mañana desde las 9:00 a. m." o
-     * "el lunes desde las 9:00 a. m.". Null si en la próxima semana no hay ningún día abierto.
+     * Cuándo se vuelve a poder pedir turno después de hoy: "mañana a partir de las 9:00 a. m." o
+     * "el lunes a partir de las 9:00 a. m.". Null si en la próxima semana no hay ningún día abierto.
      */
     public static function nextOpeningText(CarbonInterface $now, array $settings): ?string
     {
@@ -144,10 +151,22 @@ final class TurnSchedule
             $opening = self::openingTime($day, $settings);
             $when = $offset === 1 ? 'mañana' : 'el '.$names[self::dayKey($day)];
 
-            return $opening === null ? $when : $when.' desde las '.self::timeLabel(self::at($day, $opening));
+            return $opening === null ? $when : $when.' a partir de las '.self::timeLabel(self::at($day, $opening));
         }
 
         return null;
+    }
+
+    /** Cierra la frase con punto, sin duplicarlo cuando ya termina en "a. m." o "p. m.". */
+    private static function sentence(string $text): string
+    {
+        return str_ends_with($text, '.') ? $text : $text.'.';
+    }
+
+    /** @param list<?string> $sentences */
+    private static function join(array $sentences): string
+    {
+        return implode(' ', array_filter($sentences));
     }
 
     public static function timeLabel(CarbonInterface $moment): string

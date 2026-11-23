@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex">
     <meta name="theme-color" content="#0c0a08">
     <title>Solo en computador o tablet · {{ $brandName }}</title>
-    <link rel="icon" type="image/png" href="{{ asset('images/logo-una-barberia.png') }}">
+    @include('partials.favicon')
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">

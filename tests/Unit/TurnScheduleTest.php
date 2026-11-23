@@ -74,8 +74,9 @@ class TurnScheduleTest extends TestCase
 
         $late = TurnSchedule::forNow(Carbon::parse('2026-11-18 19:45:00'), $settings);
 
-        $this->assertStringContainsString('Los turnos de hoy ya cerraron', $late['message']);
-        $this->assertStringContainsString('Podrás pedir turno mañana desde las 9:00 a. m.', $late['message']);
+        $this->assertStringContainsString('la recepción de turnos para hoy ha finalizado', $late['message']);
+        $this->assertStringContainsString('Podrá solicitar su turno mañana a partir de las 9:00 a. m. Si lo prefiere', $late['message']);
+        $this->assertStringNotContainsString('..', $late['message']);
     }
 
     public function test_antes_de_abrir_avisa_desde_que_hora_se_puede(): void
@@ -85,8 +86,8 @@ class TurnScheduleTest extends TestCase
         $early = TurnSchedule::forNow(Carbon::parse('2026-11-18 07:30:00'), $settings);
 
         $this->assertSame('before_open', $early['reason']);
-        $this->assertStringContainsString('Aún no abrimos', $early['message']);
-        $this->assertStringContainsString('desde las 9:00 a. m. hasta las 7:30 p. m.', $early['message']);
+        $this->assertStringContainsString('Aún no hemos abierto', $early['message']);
+        $this->assertStringContainsString('a partir de las 9:00 a. m. y hasta las 7:30 p. m.', $early['message']);
     }
 
     public function test_el_sabado_despues_del_corte_salta_el_domingo_cerrado(): void
@@ -99,7 +100,7 @@ class TurnScheduleTest extends TestCase
 
         $late = TurnSchedule::forNow(Carbon::parse('2026-11-21 19:40:00'), $settings); // sábado
 
-        $this->assertStringContainsString('Podrás pedir turno el lunes desde las 10:00 a. m.', $late['message']);
+        $this->assertStringContainsString('Podrá solicitar su turno el lunes a partir de las 10:00 a. m.', $late['message']);
     }
 
     public function test_antes_de_abrir_y_despues_del_cierre_no_se_aceptan_solicitudes(): void
@@ -121,8 +122,8 @@ class TurnScheduleTest extends TestCase
         $this->assertFalse($state['open']);
         $this->assertSame('closed', $state['reason']);
         $this->assertNull($state['deadline']);
-        $this->assertStringContainsString('cerrada', $state['message']);
-        $this->assertStringContainsString('Podrás pedir turno mañana', $state['message']);
+        $this->assertStringContainsString('no presta servicio', $state['message']);
+        $this->assertStringContainsString('Podrá solicitar su turno mañana', $state['message']);
     }
 
     public function test_cambiar_el_horario_del_panel_mueve_el_limite(): void

@@ -60,9 +60,7 @@
     @if(config('web.google.site_verification'))<meta name="google-site-verification" content="{{ config('web.google.site_verification') }}">@endif
     <meta name="color-scheme" content="dark">
     <link rel="canonical" href="{{ url()->current() }}">
-    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="48x48">
-    <link rel="icon" type="image/svg+xml" href="{{ asset('images/logo-una-barberia.svg') }}">
-    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('icons/favicon-32.png') }}">
+    @include('partials.favicon')
     {{-- App instalable (PWA) --}}
     <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
     <meta name="theme-color" content="#0c0a08">

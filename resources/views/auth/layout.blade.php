@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex">
     <meta name="theme-color" content="#1b3a57">
     <title>@yield('title', 'Ingresar') · {{ config('app.name') }}</title>
-    <link rel="icon" type="image/png" href="{{ asset('images/logo-una-barberia.png') }}">
+    @include('partials.favicon')
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">

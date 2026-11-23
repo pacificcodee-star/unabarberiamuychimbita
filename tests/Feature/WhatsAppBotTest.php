@@ -164,7 +164,7 @@ class WhatsAppBotTest extends TestCase
         $this->escribir('quiero sacar turno')->assertOk();
 
         Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'se reciben hasta las 7:30 p. m.'));
-        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'Podrás pedir turno mañana desde las'));
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'Podrá solicitar su turno mañana a partir de las'));
         $this->assertDatabaseCount('turns', 0);
     }
 
@@ -176,7 +176,7 @@ class WhatsAppBotTest extends TestCase
         $this->travelTo(Carbon::parse('2026-11-18 19:30:00'));
         $this->escribir('quiero sacar turno')->assertOk();
 
-        Http::assertNotSent(fn ($request) => str_contains((string) $request['text'], 'ya cerraron'));
+        Http::assertNotSent(fn ($request) => str_contains((string) $request['text'], 'ha finalizado'));
         Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'tomar tu turno'));
     }
 
