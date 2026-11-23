@@ -19,7 +19,7 @@
         // Transiciones entre páginas con dirección: según el orden del menú se avanza (izquierda) o se regresa (derecha).
         // Debe ir en el <head>, antes de que la página se pinte. Los navegadores sin esta función cambian de página normalmente.
         (function () {
-            var order = ['/', '/servicios', '/barberos', '/contacto', '/reservar'];
+            var order = ['/', '/servicios', '/barberos', '/mis-servicios', '/contacto', '/reservar'];
             var place = function (url) { try { return order.indexOf((new URL(url).pathname.replace(/\/+$/, '')) || '/'); } catch (e) { return -1; } };
             var mark = function (transition, from, to) {
                 if (!transition || !transition.types || !from || !to) return;
@@ -48,11 +48,11 @@
             ['route' => 'landing', 'label' => 'Inicio', 'icon' => 'bi-house-door'],
             ['route' => 'public.services', 'label' => 'Servicios', 'icon' => 'bi-scissors'],
             ['route' => 'public.barbers', 'label' => 'Barberos', 'icon' => 'bi-person-badge'],
-            ['route' => 'public.contact', 'label' => 'Contacto', 'icon' => 'bi-geo-alt'],
         ];
         if (\App\Support\ClientServiceAccess::hasServices(request())) {
             $navItems[] = ['route' => 'my-services.index', 'label' => 'Mis servicios', 'icon' => 'bi-calendar2-check'];
         }
+        $navItems[] = ['route' => 'public.contact', 'label' => 'Contacto', 'icon' => 'bi-geo-alt'];
     @endphp
     <title>{{ $pageTitle }}</title>
     <meta name="description" content="{{ $metaDescription }}">
