@@ -1,3 +1,13 @@
+{
+	# Certificados y cuentas ACME en el volumen caddy_data: así un despliegue (que recrea el contenedor)
+	# no pierde el certificado. Antes quedaban dentro del contenedor y cada despliegue pedía uno nuevo,
+	# hasta chocar con el límite de Let's Encrypt (5 certificados iguales por semana).
+	storage file_system /data/caddy
+	# Correo de contacto para los emisores de certificados. Con correo, Caddy usa ZeroSSL de respaldo
+	# si Let's Encrypt no está disponible o limita las solicitudes. Se cambia con ACME_EMAIL en deploy/.env.
+	email {$ACME_EMAIL:hola@barberiachimbita.com}
+}
+
 # Sitio Laravel (panel + web pública) con HTTPS automático.
 # www redirige al dominio principal para no duplicar contenido ni certificados.
 www.{$APP_HOST} {
