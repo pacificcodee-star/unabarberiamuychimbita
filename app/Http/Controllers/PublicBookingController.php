@@ -193,9 +193,8 @@ class PublicBookingController extends Controller
             'access_url' => ClientServiceAccess::recoveryUrl($appointment),
         ]);
 
-        // Sin panel de "cita registrada": va directo a Mis servicios, donde ve su cita y puede confirmarla.
-        return redirect()->route('my-services.index')
-            ->with('status', '✅ Tu cita quedó registrada. Confírmala con «Confirmar cita» o respondiendo SÍ por WhatsApp.');
+        // Sin panel ni aviso de "cita registrada": va directo a Mis servicios, donde ve su cita y puede confirmarla.
+        return redirect()->route('my-services.index');
     }
 
     private function createTurn(Request $request, TurnService $turnService, WhatsAppService $whatsApp)

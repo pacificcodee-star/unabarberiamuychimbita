@@ -108,8 +108,14 @@
 .msv-queue.is-next-up > i { color: #2f8a5b; }
 .service-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .service-actions .btn { min-height: 44px; display: inline-flex; align-items: center; gap: .4rem; }
-.msv-btn-cancel { border: 1px solid rgba(162, 59, 52, .35); background: transparent; color: var(--brand-red-text); }
-.msv-btn-cancel:hover, .msv-btn-cancel:focus-visible { background: rgba(162, 59, 52, .1); border-color: rgba(162, 59, 52, .6); color: #7d2b25; }
+/* Confirmar (verde), reprogramar (gris) y cancelar (rojo): pastillas redondeadas con texto blanco. */
+.msv-btn-confirm, .msv-btn-reschedule, .msv-btn-cancel { border-radius: 999px; border: 1px solid transparent; color: #fff; }
+.msv-btn-confirm { background: #2f8a5b; border-color: #2f8a5b; }
+.msv-btn-confirm:hover, .msv-btn-confirm:focus-visible { background: #26714b; border-color: #26714b; color: #fff; }
+.msv-btn-reschedule { background: #6f6a62; border-color: #6f6a62; }
+.msv-btn-reschedule:hover, .msv-btn-reschedule:focus-visible { background: #5b574f; border-color: #5b574f; color: #fff; }
+.msv-btn-cancel { background: #a23b34; border-color: #a23b34; }
+.msv-btn-cancel:hover, .msv-btn-cancel:focus-visible { background: #872f29; border-color: #872f29; color: #fff; }
 @media (max-width: 575.98px) {
     .msv-card { padding: 1rem; }
     .msv-when { width: 3.9rem; min-height: 4.2rem; }

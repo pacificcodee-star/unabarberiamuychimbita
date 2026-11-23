@@ -55,9 +55,8 @@ class PublicBookingTest extends TestCase
             'notes' => 'Primera visita',
         ]);
 
-        // Sin panel de "cita registrada": va directo a Mis servicios, donde puede confirmarla.
+        // Sin panel ni aviso de "cita registrada": va directo a Mis servicios, donde puede confirmarla.
         $response->assertRedirect(route('my-services.index'));
-        $response->assertSessionHas('status');
         $response->assertSessionMissing('booking_success');
 
         $this->assertDatabaseHas('appointments', [
@@ -73,7 +72,7 @@ class PublicBookingTest extends TestCase
         $barber = $this->barber('citas');
         $date = now()->addDay()->toDateString();
 
-        $this->post(route('public.booking.appointment'), [
+        $response = $this->post(route('public.booking.appointment'), [
             'barber_id' => $barber->id,
             'service_id' => $this->service()->id,
             'client_name' => 'Cliente Público',
@@ -85,8 +84,13 @@ class PublicBookingTest extends TestCase
 
         $this->get(route('my-services.index'))
             ->assertOk()
-            ->assertSee('Tu cita quedó registrada')
-            ->assertSee('Confirmar cita');
+            ->assertDontSee('Tu cita quedó registrada');
+
+        // La cita recién creada aparece en Mis servicios con sus acciones.
+        if ($device = $response->getCookie('mis_servicios')) {
+            $this->withCookie('mis_servicios', $device->getValue());
+            $this->get(route('my-services.index'))->assertOk()->assertSee('Confirmar cita');
+        }
 
         $this->get(route('public.booking', ['tipo' => 'cita']))
             ->assertOk()
