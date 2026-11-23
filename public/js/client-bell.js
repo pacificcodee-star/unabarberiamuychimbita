@@ -16,6 +16,25 @@
     let results = []; // [{ booking, state }]
     let lastNewest = null; // id del aviso más reciente ya visto en esta página (null = primera carga)
 
+    /* Modo local: el navegador no tiene servicio push (Brave lo trae apagado y ninguna página puede encenderlo).
+       Mientras la página o la app estén abiertas, aunque sea en segundo plano, la campana muestra la
+       notificación del sistema con sonido, igual que un push. */
+    const localMode = () => {
+        try { return 'Notification' in window && Notification.permission === 'granted' && localStorage.getItem('ubmc-push-local') === '1'; } catch (e) { return false; }
+    };
+    const notifyLocally = async (items, since) => {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            items.forEach(({ booking, state }) => state.notifications
+                .filter((n) => n.id > since)
+                .forEach((n) => registration.showNotification(n.title, {
+                    body: n.body || '', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png',
+                    tag: 'local-' + booking.key + '-' + n.id, renotify: true, silent: false, requireInteraction: true,
+                    vibrate: [300, 120, 300], data: { url: booking.url || '/' },
+                })));
+        } catch (e) {}
+    };
+
     const unreadCount = () => {
         const seen = read('ubmc-bell-seen', {});
         return results.reduce((total, { booking, state }) => total + state.notifications.filter((n) => n.id > (seen[booking.key] || 0)).length, 0);
@@ -80,7 +99,10 @@
         if (keep.length !== bookings.length) write('ubmc-bookings', keep);
         // Aviso nuevo con la página abierta: timbre (si el push está activo, ya suena la notificación del sistema).
         const newest = next.reduce((max, { state }) => state.notifications.reduce((m, n) => Math.max(m, n.id), max), 0);
-        if (lastNewest !== null && newest > lastNewest) window.ubmcChime?.();
+        if (lastNewest !== null && newest > lastNewest) {
+            window.ubmcChime?.();
+            if (localMode()) notifyLocally(next, lastNewest);
+        }
         lastNewest = newest;
         results = next;
         paintBadge();
@@ -114,6 +136,8 @@
     // Llegó un push (sw.js avisa a las pestañas abiertas): se actualiza al instante, sin esperar 30 segundos.
     navigator.serviceWorker?.addEventListener('message', (event) => { if (event.data === 'booking-change') load(); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
-    setInterval(() => { if (!document.hidden && read('ubmc-bookings', []).length) load(); }, 30000);
+    // Con la página a la vista cada 30 s. En modo local también en segundo plano (el navegador lo limita
+    // a ~1 vez por minuto), para que el aviso llegue aunque la pestaña esté minimizada.
+    setInterval(() => { if ((!document.hidden || localMode()) && read('ubmc-bookings', []).length) load(); }, 30000);
     load();
 })();

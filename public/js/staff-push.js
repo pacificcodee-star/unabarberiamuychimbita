@@ -79,7 +79,33 @@
             set('on', 'Activos. Te llegarán con sonido aunque el panel esté cerrado.');
             return true;
         } catch (error) {
+            const text = String((error && (error.name + ' ' + error.message)) || error || '');
+            if (/AbortError|push service|Registration failed/i.test(text)) {
+                // El navegador no tiene servicio push (Brave lo trae apagado; ninguna página puede encenderlo).
+                // No se bloquea nada: la campana muestra la notificación del sistema con sonido mientras el
+                // panel esté abierto, aunque sea minimizado o en otra pestaña.
+                set('local', isBrave
+                    ? 'Activos con sonido mientras el panel esté abierto. Para recibirlos también con Brave cerrado: brave://settings/privacy → «Usar los servicios de Google para la mensajería push».'
+                    : 'Activos con sonido mientras el panel esté abierto.');
+                return true;
+            }
             set('error', explain(error));
+            return false;
+        }
+    };
+
+    /** Notificación del sistema generada por la propia página (modo local, sin servicio push). */
+    const showLocal = async (title, body, url, tag) => {
+        try {
+            const registration = await swReady;
+            if (!registration || Notification.permission !== 'granted') return false;
+            await registration.showNotification(title, {
+                body: body || '', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png',
+                tag: tag || ('staff-local-' + Date.now()), renotify: true, silent: false, requireInteraction: true,
+                vibrate: [300, 120, 300], data: { url: url || '/notificaciones' },
+            });
+            return true;
+        } catch (e) {
             return false;
         }
     };
@@ -99,6 +125,10 @@
     /** Aviso de prueba real: sale del servidor y vuelve por el servicio push del navegador. */
     const test = async () => {
         window.ubmcChime?.({ force: true });
+        if (state.name === 'local') {
+            const ok = await showLocal('Prueba de avisos', 'Si escuchaste el sonido, así te llegarán las reservas mientras el panel esté abierto.', '/notificaciones', 'staff-test-local');
+            return { message: ok ? 'Aviso mostrado en este dispositivo.' : 'El navegador no permitió mostrar el aviso.' };
+        }
         const response = await fetch(cfg.test, {
             method: 'POST', credentials: 'same-origin',
             headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf() },
@@ -108,15 +138,16 @@
         return data;
     };
 
-    window.staffPush = { get state() { return state; }, onChange: (fn) => { listeners.add(fn); fn(state); }, enable, sync, test, isBrave };
+    window.staffPush = { get state() { return state; }, onChange: (fn) => { listeners.add(fn); fn(state); }, enable, sync, test, showLocal, isBrave };
 
     /* ----- Aviso flotante ----- */
     const enableBtn = box.querySelector('[data-staff-push-enable]');
     const closeBtn = box.querySelector('[data-staff-push-close]');
     const status = box.querySelector('[data-staff-push-status]');
     const key = 'staff-push-dismissed-until';
-    const dismissed = () => { try { return Number(localStorage.getItem(key) || 0) > Date.now(); } catch (e) { return false; } };
-    const snooze = () => { try { localStorage.setItem(key, String(Date.now() + 3 * 864e5)); } catch (e) {} box.hidden = true; };
+    // "Ahora no" solo lo oculta en esta visita: al volver a abrir el panel se pide otra vez (si no están activos).
+    const dismissed = () => { try { return sessionStorage.getItem(key) === '1'; } catch (e) { return false; } };
+    const snooze = () => { try { sessionStorage.setItem(key, '1'); } catch (e) {} box.hidden = true; };
 
     closeBtn.addEventListener('click', snooze);
     enableBtn.addEventListener('click', async () => {
@@ -127,7 +158,8 @@
     });
     window.staffPush.onChange(({ name, message }) => {
         if (message) status.textContent = message;
-        enableBtn.hidden = name === 'denied' || name === 'unsupported' || name === 'on';
+        enableBtn.hidden = ['denied', 'unsupported', 'on', 'local'].includes(name);
+        if (name === 'on' || name === 'local') box.hidden = true; // ya activos: el aviso flotante no se muestra
     });
 
     (async () => {

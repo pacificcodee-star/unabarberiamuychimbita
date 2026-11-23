@@ -64,6 +64,7 @@
     {{-- App instalable (PWA) --}}
     <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
     <meta name="theme-color" content="#0c0a08">
+    <meta name="vapid-public-key" content="{{ config('services.webpush.public_key') }}">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -780,6 +781,23 @@
 })();
 </script>
 <script src="{{ asset('js/chime.js') }}?v={{ @filemtime(public_path('js/chime.js')) }}" defer></script>
+<script src="{{ asset('js/notify-permission.js') }}?v={{ @filemtime(public_path('js/notify-permission.js')) }}" defer></script>
+<style>
+    /* Aviso "Activa las notificaciones" (js/notify-permission.js): solo si aún no están activadas. */
+    .notify-ask { position: fixed; z-index: 1300; left: 50%; bottom: 20px; display: flex; align-items: center; gap: 12px; width: min(560px, calc(100vw - 24px)); padding: 12px 12px 12px 14px; border: 1px solid rgba(var(--accent-rgb), .35); border-radius: 18px; background: rgba(20, 17, 13, .96); color: var(--text); box-shadow: 0 22px 50px rgba(0, 0, 0, .45); transform: translate(-50%, 16px); opacity: 0; transition: transform .32s var(--ease-out), opacity .32s ease; }
+    .notify-ask.is-visible { transform: translate(-50%, 0); opacity: 1; }
+    .notify-ask-ico { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: rgba(var(--accent-rgb), .16); color: var(--gold); }
+    .notify-ask-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+    .notify-ask-text strong { font-size: .92rem; }
+    .notify-ask-text span { font-size: .8rem; color: var(--text-muted); line-height: 1.35; }
+    .notify-ask-yes { flex: none; min-height: 40px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--button-gold); color: #14110d; font-weight: 800; font-size: .82rem; }
+    .notify-ask-yes:hover { background: var(--button-gold-hover); }
+    .notify-ask-no { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); }
+    .notify-ask-no:hover { background: rgba(var(--text-rgb), .08); color: var(--text); }
+    @media (max-width: 767.98px) { .notify-ask { bottom: calc(var(--mnav-clear, 86px) + 12px); } }
+    @media (max-width: 420px) { .notify-ask { flex-wrap: wrap; } .notify-ask-text { flex-basis: calc(100% - 100px); } .notify-ask-yes { flex: 1; } }
+    @media (prefers-reduced-motion: reduce) { .notify-ask { transition: none; } }
+</style>
 <script src="{{ asset('js/client-bell.js') }}?v={{ @filemtime(public_path('js/client-bell.js')) }}" defer></script>
 @stack('scripts')
 {{-- Scroll cinematográfico: GSAP + ScrollTrigger sobre el scroll nativo (copias locales en public/vendor) --}}

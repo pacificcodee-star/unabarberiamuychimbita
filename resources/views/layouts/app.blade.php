@@ -292,7 +292,8 @@
 
         .nt-device { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px 10px 18px; border-bottom: 1px solid var(--bs-border-color); background: rgba(127, 127, 127, .05); }
         .nt-device-ico { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; font-size: .85rem; background: rgba(127, 127, 127, .14); color: var(--bs-secondary-color); }
-        .nt-device[data-state="on"] .nt-device-ico { background: rgba(31, 138, 91, .14); color: #1a7a50; }
+        .nt-device[data-state="on"] .nt-device-ico, .nt-device[data-state="local"] .nt-device-ico { background: rgba(31, 138, 91, .14); color: #1a7a50; }
+        html.admin-dark .nt-device[data-state="local"] .nt-device-ico { color: #62d3a0; }
         .nt-device[data-state="off"] .nt-device-ico { background: rgba(196, 135, 24, .16); color: #96600a; }
         .nt-device[data-state="denied"] .nt-device-ico, .nt-device[data-state="error"] .nt-device-ico { background: rgba(192, 57, 43, .12); color: #b03a2e; }
         html.admin-dark .nt-device[data-state="on"] .nt-device-ico { color: #62d3a0; }
@@ -559,7 +560,14 @@
         const latest = data.items[0]?.id || 0;
         if (live && latest !== revision) window.dispatchEvent(new Event('booking:changed'));
         // Aviso nuevo con el panel abierto: timbre (si el push está activo, ya suena la notificación del sistema).
-        if (revision !== null && latest > revision && data.items[0]?.unread) window.ubmcChime?.();
+        if (revision !== null && latest > revision && data.items[0]?.unread) {
+            window.ubmcChime?.();
+            // Modo local (sin servicio push, p. ej. Brave): la notificación del sistema la muestra el panel.
+            if (window.staffPush?.state.name === 'local') {
+                data.items.filter((item) => item.id > revision && item.unread).reverse()
+                    .forEach((item) => window.staffPush.showLocal(item.title, item.body, item.url, 'staff-' + item.id));
+            }
+        }
         revision = latest;
         badge.hidden = !data.unread;
         badge.textContent = data.unread > 9 ? '9+' : String(data.unread);
@@ -613,7 +621,8 @@
     });
 
     const load = async (force = false) => {
-        if (document.hidden && !force) return;
+        // En modo local se sigue revisando en segundo plano para poder mostrar la notificación con sonido.
+        if (document.hidden && !force && window.staffPush?.state.name !== 'local') return;
         try {
             const response = await fetch(root.dataset.feed, { headers: { Accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' });
             if (response.ok) paint(await response.json());
@@ -657,7 +666,7 @@
             deviceDetail.textContent = message || (name === 'checking' ? 'Comprobando…' : '');
             deviceEnable.hidden = !['off', 'error'].includes(name);
             deviceEnable.textContent = name === 'error' ? 'Reintentar' : 'Activar';
-            deviceTest.hidden = name !== 'on';
+            deviceTest.hidden = !['on', 'local'].includes(name);
         });
         deviceEnable.addEventListener('click', async () => {
             deviceEnable.disabled = true;

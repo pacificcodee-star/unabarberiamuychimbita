@@ -20,7 +20,7 @@
     try {
         if (cfg.trackUrl && cfg.statusUrl) {
             const list = JSON.parse(localStorage.getItem('ubmc-bookings') || '[]').filter((item) => item && item.key !== cfg.subject);
-            list.unshift({ key: cfg.subject, label: cfg.label || 'Tu reserva', url: cfg.trackUrl, statusUrl: cfg.statusUrl, savedAt: Date.now() });
+            list.unshift({ key: cfg.subject, label: cfg.label || 'Tu reserva', url: cfg.trackUrl, statusUrl: cfg.statusUrl, pushUrl: cfg.pushUrl, savedAt: Date.now() });
             localStorage.setItem('ubmc-bookings', JSON.stringify(list.slice(0, 5)));
             window.dispatchEvent(new Event('ubmc:bookings'));
         }
@@ -98,6 +98,17 @@
             await save(subscription);
             show('on');
         } catch (error) {
+            const text = String((error && (error.name + ' ' + error.message)) || error || '');
+            if (Notification.permission === 'granted' && /push service|AbortError|Registration failed/i.test(text)) {
+                // Sin servicio push (p. ej. Brave con la mensajería de Google apagada): no se bloquea nada.
+                // Los avisos llegan con sonido mientras esta página o la app estén abiertas (client-bell.js).
+                try { localStorage.setItem('ubmc-push-local', '1'); } catch (e) {}
+                flag.set('1');
+                show('on');
+                setError('Te avisaremos con sonido mientras esta página esté abierta. Para recibirlos también con el navegador cerrado en Brave, activa «Usar los servicios de Google para la mensajería push» en brave://settings/privacy.');
+                window.dispatchEvent(new Event('ubmc:push-mode'));
+                return;
+            }
             show('ask');
             setError(friendly(error));
         }
