@@ -707,9 +707,12 @@
         const initialChanged = initial !== input.value;
         if (initialChanged) input.value = initial;
 
-        let applied = initial;
         let pending = initial;
         let view = new Date(fromKey(initial).getFullYear(), fromKey(initial).getMonth(), 1);
+        // «Aplicar» no puede quedar bloqueado por el día que ya viene marcado (hoy): se habilita
+        // siempre que haya un día elegible, de modo que hoy también se pueda confirmar con el botón.
+        const applicable = () => Boolean(pending) && canPick(fromKey(pending));
+        const syncApply = () => { apply.disabled = !applicable(); };
 
         const render = () => {
             title.textContent = monthLabel(view);
@@ -755,7 +758,7 @@
                         button.appendChild(dot);
                         button.addEventListener('click', () => {
                             pending = key;
-                            apply.disabled = pending === applied;
+                            syncApply();
                             render();
                         });
                     } else {
@@ -768,11 +771,12 @@
         };
 
         apply.addEventListener('click', () => {
-            if (!pending || pending === applied) return;
-            applied = pending;
-            input.value = pending;
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            apply.disabled = true;
+            if (!applicable()) return;
+            if (input.value !== pending) {
+                input.value = pending;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            syncApply();
             render();
         });
         prev.addEventListener('click', () => { view = new Date(view.getFullYear(), view.getMonth() - 1, 1); render(); });
@@ -782,13 +786,13 @@
             if (!value || value === pending) return;
             const date = fromKey(value);
             if (Number.isNaN(date.getTime())) return;
-            applied = value;
             pending = value;
             view = new Date(date.getFullYear(), date.getMonth(), 1);
-            apply.disabled = true;
+            syncApply();
             render();
         });
 
+        syncApply();
         render();
         if (initialChanged) input.dispatchEvent(new Event('change', { bubbles: true }));
     })();
