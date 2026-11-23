@@ -52,8 +52,22 @@
     --gold: #8a6a12;
     --gold-line: rgba(138, 106, 18, .34);
     --brand-red-text: #a23b34;
+    position: relative;
+    isolation: isolate;
     background: #efe8dc;
     color: var(--text);
+}
+/* Foto de la barbería de fondo, fija detrás del contenido y con un velo crema para leer bien. */
+.my-services-page::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        linear-gradient(180deg, rgba(239, 232, 220, .62), rgba(239, 232, 220, .8)),
+        url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat,
+        #efe8dc;
 }
 .my-services-page .page-hero { background: transparent !important; }
 .service-manager { padding-block: 2rem 5rem; }
