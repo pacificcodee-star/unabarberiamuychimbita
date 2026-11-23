@@ -125,7 +125,7 @@
             if (/^(mailto|tel|https?:\/\/wa\.me)/.test(a.getAttribute('href'))) return;
             e.preventDefault();
             curtain.classList.add('is-leaving');
-            setTimeout(() => { location.href = url.href; }, 420);
+            setTimeout(() => { location.href = url.href; }, 160); // igual a la transición de .page-curtain (site.css)
         });
         addEventListener('pageshow', () => curtain.classList.remove('is-leaving'));
     }

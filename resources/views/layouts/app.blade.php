@@ -291,6 +291,7 @@
         }
     </style>
     @stack('styles')
+    @include('partials.speculation-rules')
 </head>
 <body class="{{ request()->boolean('embed') ? 'is-embed' : '' }}">
 @if(request()->boolean('embed'))

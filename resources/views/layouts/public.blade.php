@@ -4,16 +4,17 @@
     {{-- Red de seguridad: reporta errores de JS y mantiene el contenido visible si fallan las animaciones. --}}
     <script src="{{ asset('js/error-guard.js') }}?v={{ @filemtime(public_path('js/error-guard.js')) }}"></script>
     <script>
-        // Pantalla de carga solo al entrar al sitio o al recargar; no al cambiar de pestaña dentro del sitio.
+        // Pantalla de carga solo la primera vez que se entra al sitio en esta pestaña: no al cambiar de
+        // página dentro del sitio ni al recargar después (así recargar o volver no hace esperar otra vez).
         (function () {
             window.addEventListener('beforeinstallprompt', function (event) {
                 event.preventDefault();
                 window.deferredPwaInstall = event;
             });
-            var internal = false, reload = false;
+            var internal = false, seen = false;
             try { internal = !!document.referrer && new URL(document.referrer).origin === location.origin; } catch (e) {}
-            try { var nav = performance.getEntriesByType('navigation')[0]; reload = !!nav && nav.type === 'reload'; } catch (e) {}
-            if (!internal || reload) document.documentElement.classList.add('is-loading');
+            try { seen = sessionStorage.getItem('ubmc-intro') === '1'; sessionStorage.setItem('ubmc-intro', '1'); } catch (e) {}
+            if (!internal && !seen) document.documentElement.classList.add('is-loading');
         })();
         // Transiciones entre páginas con dirección: según el orden del menú se avanza (izquierda) o se regresa (derecha).
         // Debe ir en el <head>, antes de que la página se pinte. Los navegadores sin esta función cambian de página normalmente.
@@ -136,6 +137,7 @@
         .track-push .is-on { display: flex; align-items: center; gap: .5rem; font-weight: 600; margin-bottom: .6rem; }
     </style>
     @stack('styles')
+    @include('partials.speculation-rules')
 </head>
 <body data-content-version="{{ $contentVersion ?? '' }}">
 {{-- Pantalla de carga: contador gigante con franjas de barbero que sube hasta 100 y se abre como puertas --}}

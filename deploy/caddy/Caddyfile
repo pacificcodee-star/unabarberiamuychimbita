@@ -10,8 +10,18 @@ www.{$APP_HOST} {
 	@noPhpStorage path /storage/* /images/* /videos/* /icons/* /vendor/* /css/* /js/*
 	handle @noPhpStorage {
 		header X-Content-Type-Options nosniff
+		# Caché del navegador: así cambiar de página no vuelve a pedir CSS, JS ni imágenes.
+		# Con ?v= (la fecha del archivo) la URL cambia en cada versión: se guarda un año sin preguntar.
+		@versioned query v=*
+		header @versioned Cache-Control "public, max-age=31536000, immutable"
+		# Sin versión (fotos subidas, logos): un día, y luego se revisa en segundo plano.
+		@unversioned not query v=*
+		header @unversioned Cache-Control "public, max-age=86400, stale-while-revalidate=604800"
 		file_server
 	}
+	# Archivos de Vite: el nombre ya trae la huella del contenido.
+	@buildAssets path /build/assets/*
+	header @buildAssets Cache-Control "public, max-age=31536000, immutable"
 	# Peticiones de más de 120 MB se cortan antes de llegar a PHP.
 	request_body {
 		max_size 120MB

@@ -1774,9 +1774,9 @@ main p { line-height: 1.65; }
 /* En celular la palabra decorativa de fondo tapaba la introducción: se oculta. */
 @media (max-width: 767.98px) { .page-hero-ghost { display: none; } }
 
-/* ---------- 25.3 Transiciones entre páginas: mismo criterio, más breves (≈ 0,55 s en total) ---------- */
-::view-transition-old(root) { animation-duration: .24s; }
-::view-transition-new(root) { animation-duration: .42s; animation-delay: .12s; }
+/* ---------- 25.3 Transiciones entre páginas: mismo criterio, breves (≈ 0,3 s en total) para que el cambio se sienta inmediato ---------- */
+::view-transition-old(root) { animation-duration: .14s; }
+::view-transition-new(root) { animation-duration: .26s; animation-delay: .04s; }
 
 /* Mantiene el footer en el tono de superficie elegido, aunque haya overrides previos. */
 .site-footer {
