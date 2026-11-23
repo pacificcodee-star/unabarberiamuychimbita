@@ -99,14 +99,19 @@ class WhatsappBotService
         }
 
         // "SÍ" confirma la cita pendiente aunque quede un menú abierto de una conversación anterior:
-        // el mensaje de la reserva se responde a veces después de haber usado el bot. No se aplica
-        // dentro de los pasos de reserva o cancelación, donde la respuesta ya tiene otro significado.
+        // el mensaje de la reserva se responde a veces después de haber usado el bot. Solo se exceptúan
+        // los pasos que esperan texto (nombre, últimos dígitos del teléfono), donde la respuesta es otra cosa.
         $flow = $this->flow($conversation->phone);
         $normalized = $this->normalize($text);
-        $confirmable = $flow === null || in_array((string) ($flow['step'] ?? ''), ['menu', 'done', 'book_done', 'cancel_done'], true);
+        $step = (string) ($flow['step'] ?? '');
+        $saysYes = $this->isAffirmative($normalized) || $this->isApprovalEmoji($text) || $this->asksToConfirm($normalized);
 
-        if ($confirmable && ($this->isAffirmative($normalized) || $this->has($normalized, ['confirmar', 'confirmo', 'asisto']))) {
-            if ($appointment = $this->pendingAppointment($conversation->phone) ?? $this->activeAppointment($conversation->phone)) {
+        if ($saysYes && ! in_array($step, ['book_name', 'cancel_name', 'cancel_verify'], true)) {
+            $confirmable = $flow === null || in_array($step, ['menu', 'done', 'book_done', 'cancel_done'], true);
+            // Pendiente: se confirma siempre. Ya confirmada: solo fuera de un menú (ahí "sí" puede ser otra cosa).
+            $appointment = $this->pendingAppointment($conversation->phone)
+                ?? ($confirmable ? $this->activeAppointment($conversation->phone) : null);
+            if ($appointment) {
                 return $this->confirmAppointment($conversation, $appointment);
             }
         }
@@ -258,7 +263,7 @@ class WhatsappBotService
             return $this->startCancel($conversation);
         }
 
-        if ($this->isAffirmative($t) || $this->has($t, ['confirmar', 'confirmo', 'asisto'])) {
+        if ($this->isAffirmative($t) || $this->isApprovalEmoji($text) || $this->asksToConfirm($t)) {
             if ($appointment = $this->pendingAppointment($conversation->phone) ?? $this->activeAppointment($conversation->phone)) {
                 return $this->confirmAppointment($conversation, $appointment);
             }
@@ -911,7 +916,9 @@ class WhatsappBotService
         \App\Models\ConsentRecord::grant($appointment, 'avisos_whatsapp', 'whatsapp_bot');
         // Faltando 15 minutos o menos queda confirmada sola (sin pedir confirmación con el recordatorio).
         $this->notifier->autoConfirmIfSoon($appointment);
-        $this->notifier->scheduleAppointmentReminders($appointment);
+        // Acaba de confirmar en el chat: si ya pasó la hora del recordatorio de 30 minutos no se le manda
+        // (eran dos mensajes a la vez: esta respuesta y "¿Deseas mantener tu reserva?").
+        $this->notifier->scheduleAppointmentReminders($appointment, justConfirmed: true);
         $this->notifier->flush();
 
         StaffNotification::record(
@@ -2680,11 +2687,61 @@ class WhatsappBotService
         return trim((string) Str::of(Str::ascii(mb_strtolower($text, 'UTF-8'), 'UTF-8'))->squish());
     }
 
+    /** "Confirmo", "quiero confirmar", "asisto"… sin un "no" delante ("no confirmo", "no asisto"). */
+    private function asksToConfirm(string $text): bool
+    {
+        return $this->has($text, ['confirmar', 'confirmo', 'asisto'])
+            && ! $this->has($text, ['no', 'cancelar', 'cancela', 'cancelo']);
+    }
+
+    /** Solo emojis de aprobación: 👍 ✅ ✔️ 👌 🙌 🤝 💯 (con o sin tono de piel). Se mira el texto original. */
+    private function isApprovalEmoji(string $raw): bool
+    {
+        $symbols = (string) preg_replace('/[\x{FE0F}\x{200D}\x{1F3FB}-\x{1F3FF}\s.,!¡]+/u', '', $raw);
+
+        return $symbols !== '' && preg_match('/^[\x{1F44D}\x{2705}\x{2714}\x{1F44C}\x{1F64C}\x{1F91D}\x{1F4AF}\x{2611}]+$/u', $symbols) === 1;
+    }
+
+    /**
+     * ¿Es un "sí"? Acepta lo que la gente escribe de verdad: "Sí", "siii", "Sí señor", "si claro gracias",
+     * "Sí 👍", "de una", "listo, ahí estaré" (los emojis solos los mira isApprovalEmoji). No cuenta si pregunta algo o pide otra cosa
+     * ("si llego tarde?", "si pero quiero cambiar la hora", "sí, cancélala").
+     */
     private function isAffirmative(string $text): bool
     {
         $bare = trim($text, " \t\n\r\0\x0B.,!¡¿?;:-_");
 
-        return in_array($bare, self::CONFIRM_WORDS, true);
+        if (in_array($bare, self::CONFIRM_WORDS, true)) {
+            return true;
+        }
+
+        if (str_contains($text, '?')) {
+            return false;
+        }
+
+        // Palabras, sin emojis ni signos, con las letras repetidas juntadas ("siii" → "si", "listoo" → "listo").
+        $squeeze = fn (string $word) => (string) preg_replace('/(.)\1+/u', '$1', $word);
+        $plain = trim((string) preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $bare));
+        $words = array_values(array_filter(array_map($squeeze, preg_split('/\s+/u', $plain) ?: []), fn ($w) => $w !== ''));
+
+        if ($words === [] || count($words) > 8) {
+            return false;
+        }
+
+        $starts = array_map($squeeze, array_merge(self::CONFIRM_WORDS, ['sip', 'sii', 'okey', 'oki', 'vale', 'correcto', 'exacto', 'afirmativo', 'obvio', 'deuna', 'ya']));
+        $first = $words[0];
+        $phrase = implode(' ', $words);
+        $opens = in_array($first, $starts, true)
+            || str_starts_with($phrase, 'de una')
+            || str_starts_with($phrase, 'por supuesto')
+            || str_starts_with($phrase, 'claro que si');
+
+        if (! $opens) {
+            return false;
+        }
+
+        // Pide otra cosa o pone una condición: no se toma como confirmación.
+        return ! $this->has($phrase, ['no', 'pero', 'cancelar', 'cancela', 'cancelo', 'cancelala', 'anular', 'reprogramar', 'cambiar', 'cambio', 'mover', 'otra hora', 'otro dia', 'tarde', 'puedo', 'como', 'cuanto', 'cuando', 'donde', 'que hora']);
     }
 
     /** ¿Aparece alguna frase como palabra completa? */

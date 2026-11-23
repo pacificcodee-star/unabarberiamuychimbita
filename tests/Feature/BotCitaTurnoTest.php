@@ -127,8 +127,8 @@ class BotCitaTurnoTest extends TestCase
         $this->assertStringNotContainsString('Te enviaremos un recordatorio', $listo);
         $this->assertStringNotContainsString('En un momento te llegará', $listo);
         $this->assertStringNotContainsString('A nombre de', $listo);
-        // El recordatorio con la pregunta de confirmación sí se envió.
-        Http::assertSent(fn ($request) => str_contains((string) $request['text'], '¿Deseas mantener tu reserva?'));
+        // Un solo mensaje: el cliente acaba de confirmar en el chat, no se le pregunta otra vez con el recordatorio.
+        Http::assertNotSent(fn ($request) => str_contains((string) ($request['text'] ?? ''), '¿Deseas mantener tu reserva?'));
     }
 
     public function test_cita_con_tiempo_si_promete_el_recordatorio_de_30_minutos(): void

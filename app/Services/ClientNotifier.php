@@ -29,6 +29,9 @@ class ClientNotifier
 {
     public const REMINDER_TYPES = ['appt_reminder_60', 'appt_reminder_15', 'appt_reminder_0', 'appt_reminder_30'];
 
+    /** Avisos por WhatsApp que piden una respuesta del cliente (confirmar, cancelar…). */
+    public const ANSWERABLE_TYPES = ['appt_booked', 'appt_pending', 'appt_reactivated', 'appt_rescheduled', 'turn_reminder', ...self::REMINDER_TYPES];
+
     /** @var int[] ids guardados en esta petición, pendientes de enviar con flush() */
     private array $queued = [];
 
@@ -307,7 +310,11 @@ class ClientNotifier
         }
     }
 
-    public function scheduleAppointmentReminders(Appointment $appointment): void
+    /**
+     * $justConfirmed: el cliente acaba de confirmar en el chat (reserva por el bot): si la hora del
+     * recordatorio ya pasó, no se le pregunta otra vez.
+     */
+    public function scheduleAppointmentReminders(Appointment $appointment, bool $justConfirmed = false): void
     {
         if (! in_array($appointment->status, ['pendiente', 'confirmada'], true)) {
             return;
@@ -338,14 +345,19 @@ class ClientNotifier
         foreach ((array) config('notificaciones.appointment_reminders', [30 => 20]) as $minutesBefore => $ttl) {
             $at = $start->copy()->subMinutes((int) $minutesBefore);
             $early = false;
+            $covered = false;
             if ($at->lte(now())) {
-                // La hora del recordatorio ya pasó (cita agendada sobre la hora). Si aún faltan 15 minutos o más,
-                // se manda ya para que el cliente alcance a confirmar; con menos de 15 se confirmó sola al agendar.
-                if (now()->diffInMinutes($start, false) <= (int) config('notificaciones.confirm_window_minutes', 15) || AttendanceConfirmation::confirmed($appointment)) {
+                // La hora del recordatorio ya pasó (cita agendada o movida sobre la hora). Con menos de 15 minutos
+                // se confirmó sola; si el cliente ya confirmó (o lo acaba de hacer en el chat) no se le pregunta otra vez.
+                if ($justConfirmed || now()->diffInMinutes($start, false) <= (int) config('notificaciones.confirm_window_minutes', 15) || AttendanceConfirmation::confirmed($appointment)) {
                     continue;
                 }
                 $at = now();
                 $early = true;
+                // Cita pendiente: quien llama (reserva, reprogramación o reactivación) manda en este mismo momento
+                // un mensaje que ya pide responder SÍ. El recordatorio no sale aparte (eran dos mensajes a la vez);
+                // queda registrado como enviado para que corran igual los 15 minutos para confirmar.
+                $covered = $appointment->status === 'pendiente';
             }
             [$title, $body] = $texts[$minutesBefore] ?? ['Recordatorio de tu cita', "Tu cita con {$barber} es a las {$hour}"];
             $left = (int) ceil(now()->diffInMinutes($start, false));
@@ -354,7 +366,7 @@ class ClientNotifier
                 $title = str_replace($minutesBefore.' minutos', $left.' minutos', $title);
                 $body = str_replace($minutesBefore.' minutos', $left.' minutos', $body);
             }
-            $this->queue($appointment, 'appt_reminder_'.$minutesBefore, $title, $body, $at, (int) $ttl, $start->format('YmdHi'));
+            $this->queue($appointment, 'appt_reminder_'.$minutesBefore, $title, $body, $at, (int) $ttl, $start->format('YmdHi'), covered: $covered);
         }
     }
 
@@ -366,7 +378,11 @@ class ClientNotifier
      * Guarda el aviso (push siempre; WhatsApp solo si el cliente lo autorizó y dejó teléfono).
      * $stamp distingue avisos del mismo tipo que sí deben repetirse (p. ej. recordatorios tras reprogramar).
      */
-    public function queue(Model $subject, string $type, string $title, string $body, ?Carbon $at = null, int $ttlMinutes = 60, string $stamp = '', ?string $url = null, ?array $only = null, ?string $pushBody = null): void
+    /**
+     * $covered: el contenido ya lo lleva otro mensaje enviado ahora mismo. Se registra como enviado
+     * (cuenta para las reglas de asistencia) pero no se manda.
+     */
+    public function queue(Model $subject, string $type, string $title, string $body, ?Carbon $at = null, int $ttlMinutes = 60, string $stamp = '', ?string $url = null, ?array $only = null, ?string $pushBody = null, bool $covered = false): void
     {
         $at = $at ?: now();
         $channels = ['push'];
@@ -394,6 +410,13 @@ class ClientNotifier
                 'attempts' => 0,
                 'last_error' => null,
             ];
+            if ($covered) {
+                $attributes = array_merge($attributes, [
+                    'status' => ClientNotification::SENT,
+                    'sent_at' => now(),
+                    'last_error' => 'Incluido en el mensaje enviado al mismo tiempo (no se mandó aparte).',
+                ]);
+            }
 
             try {
                 $existing = ClientNotification::where('dedupe_key', $key)->first();
@@ -407,7 +430,7 @@ class ClientNotifier
                 } else {
                     $row = ClientNotification::create($attributes + ['dedupe_key' => $key]);
                 }
-                if ($at->lte(now())) {
+                if ($at->lte(now()) && ! $covered) {
                     $this->queued[] = $row->id;
                 }
             } catch (UniqueConstraintViolationException) {
@@ -600,6 +623,12 @@ class ClientNotifier
 
         if ($ok) {
             $notification->update(['status' => ClientNotification::SENT, 'sent_at' => now()]);
+
+            // Mensajes que el cliente contesta ("SÍ", "1", "CANCELAR"): su respuesta se lee contra este mensaje,
+            // no contra un menú del bot que haya quedado abierto de antes.
+            if (in_array($notification->type, self::ANSWERABLE_TYPES, true)) {
+                app(\App\Services\WhatsApp\WhatsappBotService::class)->forgetConversation($this->whatsApp->normalizePhone((string) $subject->client_phone));
+            }
 
             return true;
         }

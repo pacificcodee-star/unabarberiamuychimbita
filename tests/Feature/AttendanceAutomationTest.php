@@ -188,16 +188,26 @@ class AttendanceAutomationTest extends TestCase
         $this->assertSame('atendida', $cita->fresh()->status);
     }
 
-    public function test_cita_agendada_faltando_20_minutos_recibe_el_recordatorio_ya(): void
+    public function test_cita_agendada_faltando_20_minutos_recibe_un_solo_mensaje_y_corre_el_plazo(): void
     {
         $cita = $this->cita('10:20:00');
-        app(ClientNotifier::class)->appointmentBooked($cita);
+        $notifier = app(ClientNotifier::class);
+        $notifier->appointmentBooked($cita);
+        $notifier->flush();
 
         $this->assertSame('pendiente', $cita->fresh()->status);
+        // El recordatorio no sale aparte (el mensaje de la reserva ya pide responder SÍ): queda como enviado.
         $reminder = ClientNotification::where('notifiable_id', $cita->id)->where('type', 'appt_reminder_30')->where('channel', 'whatsapp')->first();
         $this->assertNotNull($reminder);
-        $this->assertTrue($reminder->scheduled_for->lte(now()));
-        $this->assertStringContainsString('20 minutos', $reminder->body);
+        $this->assertSame(ClientNotification::SENT, $reminder->status);
+        $this->assertStringContainsString('no se mandó aparte', (string) $reminder->last_error);
+        $sentNow = ClientNotification::where('notifiable_id', $cita->id)->where('channel', 'whatsapp')->whereNull('last_error')->where('status', ClientNotification::SENT)->pluck('type')->all();
+        $this->assertNotContains('appt_reminder_30', $sentNow);
+
+        // Si no confirma, a los 15 minutos se cancela como siempre.
+        $this->travel(16)->minutes();
+        $this->automatizar();
+        $this->assertSame('cancelada', $cita->fresh()->status);
     }
 
     public function test_turno_sin_confirmar_15_minutos_despues_del_recordatorio_se_anula_y_se_avisa(): void

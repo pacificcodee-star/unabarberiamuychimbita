@@ -33,13 +33,24 @@ class BookingMessenger
         }
 
         $body = \App\Support\AppointmentMessages::confirmationRequest($appointment);
+        $sent = $this->send($appointment->client_phone, $appointment->client_name, $body);
 
-        return $this->send($appointment->client_phone, $appointment->client_name, $body);
+        // El "SÍ" que conteste se lee contra esta pregunta, no contra un menú del bot que haya quedado abierto.
+        if ($sent) {
+            app(WhatsappBotService::class)->forgetConversation(app(\App\Services\WhatsAppService::class)->normalizePhone((string) $appointment->client_phone));
+        }
+
+        return $sent;
     }
 
     public function announceTurn(Turn $turn): bool
     {
         if (blank($turn->client_phone)) {
+            return false;
+        }
+
+        // Si el cliente autorizó WhatsApp, ClientNotifier ya le manda "Tu turno ha sido confirmado": no se duplica.
+        if ($turn->whatsapp_consent) {
             return false;
         }
 

@@ -104,6 +104,109 @@ class WhatsAppBotTest extends TestCase
         Http::assertNotSent(fn ($request) => str_contains((string) $request['text'], 'Tipo de servicio'));
     }
 
+    /** Lo que la gente escribe de verdad para decir que sí. */
+    public function test_el_bot_entiende_si_escrito_de_muchas_formas(): void
+    {
+        foreach (['Sí 👍', 'siii', 'Si señor', 'sí, claro, gracias', '👍', '✅', 'De una', 'Listo, ahí estaré', 'Okk', 'si confirmo mi cita'] as $i => $respuesta) {
+            $cita = $this->cita(['status' => 'pendiente', 'client_phone' => '30012345'.str_pad((string) $i, 2, '0', STR_PAD_LEFT)]);
+
+            $this->escribir($respuesta, '57'.$cita->client_phone.'@s.whatsapp.net')->assertOk();
+
+            $this->assertSame('confirmada', $cita->fresh()->status, "No confirmó con «{$respuesta}»");
+        }
+    }
+
+    public function test_el_bot_no_confirma_si_el_cliente_pregunta_o_dice_que_no(): void
+    {
+        foreach (['si llego tarde?', 'si pero quiero cambiar la hora', 'no confirmo', 'sí, cancélala', 'no'] as $i => $respuesta) {
+            $cita = $this->cita(['status' => 'pendiente', 'client_phone' => '30098765'.str_pad((string) $i, 2, '0', STR_PAD_LEFT)]);
+
+            $this->escribir($respuesta, '57'.$cita->client_phone.'@s.whatsapp.net')->assertOk();
+
+            $this->assertSame('pendiente', $cita->fresh()->status, "Confirmó con «{$respuesta}»");
+        }
+    }
+
+    public function test_el_si_confirma_la_cita_pendiente_aunque_el_cliente_este_en_otro_menu(): void
+    {
+        $cita = $this->cita(['status' => 'pendiente']);
+
+        // Antes de responder, el cliente entró al menú de servicios del bot (espera un número).
+        $this->escribir('hola')->assertOk();
+        $this->escribir('3')->assertOk();
+
+        $this->escribir('Sí')->assertOk();
+
+        $this->assertSame('confirmada', $cita->fresh()->status);
+        Http::assertSent(fn ($request) => str_contains((string) ($request['text'] ?? ''), 'gracias por confirmar'));
+    }
+
+    public function test_el_aviso_de_la_cita_cierra_el_menu_abierto_para_leer_la_respuesta(): void
+    {
+        $cita = $this->cita(['status' => 'pendiente', 'appointment_date' => now()->toDateString(), 'appointment_time' => '10:25:00']);
+        $this->escribir('hola')->assertOk();       // menú principal abierto: "1" sería "agendar cita"
+        $this->assertNotNull(\Illuminate\Support\Facades\Cache::get('wa.bot.flow.573001234567'));
+
+        $notifier = app(\App\Services\ClientNotifier::class);
+        $notifier->appointmentBooked($cita->load(['barber', 'service']));
+        $notifier->flush();
+
+        $this->assertNull(\Illuminate\Support\Facades\Cache::get('wa.bot.flow.573001234567'));
+        $this->escribir('1')->assertOk();           // "1. Confirmar mi asistencia" del recordatorio
+        $this->assertSame('confirmada', $cita->fresh()->status);
+    }
+
+    public function test_mensajes_con_la_direccion_nueva_de_whatsapp_lid_se_atienden(): void
+    {
+        $cita = $this->cita(['status' => 'pendiente']);
+
+        // El número llega en remoteJidAlt y el remitente principal es un @lid.
+        $this->escribir('sí', '1234567890123@lid', ['remoteJidAlt' => '573001234567@s.whatsapp.net'])->assertOk();
+        $this->assertSame('confirmada', $cita->fresh()->status);
+
+        // Al revés: remoteJidAlt trae el @lid y el número va en remoteJid.
+        $otra = $this->cita(['status' => 'pendiente', 'client_phone' => '3002223344']);
+        $this->escribir('sí', '573002223344@s.whatsapp.net', ['remoteJidAlt' => '9876543210987@lid'])->assertOk();
+        $this->assertSame('confirmada', $otra->fresh()->status);
+
+        // Solo con senderPn.
+        $tercera = $this->cita(['status' => 'pendiente', 'client_phone' => '3005556677']);
+        $this->escribir('sí', '5555555555555@lid', ['senderPn' => '573005556677@s.whatsapp.net'])->assertOk();
+        $this->assertSame('confirmada', $tercera->fresh()->status);
+    }
+
+    public function test_cita_web_sobre_la_hora_manda_un_solo_mensaje(): void
+    {
+        $barber = User::factory()->create(['role' => 'barbero', 'attention_mode' => 'citas', 'active' => true]);
+        $cita = $this->cita(['barber_id' => $barber->id, 'appointment_date' => now()->toDateString(), 'appointment_time' => '10:20:00']);
+
+        $notifier = app(\App\Services\ClientNotifier::class);
+        $notifier->appointmentBooked($cita->load(['barber', 'service']));
+        $notifier->flush();
+        app(\App\Services\WhatsApp\BookingMessenger::class)->requestAppointmentConfirmation($cita);
+
+        $sent = collect(Http::recorded())->filter(fn ($pair) => str_contains($pair[0]->url(), 'sendText'));
+        $this->assertCount(1, $sent, 'Al agendar 20 minutos antes debe salir un solo mensaje por WhatsApp.');
+        $this->assertStringContainsString('Por favor confirma tu cita', (string) $sent->first()[0]['text']);
+    }
+
+    public function test_turno_web_con_avisos_manda_un_solo_mensaje_de_registro(): void
+    {
+        \App\Models\SiteSetting::query()->delete();
+        $barber = User::factory()->create(['role' => 'barbero', 'attention_mode' => 'llegada', 'active' => true]);
+        // El barbero está ocupado: el turno queda en espera y no se llama enseguida.
+        app(TurnService::class)->createFor($barber, ['client_name' => 'Primero', 'client_phone' => '3009990000'], notify: false);
+        \App\Models\Turn::query()->update(['status' => 'atendiendo']);
+
+        app(TurnService::class)->createFor($barber, ['client_name' => 'Ana', 'client_phone' => '3001234567', 'whatsapp_consent' => true]);
+
+        // Antes llegaban dos avisos de registro a la vez ("quedó registrado" y "ha sido confirmado").
+        $registro = collect(Http::recorded())->filter(fn ($pair) => str_contains($pair[0]->url(), 'sendText')
+            && str_contains((string) ($pair[0]['number'] ?? ''), '3001234567')
+            && preg_match('/quedó registrado|ha sido confirmado/u', (string) ($pair[0]['text'] ?? '')) === 1);
+        $this->assertCount(1, $registro, 'El turno registrado debe avisarse una sola vez.');
+    }
+
     public function test_el_bot_encuentra_la_cita_aunque_el_telefono_se_haya_guardado_con_espacios(): void
     {
         // Formulario web: el teléfono puede quedar guardado como "300 123 4567".

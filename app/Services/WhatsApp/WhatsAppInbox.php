@@ -133,11 +133,27 @@ class WhatsAppInbox
             return null; // lo nuestro: no revierte al bot (evita bucles)
         }
 
-        $jid = (string) ($key['remoteJidAlt'] ?? $key['remoteJid'] ?? '');
-        $phone = self::phoneFromJid($jid);
+        // Grupos, estados y canales no son clientes.
+        $remote = (string) ($key['remoteJid'] ?? '');
+        if (preg_match('/@(g\.us|broadcast|newsletter)$/', $remote) === 1) {
+            return null;
+        }
+
+        // Con las direcciones nuevas de WhatsApp (…@lid) el número puede venir en otro campo: se usa el
+        // primero que traiga un teléfono. Antes, si remoteJidAlt traía el @lid, el mensaje se perdía.
+        $phone = $jid = null;
+        foreach ([$key['remoteJidAlt'] ?? null, $remote, $key['senderPn'] ?? null, $data['senderPn'] ?? null, $key['participantAlt'] ?? null] as $candidate) {
+            if (! is_string($candidate) || $candidate === '') {
+                continue;
+            }
+            $jid = str_contains($candidate, '@') ? $candidate : $candidate.'@s.whatsapp.net';
+            if (($phone = self::phoneFromJid($jid)) !== null) {
+                break;
+            }
+        }
 
         if ($phone === null) {
-            return null; // grupos, estados, canales o JIDs sin teléfono
+            return null; // sin teléfono
         }
 
         $phone = $this->whatsApp->normalizePhone($phone);

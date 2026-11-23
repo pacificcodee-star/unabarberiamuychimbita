@@ -7,7 +7,8 @@
     const form = dialog.querySelector('form');
     const schedule = form.querySelector('fieldset');
     const date = form.elements.appointment_date;
-    const time = form.elements.appointment_time;
+    const times = form.querySelector('#service-times');
+    const calendar = form.querySelector('[data-reschedule-calendar]');
     const back = form.querySelector('#service-back');
     const submit = form.querySelector('#service-submit');
     const message = form.querySelector('[role=status]');
@@ -75,36 +76,146 @@
         }
     }
 
+    const to12h = (value) => {
+        const [h, m] = value.split(':').map(Number);
+        return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h >= 12 ? 'p. m.' : 'a. m.'}`;
+    };
+    const chosenTime = () => times.querySelector('input:checked')?.value || '';
+    const syncSubmit = () => { submit.disabled = saving || !chosenTime(); };
+
+    function slotStatus(icon, text) {
+        const box = document.createElement('div');
+        box.className = 'slot-status';
+        box.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i><span></span>`;
+        box.querySelector('span').textContent = text;
+        times.replaceChildren(box);
+    }
+
+    // Horas libres del barbero ese día, como franjas (igual que en Reservar).
     async function loadTimes(quiet = false) {
         const request = ++slotRequest;
+        if (!date.value) { slotStatus('bi-calendar3', 'Elige un día en el calendario.'); syncSubmit(); return; }
         if (!quiet) {
-            time.replaceChildren();
-            submit.disabled = true;
-            message.textContent = date.value ? 'Buscando horarios…' : 'Elige una fecha.';
+            times.setAttribute('aria-busy', 'true');
+            times.replaceChildren(...Array.from({ length: 6 }, () => Object.assign(document.createElement('div'), { className: 'slot-skeleton' })));
+            message.textContent = '';
+            syncSubmit();
         }
-        if (!date.value || !date.validity.valid) return;
         const url = new URL(root.dataset.slots);
         url.searchParams.set('barber_id', trigger.dataset.barber);
         url.searchParams.set('date', date.value);
         try {
             const response = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
             if (!response.ok) throw Error();
-            const { times } = await response.json();
+            const { times: free } = await response.json();
             if (request !== slotRequest || saving || !dialog.open) return;
-            const selected = time.value;
-            if (!quiet || JSON.stringify(times) !== JSON.stringify(Array.from(time.options).slice(1).map(o => o.value))) {
-                time.replaceChildren(new Option('Elige una hora', ''), ...times.map(value => new Option(value, value)));
-                if (times.includes(selected)) time.value = selected;
+            const shown = Array.from(times.querySelectorAll('input')).map(input => input.value);
+            if (quiet && JSON.stringify(shown) === JSON.stringify(free) && shown.length) return;
+            const selected = chosenTime();
+            if (!free.length) {
+                slotStatus('bi-calendar-x', 'No quedan horas libres ese día. Prueba otro día.');
+            } else {
+                times.replaceChildren(...free.map(value => {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'slot';
+                    const id = `rs-slot-${value.replace(':', '')}`;
+                    wrap.innerHTML = `<input type="radio" name="appointment_time" id="${id}" value="${value}" required><label for="${id}"></label>`;
+                    wrap.querySelector('label').textContent = to12h(value);
+                    if (value === selected) wrap.querySelector('input').checked = true;
+                    return wrap;
+                }));
             }
-            submit.disabled = !times.length;
-            if (!quiet || !times.length) message.textContent = times.length ? '' : 'No quedan horas disponibles ese día.';
         } catch {
             if (request !== slotRequest || saving || !dialog.open) return;
-            time.replaceChildren();
-            submit.disabled = true;
-            message.textContent = 'No pudimos consultar la agenda. Volveremos a intentarlo.';
+            if (!quiet) slotStatus('bi-wifi-off', 'No pudimos consultar la agenda. Volveremos a intentarlo.');
+        } finally {
+            if (request === slotRequest) times.removeAttribute('aria-busy');
+            syncSubmit();
         }
     }
+    times.addEventListener('change', syncSubmit);
+
+    /* Calendario de Reservar: 30 días desde hoy, sin los días cerrados. Al tocar un día se cargan sus horas. */
+    const cal = (() => {
+        const grid = calendar.querySelector('[data-cal-grid]');
+        const title = calendar.querySelector('[data-cal-title]');
+        const prev = calendar.querySelector('[data-cal-prev]');
+        const next = calendar.querySelector('[data-cal-next]');
+        const pad = (n) => String(n).padStart(2, '0');
+        const toKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        const fromKey = (value) => new Date(`${value}T00:00:00`);
+        const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+        const closed = new Set(JSON.parse(calendar.dataset.closed || '[]'));
+        const minDate = fromKey(date.min);
+        const maxDate = fromKey(date.max);
+        const todayKey = toKey(new Date());
+        const canPick = (d) => d >= minDate && d <= maxDate && !closed.has(toKey(d));
+        let view = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+
+        const render = () => {
+            title.textContent = capitalize(view.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }));
+            prev.disabled = view <= new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+            next.disabled = view >= new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+            const offset = (new Date(view.getFullYear(), view.getMonth(), 1).getDay() + 6) % 7;
+            const daysInMonth = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+            const cells = [];
+            for (let i = 0; i < Math.ceil((offset + daysInMonth) / 7) * 7; i++) {
+                const n = i - offset + 1;
+                const day = new Date(view.getFullYear(), view.getMonth(), n);
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'cal-day';
+                button.innerHTML = `<span>${day.getDate()}</span>`;
+                if (n < 1 || n > daysInMonth) {
+                    button.classList.add('is-outside');
+                    button.disabled = true;
+                    button.tabIndex = -1;
+                    button.setAttribute('aria-hidden', 'true');
+                } else {
+                    const key = toKey(day);
+                    const label = capitalize(day.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' }));
+                    if (key === todayKey) button.classList.add('is-today');
+                    if (!canPick(day)) {
+                        button.classList.add('is-off');
+                        button.disabled = true;
+                        button.setAttribute('aria-label', `${label} (no disponible)`);
+                    } else {
+                        const selected = key === date.value;
+                        button.classList.toggle('is-selected', selected);
+                        button.setAttribute('aria-label', label + (key === todayKey ? ' (hoy)' : ''));
+                        button.setAttribute('aria-pressed', String(selected));
+                        button.insertAdjacentHTML('beforeend', '<i class="cal-dot" aria-hidden="true"></i>');
+                        button.addEventListener('click', () => {
+                            if (date.value === key) return;
+                            date.value = key;
+                            render();
+                            loadTimes();
+                        });
+                    }
+                }
+                cells.push(button);
+            }
+            grid.replaceChildren(...cells);
+        };
+        prev.addEventListener('click', () => { view = new Date(view.getFullYear(), view.getMonth() - 1, 1); render(); });
+        next.addEventListener('click', () => { view = new Date(view.getFullYear(), view.getMonth() + 1, 1); render(); });
+
+        return {
+            // Abre en el día actual de la cita (si sigue disponible) o en el primer día que se pueda elegir.
+            open(initial) {
+                let key = initial && canPick(fromKey(initial)) ? initial : '';
+                if (!key) {
+                    for (const d = new Date(minDate); d <= maxDate; d.setDate(d.getDate() + 1)) {
+                        if (canPick(d)) { key = toKey(d); break; }
+                    }
+                }
+                date.value = key;
+                const base = key ? fromKey(key) : minDate;
+                view = new Date(base.getFullYear(), base.getMonth(), 1);
+                render();
+            },
+        };
+    })();
 
     async function sendAction(button) {
         if (saving) return;
@@ -146,12 +257,12 @@
         ++listRequest;
         schedule.hidden = schedule.disabled = false;
         form.reset();
-        date.value = button.dataset.date;
-        form.querySelector('h2').textContent = button.textContent.trim();
-        form.querySelector('#service-context').textContent = button.dataset.context;
-        submit.textContent = 'Guardar nuevo horario';
+        times.replaceChildren();
+        form.querySelector('h2').textContent = 'Reprogramar cita';
+        form.querySelector('#service-context').textContent = `Ahora: ${button.dataset.context}`;
+        submit.textContent = 'Guardar horario';
         message.textContent = '';
-        submit.disabled = false;
+        cal.open(button.dataset.date);
         dialog.showModal();
         loadTimes();
     });
@@ -159,7 +270,6 @@
     back.addEventListener('click', () => dialog.close());
     dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
     dialog.addEventListener('close', () => { ++slotRequest; });
-    date.addEventListener('change', () => loadTimes());
     form.addEventListener('submit', async event => {
         event.preventDefault();
         if (saving || submit.disabled) return;
@@ -187,7 +297,8 @@
                 ? 'Se interrumpió la conexión. Vuelve a Mis servicios para comprobar el estado.' : error.message;
         } finally {
             saving = false;
-            submit.disabled = back.disabled = false;
+            back.disabled = false;
+            syncSubmit();
         }
     });
 
