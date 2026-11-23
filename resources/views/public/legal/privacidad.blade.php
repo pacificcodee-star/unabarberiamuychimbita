@@ -7,6 +7,13 @@
 
     <article class="legal-doc" aria-labelledby="legal-title">
         <div class="container">
+            <nav aria-label="Ruta de navegación">
+                <ol class="breadcrumb-public">
+                    <li><a href="{{ route('landing') }}">Inicio</a></li>
+                    <li><span aria-current="page">Privacidad</span></li>
+                </ol>
+            </nav>
+
             <header class="legal-head">
                 <div class="section-kicker">Información legal</div>
                 <h1 id="legal-title">Política de privacidad y tratamiento de datos</h1>
@@ -29,6 +36,8 @@
                 <ul>
                     <li><strong>Al reservar una cita o pedir un turno:</strong> nombre, número de celular, correo (opcional), barbero y servicio elegidos, fecha y hora, y las notas que escribas.</li>
                     <li><strong>Si aceptas los avisos por WhatsApp:</strong> tu número y los mensajes que intercambiamos sobre tu reserva.</li>
+                    <li><strong>Al consultar «Mis servicios» sin cuenta:</strong> una credencial anónima que guardamos en una cookie de tu navegador. En nuestros servidores solo conservamos un hash de esa credencial, nunca el valor completo.</li>
+                    <li><strong>Si recuperas tus servicios desde otro dispositivo:</strong> tu celular, el código temporal que enviamos por WhatsApp (guardado como hash, con vencimiento corto), la fecha en que autorizaste la verificación y la dirección IP desde donde se solicitó, para evitar abusos.</li>
                     <li><strong>Si activas las notificaciones del navegador:</strong> un identificador técnico de suscripción que entrega tu navegador. No incluye tu nombre.</li>
                     <li><strong>Al dejar una opinión:</strong> el nombre que escribas, la calificación y el comentario.</li>
                     <li><strong>Al navegar:</strong> datos técnicos (dirección IP, tipo de navegador y páginas visitadas). Las estadísticas de visitas solo se recogen si aceptas las cookies de analítica.</li>
@@ -86,12 +95,17 @@
 
                 <h2>9. Seguridad</h2>
                 <p>El sitio funciona con conexión cifrada (HTTPS). El acceso al panel interno está protegido con contraseña, y los enlaces de seguimiento de cada reserva son privados y difíciles de adivinar. No compartas tu enlace de seguimiento.</p>
+                <p>La credencial de «Mis servicios» viaja en una cookie privada que no es accesible desde JavaScript, se renueva mientras la usas y se puede perder si borras las cookies. Los códigos de recuperación vencen a los 10 minutos, admiten pocos intentos y se invalidan al usarlos. Si detectas un acceso que no reconoces, escríbenos para revocarlo.</p>
 
                 <h2>10. Cookies</h2>
                 <p>Lee el <a href="{{ route('legal.cookies') }}">aviso de cookies</a> para saber qué cookies usamos y cómo cambiar tu elección.</p>
 
                 <h2>11. Cambios</h2>
                 <p>Si cambiamos esta política, publicamos aquí la nueva versión con su fecha. Si el cambio es importante, te avisaremos.</p>
+            </div>
+
+            <div class="legal-foot">
+                <a href="{{ route('landing') }}" class="btn btn-gold btn-lg"><i class="bi bi-arrow-left" aria-hidden="true"></i> Volver al inicio</a>
             </div>
         </div>
     </article>

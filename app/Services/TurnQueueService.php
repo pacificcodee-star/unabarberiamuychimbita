@@ -39,9 +39,44 @@ class TurnQueueService
         return $minutes > 0 ? $minutes : max(1, (int) config('notificaciones.default_service_minutes', 30));
     }
 
+    /**
+     * Cierra los turnos que quedaron abiertos en jornadas anteriores.
+     *
+     * La cola del día solo ve la fecha de hoy, pero además se marca el estado de cierre para que el
+     * historial y la página del cliente reflejen que la jornada terminó. Se llama desde el programador
+     * y también en el primer acceso del día, así funciona aunque el servidor estuviera apagado a medianoche.
+     */
+    public function closePreviousDays(?Carbon $today = null): int
+    {
+        $today = ($today ?? now())->toDateString();
+        $closed = 0;
+
+        $dates = DB::table('turns')
+            ->whereDate('turn_date', '<', $today)
+            ->whereIn('status', self::OPEN)
+            ->distinct()
+            ->pluck('turn_date');
+
+        foreach ($dates as $date) {
+            $day = Carbon::parse($date);
+            $closed += DB::table('turns')
+                ->whereDate('turn_date', $day->toDateString())
+                ->whereIn('status', self::OPEN)
+                ->update([
+                    'status' => 'cancelado',
+                    'finished_at' => $day->copy()->endOfDay(),
+                    'updated_at' => now(),
+                ]);
+        }
+
+        return $closed;
+    }
+
     /** Avanza la fila de todos los barberos que tienen turnos abiertos hoy. Lo ejecuta el programador cada minuto. */
     public function advanceAll(): void
     {
+        $this->closePreviousDays();
+
         Turn::query()
             ->whereDate('turn_date', now()->toDateString())
             ->whereIn('status', self::OPEN)

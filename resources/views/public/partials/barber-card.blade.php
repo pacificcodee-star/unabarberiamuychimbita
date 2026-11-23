@@ -24,7 +24,7 @@
         @if(!empty($showBio) && $barber->bio)
             <p class="barber-bio">{{ $barber->bio }}</p>
         @endif
-        <a href="{{ route('public.booking', ['barbero' => $barber->id, 'tipo' => $bookingType]) }}" class="btn btn-outline-gold">
+        <a href="{{ route('public.booking', ['barbero' => $barber->id, 'tipo' => $bookingType]) }}" class="btn btn-outline-gold btn-booking-blue">
             {{ $bookingType === 'cita' ? 'Reservar con '.$firstName : 'Turno con '.$firstName }}
         </a>
     </div>

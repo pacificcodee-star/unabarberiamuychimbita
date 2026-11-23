@@ -56,7 +56,7 @@
         Object.keys(values).forEach(function (name) {
             var value = values[name];
             form.querySelectorAll('[name="' + name + '"]').forEach(function (field) {
-                if (field.type === 'hidden' && name !== 'idempotency_key') return;
+                if (field.type === 'hidden' && name !== 'idempotency_key' && name !== 'appointment_date') return;
                 if (field.type === 'checkbox') field.checked = value === '1';
                 else if (field.type !== 'radio' && value !== undefined && value !== '') field.value = value;
             });

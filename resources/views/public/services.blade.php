@@ -46,6 +46,11 @@
                                 $svcImage = asset('storage/'.(\Illuminate\Support\Facades\Storage::disk('public')->exists($webp) ? $webp : $service->image_path));
                             }
                         @endphp
+                        @if($loop->first && $svcImage)
+                            @push('styles')
+                                <link rel="preload" as="image" href="{{ $svcImage }}" fetchpriority="high">
+                            @endpush
+                        @endif
                         <article class="svc-slide cat-{{ $cat }} {{ $loop->first ? 'is-active' : '' }}"
                                  data-svc-slide data-index="{{ $loop->index }}" data-category="{{ $cat }}"
                                  @if($svcImage) style="--svc-image: url('{{ $svcImage }}')" @endif
@@ -53,15 +58,26 @@
                                  @if(!$loop->first) aria-hidden="true" inert @endif>
                             <div class="container svc-slide-inner">
                                 {{-- La infografía ya incluye el nombre y los detalles: se usa completa como fondo. --}}
-                                <div class="svc-visual" aria-hidden="true">
-                                    @unless($service->image_path)
-                                        {{-- Sin imagen: se muestra el logo del negocio --}}
-                                        <img class="is-logo" src="{{ !empty($siteSettings['logo_path']) ? asset('storage/'.$siteSettings['logo_path']) : asset('images/logo-una-barberia-512.webp') }}" alt="" width="512" height="512" loading="{{ $loop->index < 2 ? 'eager' : 'lazy' }}" decoding="async">
-                                    @endunless
-                                </div>
+                                <figure class="svc-media">
+                                    <div class="svc-visual" aria-hidden="true">
+                                        @unless($service->image_path)
+                                            {{-- Sin imagen: se muestra el logo del negocio --}}
+                                            <img class="is-logo" src="{{ !empty($siteSettings['logo_path']) ? asset('storage/'.$siteSettings['logo_path']) : asset('images/logo-una-barberia-512.webp') }}" alt="" width="512" height="512" loading="{{ $loop->index < 2 ? 'eager' : 'lazy' }}" decoding="async">
+                                        @endunless
+                                    </div>
+                                    {{-- Nombre (arriba en móvil) y duración (debajo de la imagen): se generan para cualquier servicio presente o futuro. --}}
+                                    <p class="svc-media-name" aria-hidden="true">{{ $service->name }}</p>
+                                    <p class="svc-media-duration" aria-hidden="true">
+                                        <span class="svc-duration-icon"><i class="bi bi-stopwatch" aria-hidden="true"></i></span>
+                                        <span class="svc-duration-copy">
+                                            <span class="svc-duration-label">Duración</span>
+                                            <strong class="svc-duration-value">{{ (int) $service->duration_minutes }} minutos</strong>
+                                        </span>
+                                    </p>
+                                </figure>
 
-                                {{-- El nombre y la descripción se conservan para lectores de pantalla y buscadores. --}}
-                                <h2 class="visually-hidden">{{ $service->name }}</h2>
+                                {{-- El nombre, la duración y la descripción se conservan para lectores de pantalla y buscadores. --}}
+                                <h2 class="visually-hidden">{{ $service->name }} — duración {{ (int) $service->duration_minutes }} minutos</h2>
                                 @php
                                     $included = $service->includedItems();
                                     $notes = $service->descriptionNotes();
@@ -92,7 +108,7 @@
                                         </div>
                                     </div>
                                     <div class="svc-cta reveal-line">
-                                        <div><a href="{{ route('public.booking', ['servicio' => $service->id]) }}" class="btn btn-gold"><i class="bi bi-calendar2-check" aria-hidden="true"></i> Reservar este servicio</a></div>
+                                        <div><a href="{{ route('public.booking', ['servicio' => $service->id]) }}" class="btn btn-gold btn-booking-blue"><i class="bi bi-calendar2-check" aria-hidden="true"></i> Reservar este servicio</a></div>
                                     </div>
                                 </div>
                             </div>
@@ -152,7 +168,6 @@
 
         let order = slides.map((_, i) => i);   // índices visibles según el filtro
         let current = 0;
-        let busy = false;
         let timer;
         let pausedByVisitor = false;
         let hovered = false;
@@ -160,12 +175,64 @@
 
         root.classList.add('is-enhanced');
 
+        // Cada diapositiva conoce su imagen por --svc-image. Se precarga y decodifica antes de mostrarla:
+        // si aún no está lista, se ve el fondo neutro del escenario y nunca la imagen de otro servicio.
+        const imageLoads = new Map();
+        const imageReady = new Map();
+        const imageUrl = (slide) => {
+            const raw = (slide.style.getPropertyValue('--svc-image') || '').trim();
+            const match = raw.match(/^url\((['"]?)(.*?)\1\)$/);
+            return match ? match[2] : '';
+        };
+        const loadImage = (url) => {
+            if (!imageLoads.has(url)) {
+                imageLoads.set(url, new Promise((resolve) => {
+                    const img = new Image();
+                    img.decoding = 'async';
+                    img.onload = () => (typeof img.decode === 'function' ? img.decode().then(() => resolve(true), () => resolve(true)) : resolve(true));
+                    img.onerror = () => resolve(false);
+                    img.src = url;
+                }));
+            }
+            return imageLoads.get(url);
+        };
+        const whenImageReady = (slide) => {
+            if (!slide) return Promise.resolve(false);
+            if (imageReady.has(slide)) return imageReady.get(slide);
+            const url = imageUrl(slide);
+            if (!url) {
+                slide.classList.add('is-image-ready');
+                const logo = Promise.resolve(true);
+                imageReady.set(slide, logo);
+                return logo;
+            }
+            const pending = loadImage(url).then((ok) => {
+                if (ok) slide.classList.add('is-image-ready');
+                return ok;
+            });
+            imageReady.set(slide, pending);
+            return pending;
+        };
+        const preloadNear = () => {
+            const position = order.indexOf(current);
+            [0, 1, -1].forEach((offset) => {
+                const index = order[(position + offset + order.length) % order.length];
+                whenImageReady(slides[index]);
+            });
+        };
+        const preloadAll = () => {
+            if (navigator.connection?.saveData) return;
+            slides.forEach((slide) => whenImageReady(slide));
+        };
+
+        let transitionTimer;
         const go = (target, direction = 1) => {
-            if (target === current || busy || !slides[target]) return;
+            if (target === current || !slides[target]) return;
             const from = slides[current];
             const to = slides[target];
-            busy = !reduced.matches;
 
+            // Una selección nueva invalida la transición anterior: se limpian sus clases y su temporizador.
+            window.clearTimeout(transitionTimer);
             slides.forEach((s) => s.classList.remove('from-left', 'from-right', 'leave-left', 'leave-right'));
             to.classList.add(direction > 0 ? 'from-right' : 'from-left');
             from.classList.add(direction > 0 ? 'leave-left' : 'leave-right');
@@ -176,6 +243,8 @@
             to.removeAttribute('aria-hidden'); to.removeAttribute('inert');
 
             current = target;
+            whenImageReady(to);
+            preloadNear();
             const position = order.indexOf(target);
             if (counter) counter.textContent = pad(position + 1);
             thumbs.forEach((t) => {
@@ -188,7 +257,7 @@
                 }
             });
             bars.forEach((b) => b.classList.toggle('is-on', Number(b.dataset.progress) === target));
-            window.setTimeout(() => { busy = false; from.classList.remove('leave-left', 'leave-right'); }, reduced.matches ? 0 : 950);
+            transitionTimer = window.setTimeout(() => { from.classList.remove('leave-left', 'leave-right'); }, reduced.matches ? 0 : 950);
         };
         const step = (delta) => {
             const position = order.indexOf(current);
@@ -232,7 +301,8 @@
         stage.addEventListener('touchcancel', () => { startX = null; }, { passive: true });
         // Mouse (computador): arrastrar a un lado.
         stage.addEventListener('pointerdown', (e) => {
-            if (e.pointerType === 'touch' || e.target.closest('a, button')) return;
+            // Sobre la información del servicio no se arrastra: ahí el mouse sirve para seleccionar el texto.
+            if (e.pointerType === 'touch' || e.target.closest('a, button, .svc-includes, .svc-meta')) return;
             startX = e.clientX; startY = e.clientY;
         });
         stage.addEventListener('pointerup', (e) => { if (e.pointerType !== 'touch') swipe(e.clientX, e.clientY); });
@@ -273,7 +343,6 @@
             thumbs.forEach((t) => { t.parentElement.hidden = !order.includes(Number(t.dataset.go)); });
             bars.forEach((b) => { b.hidden = !order.includes(Number(b.dataset.progress)); });
             if (totalLabel) totalLabel.textContent = pad(order.length);
-            busy = false;
             // Enfocar la categoría elegida: muestra su primer servicio…
             if (order[0] !== current) go(order[0], 1);
             else if (counter) counter.textContent = pad(1);
@@ -289,6 +358,12 @@
         });
 
         schedule();
+
+        // Imagen del servicio visible desde el inicio; vecinos en cuanto se pueda y el resto en tiempo libre.
+        whenImageReady(slides[current]);
+        preloadNear();
+        if ('requestIdleCallback' in window) window.requestIdleCallback(preloadAll, { timeout: 2000 });
+        else window.setTimeout(preloadAll, 1200);
     })();
 </script>
 @endpush

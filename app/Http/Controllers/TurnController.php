@@ -17,6 +17,8 @@ class TurnController extends Controller
     {
         $user = $request->user();
 
+        // Al abrir la cola se cierra la jornada anterior aunque el programador no haya corrido a medianoche.
+        app(TurnQueueService::class)->closePreviousDays();
 
         $date = $request->input('date', now()->toDateString());
 

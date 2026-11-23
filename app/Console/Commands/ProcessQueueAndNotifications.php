@@ -38,6 +38,7 @@ class ProcessQueueAndNotifications extends Command
             return $result;
         };
 
+        $closedDays = $step('cierre_dias_anteriores', fn () => $queue->closePreviousDays(), 0);
         $step('fila', fn () => $queue->advanceAll());
         $step('recordatorios_turnos', fn () => $queue->remindUpcoming());
         // Sin confirmación 15 min después del recordatorio → cancelar; cita confirmada y terminada → atendida + gracias.
@@ -48,7 +49,7 @@ class ProcessQueueAndNotifications extends Command
         // Latido: /salud avisa si la tarea dejó de correr (scheduler o worker caído).
         Cache::put('salud:tick', now()->toIso8601String(), now()->addDay());
 
-        $this->info('Fila revisada. Canceladas sin confirmar: '.$result['cancelled'].'. Citas finalizadas: '.$result['attended'].'. Avisos enviados: '.$sent);
+        $this->info('Fila revisada. Turnos cerrados de días anteriores: '.$closedDays.'. Canceladas sin confirmar: '.$result['cancelled'].'. Citas finalizadas: '.$result['attended'].'. Avisos enviados: '.$sent);
 
         return $failed ? self::FAILURE : self::SUCCESS;
     }

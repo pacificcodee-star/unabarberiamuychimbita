@@ -11,7 +11,7 @@
             <h1 id="err-title">Este corte no está en <em>la carta.</em></h1>
             <p>La página que buscas no existe o cambió de dirección. Revisa el enlace o sigue desde aquí.</p>
             <div class="err-actions">
-                <a href="{{ route('public.booking') }}" class="xbtn"><span>Reservar cita o turno</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                <a href="{{ route('public.booking') }}" class="xbtn btn-booking-blue"><span>Reservar cita o turno</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                 <a href="{{ route('landing') }}" class="xlink">Volver al inicio</a>
             </div>
             <ul class="err-links" aria-label="Páginas del sitio">

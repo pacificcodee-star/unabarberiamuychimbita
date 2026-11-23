@@ -76,6 +76,7 @@ class PublicBookingTest extends TestCase
 
         $this->post(route('public.booking.appointment'), [
             'barber_id' => $barber->id,
+            'service_id' => $this->service()->id,
             'client_name' => 'Cliente Público',
             'client_phone' => '300 123 4567',
             'payment_method' => 'efectivo',
@@ -115,6 +116,7 @@ class PublicBookingTest extends TestCase
 
         $this->post(route('public.booking.turn'), [
             'barber_id' => $barber->id,
+            'service_id' => $service->id,
             'client_name' => 'Segundo Cliente',
             'client_phone' => '300 111 2222',
             'payment_method' => 'efectivo',
@@ -131,6 +133,7 @@ class PublicBookingTest extends TestCase
 
         $this->post(route('public.booking.turn'), [
             'barber_id' => $appointmentBarber->id,
+            'service_id' => $this->service()->id,
             'client_name' => 'Cliente Equivocado',
             'client_phone' => '300 000 0000',
             'payment_method' => 'efectivo',
@@ -138,6 +141,7 @@ class PublicBookingTest extends TestCase
 
         $this->post(route('public.booking.appointment'), [
             'barber_id' => $turnBarber->id,
+            'service_id' => $this->service()->id,
             'client_name' => 'Cliente Equivocado',
             'client_phone' => '300 000 0000',
             'payment_method' => 'efectivo',

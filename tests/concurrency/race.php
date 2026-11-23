@@ -39,11 +39,12 @@ if ($mode === 'setup') {
 
 if ($mode === 'report') {
     $citas = Appointment::where('appointment_date', '2030-01-15')->whereTime('appointment_time', '10:00:00')->where('status', '!=', 'cancelada')->count();
-    $numeros = Turn::orderBy('turn_number')->pluck('turn_number')->all();
+    $numeros = Turn::whereDate('turn_date', '2030-01-15')->orderBy('turn_number')->pluck('turn_number')->all();
     echo json_encode([
         'citas_en_el_mismo_horario' => $citas,
         'turnos' => count($numeros),
         'numeros_unicos' => count(array_unique($numeros)) === count($numeros),
+        'numeros_consecutivos' => $numeros === [] || $numeros === range(1, count($numeros)),
         'numeros' => $numeros,
     ]).PHP_EOL;
     exit(0);

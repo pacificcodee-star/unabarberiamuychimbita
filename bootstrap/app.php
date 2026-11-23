@@ -4,6 +4,7 @@ use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\BlockPhonesFromPanel;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\ForceHttps;
+use App\Http\Middleware\RevalidatePublicContent;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -25,6 +26,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
+            // Cada visita pública consulta el servidor, sin copias viejas del navegador.
+            'public-fresh' => RevalidatePublicContent::class,
             // El panel solo se usa en computadores y tablets; los celulares ven un aviso.
             'panel-desktop' => BlockPhonesFromPanel::class,
         ]);

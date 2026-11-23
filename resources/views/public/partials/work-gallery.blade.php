@@ -17,9 +17,8 @@
 @php $items = collect($items ?? []); @endphp
 <section class="wg {{ $items->isEmpty() ? 'is-empty' : '' }}" id="{{ $galleryId }}" data-cx data-wg @if(!empty($hidden)) hidden @endif aria-labelledby="{{ $galleryId }}-title">
     <div class="wg-stage">
-        {{-- Titular gigante detrás de las tarjetas: las fotos tapan parte de las letras (capas con profundidad).
-             Se puede apagar con 'ghost' => false (galerías de cada barbero). --}}
-        @if($ghost ?? true)
+        {{-- Titular gigante detrás de las tarjetas: apagado por defecto. Se puede volver a encender con 'ghost' => true. --}}
+        @if($ghost ?? false)
             <div class="wg-ghost" data-wg-ghost aria-hidden="true">{{ $title }}</div>
         @endif
 

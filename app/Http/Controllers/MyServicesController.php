@@ -28,21 +28,22 @@ class MyServicesController extends Controller
         $turns = ClientServiceAccess::owned($request, 'turno')->with(['barber', 'service'])
             ->orderByDesc('turn_date')->orderByDesc('turn_number')->get();
 
-        [$openAppointments, $pastAppointments] = $appointments->partition(fn ($a) =>
+        [$activeAppointments, $historyAppointments] = $appointments->partition(fn ($a) =>
             in_array($a->status, ['pendiente', 'confirmada'], true) && $a->startsAt()->copy()
                 ->addMinutes($a->service?->duration_minutes ?: config('notificaciones.default_service_minutes', 30))->isFuture());
-        [$openTurns, $pastTurns] = $turns->partition(fn ($t) =>
+        [$activeTurns, $historyTurns] = $turns->partition(fn ($t) =>
             $t->turn_date->isToday() && in_array($t->status, TurnQueueService::OPEN, true));
         $estimates = [];
-        foreach ($openTurns->where('status', 'esperando')->pluck('barber_id')->unique() as $barberId) {
+        foreach ($activeTurns->where('status', 'esperando')->pluck('barber_id')->unique() as $barberId) {
             $estimates += $queue->estimates($barberId);
         }
 
-        $sections = ['Citas' => $openAppointments->reverse(), 'Turnos' => $openTurns,
-            'Historial de citas' => $pastAppointments, 'Historial de turnos' => $pastTurns];
+        $activeCitas = $activeAppointments->reverse();
         $template = $request->header('X-Service-List') ? 'public.partials.my-services-list' : 'public.my-services';
 
-        return response()->view($template, compact('sections', 'estimates'))
+        return response()->view($template, compact(
+            'activeCitas', 'activeTurns', 'historyAppointments', 'historyTurns', 'estimates'
+        ))
             ->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer')->header('X-Robots-Tag', 'noindex, nofollow');
     }
 

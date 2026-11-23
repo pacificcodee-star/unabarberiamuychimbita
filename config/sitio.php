@@ -76,9 +76,10 @@ return [
     'map_coords' => '',
     'map_url' => 'https://www.google.com/maps?q=Calle+45+%23+23-18,+Bogota,+Colombia&output=embed',
     'footer_description' => 'Cortes clásicos y modernos, cuidado de barba y una experiencia pensada para que salgas con la confianza al máximo.',
-    'instagram_url' => 'https://www.instagram.com/',
-    'facebook_url' => 'https://www.facebook.com/',
-    'tiktok_url' => '',
+    // Ejemplos: reemplázalos por tus perfiles reales (panel → Configuración del negocio).
+    'instagram_url' => 'https://www.instagram.com/tu_cuenta',
+    'facebook_url' => 'https://www.facebook.com/tu_pagina',
+    'tiktok_url' => 'https://www.tiktok.com/@tu_cuenta',
     'payment_cash' => true,
     'payment_nequi' => true,
     'payment_daviplata' => true,

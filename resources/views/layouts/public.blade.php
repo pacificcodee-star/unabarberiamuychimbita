@@ -97,16 +97,19 @@
     <script>document.documentElement.classList.add('js');</script>
     <style>
         /* Campana de avisos del cliente */
-        .nav-bell { position: relative; display: grid; width: 46px; height: 46px; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; background: transparent; color: var(--text); font-size: 1.15rem; cursor: pointer; transition: border-color .2s ease, color .2s ease; }
+        .nav-bell { position: relative; display: grid; width: 45px; height: 45px; place-items: center; border: 1px solid var(--line-strong); border-radius: 999px; background: transparent; color: var(--text); font-size: 1.15rem; cursor: pointer; transition: border-color .2s ease, color .2s ease; }
         .nav-bell:hover, .nav-bell[aria-expanded="true"] { border-color: var(--gold); color: var(--gold); }
         .nav-bell-badge { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--brand-red); color: #fff; font-size: .7rem; font-weight: 700; line-height: 20px; text-align: center; }
         .bell-panel { position: fixed; z-index: 1085; top: 76px; right: max(12px, calc((100vw - 1296px) / 2)); width: min(380px, calc(100vw - 24px)); max-height: min(72vh, 560px); display: flex; flex-direction: column; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 16px; box-shadow: 0 24px 60px rgba(0, 0, 0, .55); color: var(--text); overflow: hidden; }
         .bell-panel[hidden] { display: none; }
+        /* Velo con desenfoque: el fondo queda fuera de foco y el panel de avisos se mantiene nítido delante. */
+        .bell-backdrop { position: fixed; inset: 0; z-index: 1080; background: rgba(8, 7, 5, .5); -webkit-backdrop-filter: blur(10px) saturate(.85); backdrop-filter: blur(10px) saturate(.85); touch-action: none; overscroll-behavior: contain; }
+        .bell-backdrop[hidden] { display: none; }
         .bell-item-top strong { min-width: 0; }
         .bell-item-top strong, .bell-group-head strong, .bell-item p, .bell-detail { overflow-wrap: anywhere; }
         @media (max-width: 575.98px) {
-            /* Márgenes fijos a ambos lados: el panel nunca es más ancho que la pantalla. */
-            .bell-panel { top: calc(env(safe-area-inset-top, 0px) + 72px); left: 12px; right: 12px; width: auto; }
+            /* En el celular la campana abre una tarjeta compacta pegada al lateral derecho. */
+            .bell-panel { top: calc(env(safe-area-inset-top, 0px) + 72px); left: auto; right: 12px; width: min(320px, calc(100vw - 72px)); max-height: min(58svh, 400px); }
         }
         .bell-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
         .bell-panel-head h2 { margin: 0; font-size: 1rem; }
@@ -134,7 +137,7 @@
     </style>
     @stack('styles')
 </head>
-<body>
+<body data-content-version="{{ $contentVersion ?? '' }}">
 {{-- Pantalla de carga: contador gigante con franjas de barbero que sube hasta 100 y se abre como puertas --}}
 <div class="pl" id="pageLoader" role="status" aria-live="polite" aria-label="Cargando la página">
     <div class="pl-door pl-door--top" aria-hidden="true"></div>
@@ -257,7 +260,6 @@
                 <span class="mark"><img src="{{ $logoSmall }}" alt="" width="42" height="42"></span>
                 <span class="min-w-0">
                     <span class="name">{{ $brandName }}</span>
-                    @if(!empty($siteSettings['tagline']))<span class="tag">{{ $siteSettings['tagline'] }}</span>@endif
                 </span>
             </a>
 
@@ -270,7 +272,7 @@
                     </a>
                 @endforeach
                 <div class="nav-mobile-extra">
-                    <a href="{{ route('public.booking') }}" class="btn btn-gold btn-lg"><i class="bi bi-calendar2-check" aria-hidden="true"></i> Reservar cita o turno</a>
+                    <a href="{{ route('public.booking') }}" class="btn btn-gold btn-lg btn-booking-blue"><i class="bi bi-calendar2-check" aria-hidden="true"></i> Reservar cita o turno</a>
                     @if(!empty($siteSettings['whatsapp']))
                         <a href="https://wa.me/{{ $siteSettings['whatsapp'] }}" class="btn btn-ghost-light" target="_blank" rel="noopener"><i class="bi bi-whatsapp" aria-hidden="true"></i> Escríbenos</a>
                     @endif
@@ -295,7 +297,8 @@
     </div>
 </header>
 
-<div class="bell-panel" id="clientBellPanel" role="dialog" aria-label="Tus avisos" data-booking-url="{{ route('public.booking') }}" hidden>
+<div class="bell-backdrop" id="clientBellBackdrop" hidden></div>
+<div class="bell-panel" id="clientBellPanel" role="dialog" aria-label="Tus avisos" tabindex="-1" data-booking-url="{{ route('public.booking') }}" hidden>
     <div class="bell-panel-head">
         <h2><i class="bi bi-bell" aria-hidden="true"></i> Tus avisos</h2>
         <button type="button" data-bell-close aria-label="Cerrar avisos"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
@@ -334,12 +337,8 @@
                 <div class="footer-title">Medios de pago</div>
                 <div class="payment-methods" role="list" aria-label="Medios de pago aceptados">
                     @if($siteSettings['payment_cash'])<span class="payment-method" role="listitem">
-                        <svg viewBox="0 0 40 28" aria-hidden="true"><rect x="2" y="3" width="36" height="22" rx="4" fill="#1d2a20" stroke="#c9a227"/><path d="M5 9h30M8 14h5m14 0h5M10 20h20" stroke="#c9a227" stroke-width="1.5" stroke-linecap="round"/><text x="20" y="18" text-anchor="middle" fill="#fff" font-size="8" font-family="Arial" font-weight="700">$</text></svg>
+                        <img class="payment-icon-cash" src="{{ asset('images/pagos/efectivo.png') }}" alt="" width="28" height="28" loading="lazy" decoding="async">
                         Efectivo
-                    </span>@endif
-                    @if($siteSettings['payment_transfer'])<span class="payment-method" role="listitem">
-                        <svg viewBox="0 0 40 28" aria-hidden="true"><path d="M4 11 20 3l16 8M7 12h26M9 13v9m7-9v9m8-9v9m7-9v9M5 23h30" fill="none" stroke="#c9a227" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        Transferencia
                     </span>@endif
                     @if($siteSettings['payment_nequi'])<span class="payment-method payment-method--logo" role="listitem" aria-label="Nequi" title="Nequi">
                         <span class="payment-logo payment-logo--big"><img src="{{ asset('images/pagos/nequi.svg') }}" alt="Nequi" width="72" height="32" loading="lazy" decoding="async"></span>
@@ -354,15 +353,18 @@
             </div>
         </div>
         <div class="footer-bottom">
-            <span>&copy; {{ now()->year }} {{ $brandName }}. Todos los derechos reservados.</span>
+            <span class="footer-copy">&copy; {{ now()->year }} {{ $brandName }}. Todos los derechos reservados.</span>
             <nav class="footer-legal" aria-label="Información legal">
+                <a href="{{ route('my-services.recover') }}">Recuperar mis servicios</a>
                 <a href="{{ route('legal.notice') }}">Aviso legal</a>
                 <a href="{{ route('legal.privacy') }}">Privacidad</a>
-                <a href="{{ route('legal.cookies') }}">Cookies</a>
-                <button type="button" class="footer-legal-btn" data-cookie-settings>Preferencias de cookies</button>            </nav>
+                <button type="button" class="footer-legal-btn" data-cookie-settings>Preferencias de cookies</button>
+            </nav>
         </div>
     </div>
 </footer>
+
+@include('public.partials.legal-modals')
 
 @if(!empty($siteSettings['whatsapp']))
     <a class="whatsapp-float" href="https://wa.me/{{ $siteSettings['whatsapp'] }}" target="_blank" rel="noopener noreferrer" aria-label="Escríbenos por WhatsApp" title="Escríbenos por WhatsApp">
@@ -493,9 +495,21 @@
         });
         navLinks?.addEventListener('mouseleave', () => moveIndicator(activeLink));
         navLinks?.addEventListener('focusout', (event) => { if (!navLinks.contains(event.relatedTarget)) moveIndicator(activeLink); });
-        const placeIndicator = () => { indicator?.classList.add('no-anim'); moveIndicator(activeLink); requestAnimationFrame(() => indicator?.classList.remove('no-anim')); };
+        // La campana mide de ancho lo mismo que de alto, así queda igual de alta que las otras cápsulas y redonda.
+        const navBell = document.getElementById('clientBell');
+        const sizeBell = () => {
+            if (!navBell) return;
+            navBell.style.width = '';
+            if (desktopMenu.matches) navBell.style.width = `${navBell.offsetHeight}px`;
+        };
+        const placeIndicator = () => { indicator?.classList.add('no-anim'); moveIndicator(activeLink); sizeBell(); requestAnimationFrame(() => indicator?.classList.remove('no-anim')); };
         window.addEventListener('resize', placeIndicator);
         document.fonts?.ready.then(placeIndicator);
+        if ('ResizeObserver' in window && navLinks) {
+            const navSizer = new ResizeObserver(placeIndicator);
+            navSizer.observe(navLinks);
+            links.forEach((link) => navSizer.observe(link));
+        }
         placeIndicator();
         navLinks?.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => setMenu(false)));
         document.addEventListener('keydown', (event) => {
@@ -588,17 +602,15 @@
 </script>
 <script src="{{ asset('js/alpha-video.js') }}?v={{ file_exists(public_path('js/alpha-video.js')) ? filemtime(public_path('js/alpha-video.js')) : '1' }}"></script>
 
-{{-- Aviso para instalar la app (PWA) --}}
-<div class="pwa-prompt" id="pwaPrompt" role="dialog" aria-modal="false" aria-labelledby="pwaTitle" hidden>
-    <img src="{{ asset('icons/icon-192.png') }}" alt="" width="52" height="52">
+{{-- Aviso discreto para instalar la app (PWA): solo la invitación a instalar. --}}
+<div class="pwa-prompt" id="pwaPrompt" role="dialog" aria-modal="false" aria-label="Instala nuestra app" hidden>
     <div class="pwa-prompt-text">
-        <strong id="pwaTitle">Instala la app de {{ $siteSettings['brand_name'] ?? 'la barbería' }}</strong>
-        <span data-pwa-msg>Instala la barbería y activa los avisos para recibir novedades de tus reservas.</span>
+        <span data-pwa-msg>Instala nuestra app</span>
         <span data-pwa-status role="status" aria-live="polite" hidden></span>
     </div>
     <div class="pwa-prompt-actions">
         <button type="button" class="pwa-btn" data-pwa-install hidden>Instalar</button>
-        <button type="button" class="pwa-btn pwa-btn-notify" data-pwa-notify data-staff-push-url="{{ auth()->check() ? route('staff.push.store') : '' }}">Activar avisos</button>
+        <button type="button" class="pwa-btn pwa-btn-notify" data-pwa-notify data-staff-push-url="{{ auth()->check() ? route('staff.push.store') : '' }}" hidden>Activar avisos</button>
         <button type="button" class="pwa-close" data-pwa-close aria-label="Ahora no"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
     </div>
 </div>
@@ -641,6 +653,8 @@
     const show = (force) => {
         if (shown && !force) return;
         if (standalone || snoozedUntil()) return;
+        // Solo se muestra cuando de verdad hay algo que instalar.
+        if (!deferred && !isIOS) return;
         const wait = () => document.documentElement.classList.contains('is-loading') ? setTimeout(wait, 250) : setTimeout(() => {
             if (standalone || snoozedUntil()) return;
             shown = true;
@@ -699,6 +713,7 @@
         deferred = event;
         installBtn.hidden = false;
         if (shown) show(true);
+        else setTimeout(() => show(true), 12000);
     });
     installBtn.addEventListener('click', async () => {
         if (deferred) {
@@ -766,12 +781,13 @@
 </script>
 <script src="{{ asset('js/client-bell.js') }}?v={{ @filemtime(public_path('js/client-bell.js')) }}" defer></script>
 @stack('scripts')
-{{-- Scroll cinematográfico: GSAP + ScrollTrigger + Lenis (copias locales en public/vendor, instaladas con npm) --}}
+{{-- Scroll cinematográfico: GSAP + ScrollTrigger sobre el scroll nativo (copias locales en public/vendor) --}}
 <script src="{{ asset('vendor/gsap.min.js') }}?v=3.15.1" defer onerror="document.documentElement.classList.add('cx-static')"></script>
 <script src="{{ asset('vendor/ScrollTrigger.min.js') }}?v=3.15.1" defer></script>
-<script src="{{ asset('vendor/lenis.min.js') }}?v=1.3.27" defer></script>
 <script src="{{ asset('js/cinema.js') }}?v={{ file_exists(public_path('js/cinema.js')) ? filemtime(public_path('js/cinema.js')) : '1' }}" defer onerror="document.documentElement.classList.add('cx-static')"></script>
 <script src="{{ asset('js/immersive.js') }}?v={{ file_exists(public_path('js/immersive.js')) ? filemtime(public_path('js/immersive.js')) : '1' }}" defer></script>
 <script src="{{ asset('js/motion.js') }}?v={{ file_exists(public_path('js/motion.js')) ? filemtime(public_path('js/motion.js')) : '1' }}" defer></script>
+{{-- Refresco automático: los cambios hechos en el panel se ven sin recargar a mano. --}}
+<script src="{{ asset('js/live-content.js') }}?v={{ file_exists(public_path('js/live-content.js')) ? filemtime(public_path('js/live-content.js')) : '1' }}" defer></script>
 </body>
 </html>

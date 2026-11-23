@@ -7,6 +7,13 @@
 
     <article class="legal-doc" aria-labelledby="legal-title">
         <div class="container">
+            <nav aria-label="Ruta de navegación">
+                <ol class="breadcrumb-public">
+                    <li><a href="{{ route('landing') }}">Inicio</a></li>
+                    <li><span aria-current="page">Aviso legal</span></li>
+                </ol>
+            </nav>
+
             <header class="legal-head">
                 <div class="section-kicker">Información legal</div>
                 <h1 id="legal-title">Aviso legal y condiciones de uso</h1>
@@ -61,6 +68,10 @@
 
                 <h2>9. Ley aplicable</h2>
                 <p>Estas condiciones se rigen por las leyes de la República de Colombia, incluido el Estatuto del Consumidor (Ley 1480 de 2011). Si tienes un reclamo, escríbenos primero para buscar una solución directa. También puedes acudir a la Superintendencia de Industria y Comercio.</p>
+            </div>
+
+            <div class="legal-foot">
+                <a href="{{ route('landing') }}" class="btn btn-gold btn-lg"><i class="bi bi-arrow-left" aria-hidden="true"></i> Volver al inicio</a>
             </div>
         </div>
     </article>

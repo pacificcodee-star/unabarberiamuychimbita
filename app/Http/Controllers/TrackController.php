@@ -199,6 +199,12 @@ class TrackController extends Controller
     private function state(Model $subject, TurnQueueService $queue): array
     {
         if ($subject instanceof Turn) {
+            // Si la página quedó abierta entre dos días, la jornada anterior ya no sigue activa.
+            if (! $subject->turn_date?->isToday()) {
+                $queue->closePreviousDays();
+                $subject->refresh();
+            }
+
             $estimate = $subject->status === 'esperando' ? ($queue->estimates($subject->barber_id)[$subject->id] ?? null) : null;
             $grace = $queue->graceMinutes();
 

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Appointment;
 use App\Models\BarberUnavailability;
+use App\Models\Service;
 use App\Models\StaffNotification;
 use App\Models\Turn;
 use App\Models\User;
@@ -31,8 +32,14 @@ class MyServicesTest extends TestCase
 
     private function book(User $barber, string $type): Appointment|Turn
     {
+        $service = Service::create([
+            'name' => 'Corte clásico',
+            'price' => 18000,
+            'duration_minutes' => 30,
+            'active' => true,
+        ]);
         $response = $this->post('/reservar/'.$type, [
-            'barber_id' => $barber->id, 'client_name' => 'Ana', 'client_phone' => '3001234567',
+            'barber_id' => $barber->id, 'service_id' => $service->id, 'client_name' => 'Ana', 'client_phone' => '3001234567',
             'payment_method' => 'efectivo', 'appointment_date' => '2026-11-19', 'appointment_time' => '10:00',
         ])->assertSessionHas('booking_success');
         if ($device = $response->getCookie('mis_servicios')) {
@@ -69,7 +76,7 @@ class MyServicesTest extends TestCase
         $this->postJson($action.'cancelar')->assertUnprocessable();
         $this->assertSame(1, $appointment->clientNotifications()->where('type', 'appt_cancelled')->count());
         $this->assertContains('13:00', Appointment::availableTimes($barber, '2026-11-19'));
-        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertSeeInOrder(['Historial de citas', 'Cancelada'])->assertDontSee('Confirmar cita');
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertSeeInOrder(['Citas anteriores', 'Cancelada'])->assertDontSee('Confirmar cita');
         $this->postJson("/mis-servicios/cita/{$occupied->id}/cancelar")->assertNotFound();
 
         foreach ([$barber, User::factory()->create(['role' => 'admin'])] as $staff) {
@@ -118,7 +125,7 @@ class MyServicesTest extends TestCase
         $this->assertTrue($after['start_at']->lt($before['start_at']));
         $this->assertSame(1, $first->clientNotifications()->where('type', 'turn_cancelled')->count());
         $this->assertSame(1, StaffNotification::where('type', 'client_cancelled')->count());
-        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertSeeInOrder(['Personas antes de ti: 1', 'Historial de turnos', 'Anulado']);
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertSeeInOrder(['Personas antes de ti: 1', 'Turnos anteriores', 'Anulado']);
         $second->update(['status' => 'atendiendo']);
         $this->postJson("/mis-servicios/turno/{$second->id}/cancelar")->assertUnprocessable();
         foreach ([$barber, User::factory()->create(['role' => 'admin'])] as $staff) {

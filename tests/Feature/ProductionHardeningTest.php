@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Appointment;
 use App\Models\ConsentRecord;
 use App\Models\Review;
+use App\Models\Service;
 use App\Models\Turn;
 use App\Models\User;
 use App\Support\ImageSanitizer;
@@ -36,6 +37,16 @@ class ProductionHardeningTest extends TestCase
     private function barber(string $mode = 'citas'): User
     {
         return User::factory()->create(['role' => 'barbero', 'attention_mode' => $mode, 'active' => true]);
+    }
+
+    private function service(): Service
+    {
+        return Service::create([
+            'name' => 'Corte clásico',
+            'price' => 18000,
+            'duration_minutes' => 30,
+            'active' => true,
+        ]);
     }
 
     private function appointment(User $barber, array $extra = []): Appointment
@@ -175,7 +186,7 @@ class ProductionHardeningTest extends TestCase
     {
         $barber = $this->barber();
         $this->post(route('public.booking.appointment'), [
-            'barber_id' => $barber->id, 'client_name' => 'Ana', 'client_phone' => '300 123 4567', 'payment_method' => 'efectivo',
+            'barber_id' => $barber->id, 'service_id' => $this->service()->id, 'client_name' => 'Ana', 'client_phone' => '300 123 4567', 'payment_method' => 'efectivo',
             'appointment_date' => '2026-11-19', 'appointment_time' => '10:30', 'whatsapp_consent' => '1',
         ])->assertSessionHas('booking_success');
         $this->post(route('public.reviews.store'), ['client_name' => 'Ana', 'rating' => 5, 'comment' => 'Muy buena atención y buen corte.']);
@@ -195,7 +206,7 @@ class ProductionHardeningTest extends TestCase
     {
         $barber = $this->barber();
         $this->post(route('public.booking.appointment'), [
-            'barber_id' => $barber->id, 'client_name' => 'Ana', 'client_phone' => '300 123 4567', 'payment_method' => 'efectivo',
+            'barber_id' => $barber->id, 'service_id' => $this->service()->id, 'client_name' => 'Ana', 'client_phone' => '300 123 4567', 'payment_method' => 'efectivo',
             'appointment_date' => '2026-11-19', 'appointment_time' => '10:30', 'whatsapp_consent' => '0',
         ]);
 

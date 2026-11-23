@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\HasClientNotifications;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Turn extends Model
 {
@@ -31,12 +32,20 @@ class Turn extends Model
         'atendido' => [],
     ];
 
+    protected static function booted(): void
+    {
+        static::saving(function (self $turn): void {
+            $turn->client_phone_normalized = GuestVisitor::normalizePhone($turn->client_phone);
+        });
+    }
+
     public function canTransitionTo(string $status): bool
     {
         return $status === $this->status || in_array($status, self::TRANSITIONS[$this->status] ?? [], true);
     }
 
     protected $fillable = [
+        'guest_visitor_id',
         'public_token',
         'client_email',
         'whatsapp_consent',
@@ -45,6 +54,8 @@ class Turn extends Model
         'service_id',
         'client_name',
         'client_phone',
+        'client_phone_normalized',
+        'service_price',
         'payment_method',
         'turn_date',
         'turn_number',
@@ -61,6 +72,8 @@ class Turn extends Model
         return [
             'barber_id' => 'integer',
             'service_id' => 'integer',
+            'guest_visitor_id' => 'integer',
+            'service_price' => 'decimal:2',
             'turn_number' => 'integer',
             'turn_date' => 'date',
             'called_at' => 'datetime',
@@ -84,6 +97,16 @@ class Turn extends Model
     public function service(): BelongsTo
     {
         return $this->belongsTo(Service::class);
+    }
+
+    public function guestVisitor(): BelongsTo
+    {
+        return $this->belongsTo(GuestVisitor::class);
+    }
+
+    public function statusEvents(): MorphMany
+    {
+        return $this->morphMany(ReservationStatusEvent::class, 'subject');
     }
 
     public function statusLabel(): string

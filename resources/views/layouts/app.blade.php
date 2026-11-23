@@ -259,7 +259,10 @@
     <link rel="stylesheet" href="{{ asset('css/admin-theme.css') }}?v={{ @filemtime(public_path('css/admin-theme.css')) }}">
     <script>(function(r){r.classList.add('sidebar-preload');try{var t=localStorage.getItem('admin:theme')||localStorage.getItem('sidebar:theme')||localStorage.getItem('sidebarTheme');if(t==='dark'){r.classList.add('admin-dark');r.setAttribute('data-bs-theme','dark')}}catch(e){}})(document.documentElement)</script>
     <style>
-        .staff-bell-menu { width: min(380px, calc(100vw - 24px)); }
+        .staff-bell-menu { width: min(380px, calc(100vw - 24px)); z-index: 1311; }
+        /* Velo con desenfoque: el panel queda por encima, nítido, en computadora, tablet y teléfono. */
+        .staff-bell-backdrop { position: fixed; inset: 0; z-index: 1305; background: rgba(8, 7, 5, .5); -webkit-backdrop-filter: blur(10px) saturate(.85); backdrop-filter: blur(10px) saturate(.85); touch-action: none; overscroll-behavior: contain; }
+        .staff-bell-backdrop[hidden] { display: none; }
         .staff-bell-list { max-height: min(60vh, 460px); overflow-y: auto; overscroll-behavior: contain; }
         .staff-bell-item { display: flex; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--bs-border-color); color: inherit; text-decoration: none; }
         .staff-bell-item:last-child { border-bottom: 0; }
@@ -318,6 +321,7 @@
                         <i class="bi bi-bell"></i>
                         <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" data-staff-bell-badge hidden>0</span>
                     </button>
+                    <div class="staff-bell-backdrop" data-staff-bell-backdrop hidden></div>
                     <div class="dropdown-menu dropdown-menu-end shadow p-0 staff-bell-menu">
                         <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
                             <strong>Notificaciones</strong>
@@ -440,6 +444,12 @@
     if (!root) return;
     const badge = root.querySelector('[data-staff-bell-badge]');
     const list = root.querySelector('[data-staff-bell-list]');
+    const backdrop = root.querySelector('[data-staff-bell-backdrop]');
+    const toggle = root.querySelector('[data-bs-toggle="dropdown"]');
+    const closeMenu = () => {
+        const api = window.bootstrap?.Dropdown;
+        if (api) api.getOrCreateInstance(toggle).hide(); else toggle.click();
+    };
     const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text) node.textContent = text; return node; };
 
     let revision = null;
@@ -476,6 +486,7 @@
     };
 
     root.addEventListener('shown.bs.dropdown', () => {
+        backdrop.hidden = false;
         badge.hidden = true;
         fetch(root.dataset.seen, {
             method: 'POST',
@@ -483,7 +494,14 @@
             headers: { Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
         }).catch(() => {});
     });
-    root.addEventListener('hidden.bs.dropdown', load);
+    root.addEventListener('hidden.bs.dropdown', () => {
+        backdrop.hidden = true;
+        load();
+    });
+    backdrop.addEventListener('click', closeMenu);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !backdrop.hidden) closeMenu();
+    });
 
     load();
     setInterval(load, live ? 5000 : 30000);

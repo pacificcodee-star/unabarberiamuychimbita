@@ -11,6 +11,7 @@ use App\Http\Controllers\CommissionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EvolutionWebhookController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\GuestRecoveryController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MyServicesController;
@@ -32,7 +33,7 @@ use App\Http\Controllers\WhatsAppChatController;
 use App\Http\Controllers\WhatsAppController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', [LandingController::class, 'index'])->name('landing');
+Route::get('/', [LandingController::class, 'index'])->middleware('public-fresh')->name('landing');
 Route::get('/sitemap.xml', function () {
     return response()->view('sitemap')->header('Content-Type', 'application/xml; charset=UTF-8');
 })->name('sitemap');
@@ -65,16 +66,21 @@ Route::get('/salud', function () {
 Route::post('/errores-cliente', ClientErrorController::class)->middleware('throttle:20,1,client-errors')->name('client-errors');
 
 // Páginas legales
-Route::view('/aviso-legal', 'public.legal.aviso-legal')->name('legal.notice');
-Route::view('/politica-de-privacidad', 'public.legal.privacidad')->name('legal.privacy');
-Route::view('/cookies', 'public.legal.cookies')->name('legal.cookies');
-Route::get('/nosotros', [LandingController::class, 'about'])->name('public.about');
-Route::get('/servicios', [LandingController::class, 'services'])->name('public.services');
-Route::get('/barberos', [LandingController::class, 'barbers'])->name('public.barbers');
-Route::get('/resenas', [LandingController::class, 'reviews'])->name('public.reviews');
+Route::view('/aviso-legal', 'public.legal.aviso-legal')->middleware('public-fresh')->name('legal.notice');
+Route::view('/politica-de-privacidad', 'public.legal.privacidad')->middleware('public-fresh')->name('legal.privacy');
+Route::view('/cookies', 'public.legal.cookies')->middleware('public-fresh')->name('legal.cookies');
+Route::get('/nosotros', [LandingController::class, 'about'])->middleware('public-fresh')->name('public.about');
+Route::get('/servicios', [LandingController::class, 'services'])->middleware('public-fresh')->name('public.services');
+Route::get('/barberos', [LandingController::class, 'barbers'])->middleware('public-fresh')->name('public.barbers');
+Route::get('/resenas', [LandingController::class, 'reviews'])->middleware('public-fresh')->name('public.reviews');
 Route::post('/resenas', [PublicReviewController::class, 'store'])->middleware('throttle:5,10,public.reviews.store')->name('public.reviews.store');
-Route::get('/contacto', [LandingController::class, 'contact'])->name('public.contact');
-Route::get('/reservar', [PublicBookingController::class, 'index'])->name('public.booking');
+Route::get('/contacto', [LandingController::class, 'contact'])->middleware('public-fresh')->name('public.contact');
+Route::get('/reservar', [PublicBookingController::class, 'index'])->middleware('public-fresh')->name('public.booking');
+// Huella del contenido: la página abierta la consulta para refrescarse sola tras un cambio en el panel.
+Route::get('/contenido/version', fn () => response()
+    ->json(['v' => \App\Support\PublicContentVersion::current()])
+    ->header('Cache-Control', 'no-store'))
+    ->middleware('throttle:120,1,public.content.version')->name('public.content.version');
 Route::get('/reservar/horarios', [PublicBookingController::class, 'availableTimes'])->middleware('throttle:60,1,public.booking.slots')->name('public.booking.slots');
 Route::post('/reservar/cita', [PublicBookingController::class, 'storeAppointment'])->middleware('throttle:10,1,public.booking.appointment')->name('public.booking.appointment');
 Route::post('/reservar/turno', [PublicBookingController::class, 'storeTurn'])->middleware('throttle:10,1,public.booking.turn')->name('public.booking.turn');
@@ -83,6 +89,16 @@ Route::get('/reservar/estado/{key}', [PublicBookingController::class, 'bookingSt
 // Token CSRF nuevo para seguir un formulario cuya sesión se venció (error 419) sin perder lo escrito.
 Route::get('/sesion/token', fn () => response()->json(['token' => csrf_token()])->header('Cache-Control', 'no-store'))
     ->middleware('throttle:30,1,session.token')->name('session.token');
+
+// Recuperar el acceso desde otro dispositivo verificando el celular.
+Route::get('/mis-servicios/recuperar', [GuestRecoveryController::class, 'show'])
+    ->middleware('throttle:20,1,guest.recovery.show')->name('my-services.recover');
+Route::post('/mis-servicios/recuperar', [GuestRecoveryController::class, 'send'])
+    ->middleware('throttle:5,1,guest.recovery.send')->name('my-services.recover.send');
+Route::get('/mis-servicios/recuperar/codigo', [GuestRecoveryController::class, 'verifyForm'])
+    ->middleware('throttle:30,1,guest.recovery.form')->name('my-services.recover.verify');
+Route::post('/mis-servicios/recuperar/codigo', [GuestRecoveryController::class, 'verify'])
+    ->middleware('throttle:10,1,guest.recovery.check')->name('my-services.recover.check');
 
 Route::prefix('mis-servicios')->name('my-services.')->controller(MyServicesController::class)->group(function () {
     Route::get('/', 'index')->middleware('throttle:90,1,my-services.index')->name('index');

@@ -19,14 +19,10 @@
                         $bookingType = $barber->attention_mode === 'citas' ? 'cita' : 'turno';
                         $firstName = (string) \Illuminate\Support\Str::of($barber->name)->before(' ');
                         $specialties = $barber->specialty ? array_filter(array_map('trim', preg_split('/[,;|]+/', $barber->specialty))) : [];
-                        $cutsCount = \App\Support\BarberCuts::for($barber)->count();
                     @endphp
                     <article class="bx-slide {{ $loop->first ? 'is-active' : '' }}" data-bx-slide data-barber="{{ $barber->id }}" data-name="{{ $firstName }}"
                              role="group" aria-roledescription="diapositiva" aria-label="{{ $barber->name }}"
                              @if(!$loop->first) aria-hidden="true" inert @endif>
-                        {{-- Nombre gigante detrás del barbero: da profundidad y se mueve con el mouse --}}
-                        <div class="bx-word" aria-hidden="true"><span data-bx-word>{{ $firstName }}</span></div>
-
                         <div class="bx-figure {{ $barber->video_path ? 'is-video' : ($barber->photo_path ? ($isCutout ? 'is-cutout' : 'is-photo') : 'is-empty') }}">
                             @include('public.partials.barber-media', ['barber' => $barber, 'mediaPreload' => $loop->first ? 'auto' : 'metadata'])
                         </div>
@@ -48,10 +44,10 @@
                                 <p class="bx-bio">{{ $barber->bio }}</p>
                             @endif
                             <div class="bx-actions">
-                                <a href="{{ route('public.booking', ['barbero' => $barber->id, 'tipo' => $bookingType]) }}" class="xbtn">
+                                <a href="{{ route('public.booking', ['barbero' => $barber->id, 'tipo' => $bookingType]) }}" class="xbtn btn-booking-blue">
                                     <span>{{ $bookingType === 'cita' ? 'Reservar con '.$firstName : 'Tomar turno con '.$firstName }}</span><i class="bi bi-arrow-right" aria-hidden="true"></i>
                                 </a>
-                                <a href="#cortes-{{ $barber->id }}" class="xlink">Ver sus cortes @if($cutsCount)({{ $cutsCount }})@endif</a>
+                                <a href="#cortes-{{ $barber->id }}" class="xlink">Ver sus cortes</a>
                             </div>
                         </div>
                     </article>
@@ -137,7 +133,7 @@
 
         // Nombre: se parte en letras para que entren una por una (accesible: el lector de pantalla lee el nombre completo).
         slides.forEach((slide) => {
-            slide.querySelectorAll('[data-bx-name], [data-bx-word]').forEach((el) => {
+            slide.querySelectorAll('[data-bx-name]').forEach((el) => {
                 const text = el.textContent.trim();
                 if (el.hasAttribute('data-bx-name')) el.setAttribute('aria-label', text);
                 el.textContent = '';
@@ -186,6 +182,17 @@
             document.dispatchEvent(new CustomEvent('wg:refresh'));
         };
 
+        // En pantallas angostas los nombres no caben en una fila: la tira se desplaza y centra el activo.
+        const dotBar = dots[0]?.parentElement;
+        const revealDot = (instant = false) => {
+            const dot = dots[current];
+            if (!dot || !dotBar || dotBar.scrollWidth <= dotBar.clientWidth + 1) return;
+            const bar = dotBar.getBoundingClientRect();
+            const box = dot.getBoundingClientRect();
+            const left = dotBar.scrollLeft + (box.left - bar.left) - (bar.width - box.width) / 2;
+            dotBar.scrollTo({ left: Math.max(0, left), behavior: instant || reduced.matches ? 'auto' : 'smooth' });
+        };
+
         const go = (target, direction) => {
             const next = (target + slides.length) % slides.length;
             if (next === current) return;
@@ -205,6 +212,7 @@
                 dot.classList.toggle('is-active', index === current);
                 index === current ? dot.setAttribute('aria-current', 'true') : dot.removeAttribute('aria-current');
             });
+            revealDot();
             window.setTimeout(() => from.classList.remove('is-leaving'), 700);
             updatePauseButton();
             syncVideos();
@@ -272,6 +280,8 @@
 
         autoScreen.addEventListener?.('change', scheduleAuto);
         reduced.addEventListener?.('change', scheduleAuto);
+        window.addEventListener('resize', () => revealDot(true), { passive: true });
+        revealDot(true);
         scheduleAuto();
     })();
 </script>

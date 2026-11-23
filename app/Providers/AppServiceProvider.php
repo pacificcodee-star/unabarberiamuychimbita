@@ -38,10 +38,12 @@ class AppServiceProvider extends ServiceProvider
         // Encuesta de satisfacción: se programa cuando un servicio queda atendido y se cancela si se revierte.
         foreach ([Appointment::class, Turn::class] as $model) {
             $model::created(function ($subject): void {
+                \App\Support\ReservationStatusHistory::record($subject, null);
                 app(\App\Services\Surveys\SurveyService::class)->statusChanged($subject, null);
             });
             $model::updated(function ($subject): void {
                 if ($subject->wasChanged('status')) {
+                    \App\Support\ReservationStatusHistory::record($subject, $subject->getOriginal('status'));
                     app(\App\Services\Surveys\SurveyService::class)->statusChanged($subject, $subject->getOriginal('status'));
                 }
             });
@@ -49,6 +51,11 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer(['layouts.public', 'landing', 'public.*'], function ($view): void {
             $view->with('siteSettings', SiteSetting::currentData());
+        });
+
+        // Huella del contenido público: la página la compara para refrescarse cuando el panel cambia.
+        View::composer('layouts.public', function ($view): void {
+            $view->with('contentVersion', \App\Support\PublicContentVersion::current());
         });
 
         // Datos del titular para las páginas legales (config/web.php + configuración del negocio).

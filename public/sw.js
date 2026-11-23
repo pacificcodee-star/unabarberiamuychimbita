@@ -3,7 +3,7 @@
    - CSS, JS, imágenes y fuentes: se sirven del caché y se actualizan en segundo plano.
    - El panel de administración y los formularios (POST) nunca se guardan en caché.
    - Notificaciones push: muestra los avisos de turnos y citas aunque la página o el navegador estén cerrados. */
-const VERSION = 'v4'; // v3: avisos con sonido y vibración siempre (renotify + requireInteraction)
+const VERSION = 'v5'; // v4: páginas públicas siempre revalidadas; v5: contenido del panel al día
 const PAGES = `pages-${VERSION}`;
 const ASSETS = `assets-${VERSION}`;
 const OFFLINE_URL = '/offline.html';

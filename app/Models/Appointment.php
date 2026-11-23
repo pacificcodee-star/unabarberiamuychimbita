@@ -6,6 +6,8 @@ use App\Models\Concerns\HasClientNotifications;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -22,6 +24,7 @@ class Appointment extends Model
     ];
 
     protected $fillable = [
+        'guest_visitor_id',
         'public_token',
         'client_email',
         'whatsapp_consent',
@@ -29,6 +32,8 @@ class Appointment extends Model
         'service_id',
         'client_name',
         'client_phone',
+        'client_phone_normalized',
+        'service_price',
         'payment_method',
         'appointment_date',
         'appointment_time',
@@ -49,6 +54,13 @@ class Appointment extends Model
         'cancelada' => ['pendiente', 'confirmada'],
         'atendida' => [],
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $appointment): void {
+            $appointment->client_phone_normalized = GuestVisitor::normalizePhone($appointment->client_phone);
+        });
+    }
 
     public function canTransitionTo(string $status): bool
     {
@@ -149,6 +161,8 @@ class Appointment extends Model
         return [
             'barber_id' => 'integer',
             'service_id' => 'integer',
+            'guest_visitor_id' => 'integer',
+            'service_price' => 'decimal:2',
             'appointment_date' => 'date',
             'whatsapp_consent' => 'boolean',
             'reminder_sent_at' => 'datetime',
@@ -168,6 +182,16 @@ class Appointment extends Model
     public function service(): BelongsTo
     {
         return $this->belongsTo(Service::class);
+    }
+
+    public function guestVisitor(): BelongsTo
+    {
+        return $this->belongsTo(GuestVisitor::class);
+    }
+
+    public function statusEvents(): MorphMany
+    {
+        return $this->morphMany(ReservationStatusEvent::class, 'subject');
     }
 
     /** Fecha y hora exactas en que empieza la cita. */

@@ -7,6 +7,13 @@
 
     <article class="legal-doc" aria-labelledby="legal-title">
         <div class="container">
+            <nav aria-label="Ruta de navegación">
+                <ol class="breadcrumb-public">
+                    <li><a href="{{ route('landing') }}">Inicio</a></li>
+                    <li><span aria-current="page">Cookies</span></li>
+                </ol>
+            </nav>
+
             <header class="legal-head">
                 <div class="section-kicker">Información legal</div>
                 <h1 id="legal-title">Aviso de cookies</h1>
@@ -24,6 +31,7 @@
                         <tbody>
                             <tr><td><code>{{ config('session.cookie') }}</code></td><td>Mantiene tu sesión mientras llenas una reserva.</td><td>{{ config('session.lifetime') }} minutos</td></tr>
                             <tr><td><code>XSRF-TOKEN</code></td><td>Protege los formularios contra envíos falsos.</td><td>{{ config('session.lifetime') }} minutos</td></tr>
+                            <tr><td><code>mis_servicios</code></td><td>Reconoce este navegador para mostrarte tus citas y turnos sin crear una cuenta. Es una credencial privada, no una cookie publicitaria.</td><td>1 año</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -49,12 +57,14 @@
                 <p>El mapa de Google en la página de contacto y los videos o tipografías que cargamos de otros servidores pueden guardar sus propias cookies, según las políticas de esas empresas.</p>
 
                 <h2>4. Cómo cambiar tu elección</h2>
-                <p>Puedes cambiar de opinión cuando quieras:</p>
-                <p><button type="button" class="xbtn" data-cookie-settings><span>Cambiar mi elección de cookies</span><i class="bi bi-sliders" aria-hidden="true"></i></button></p>
-                <p>También puedes borrar las cookies desde la configuración de tu navegador.</p>
+                <p>Puedes borrar las cookies desde la configuración de tu navegador.</p>
 
                 <h2>5. Más información</h2>
                 <p>Lee nuestra <a href="{{ route('legal.privacy') }}">política de privacidad y tratamiento de datos</a>.</p>
+            </div>
+
+            <div class="legal-foot">
+                <a href="{{ route('landing') }}" class="btn btn-ghost-light"><i class="bi bi-arrow-left" aria-hidden="true"></i> Volver al inicio</a>
             </div>
         </div>
     </article>

@@ -72,7 +72,7 @@
             if (busy) return;
             gallery = g;
             show(card);
-            window.Cinema?.lenis?.stop();
+            document.documentElement.classList.add('wg-locked');
             dialog.showModal();
             dialog.classList.add('is-open');
             if (!reduced && img.animate) { busy = true; flip(visibleRect(card)).finished.finally(() => { busy = false; }); }
@@ -85,7 +85,7 @@
             const card = gallery?.cards[gallery.current];
             dialog.classList.remove('is-open');
             let finished = false;
-            const done = () => { if (finished) return; finished = true; dialog.close(); img.getAnimations().forEach((a) => a.cancel()); window.Cinema?.lenis?.start(); card?.querySelector('.wg-frame')?.focus?.({ preventScroll: true }); busy = false; };
+            const done = () => { if (finished) return; finished = true; dialog.close(); img.getAnimations().forEach((a) => a.cancel()); document.documentElement.classList.remove('wg-locked'); card?.querySelector('.wg-frame')?.focus?.({ preventScroll: true }); busy = false; };
             window.setTimeout(done, 700); // seguro: se cierra aunque el navegador congele la animación
             if (!reduced && img.animate && card) { busy = true; flip(visibleRect(card), true).finished.then(done, done); } else done();
         };

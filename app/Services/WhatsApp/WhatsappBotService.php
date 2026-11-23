@@ -14,6 +14,7 @@ use App\Services\ClientNotifier;
 use App\Services\TurnQueueService;
 use App\Services\TurnService;
 use App\Support\AttendanceConfirmation;
+use App\Support\TurnSchedule;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -425,10 +426,11 @@ class WhatsappBotService
     {
         $mode = $mode === 'turno' ? 'turno' : 'cita';
 
-        if ($mode === 'turno' && ! $this->businessOpenNow()) {
-            return '🌙 En este momento estamos fuera de horario, así que no es posible tomar un turno para hoy.'."\n\n"
-                .'Puedes *agendar una cita con hora* para otro día.'."\n\n"
-                .$this->menuText();
+        if ($mode === 'turno') {
+            $turnState = TurnSchedule::forNow();
+            if (! $turnState['open']) {
+                return '🌙 '.$turnState['message']."\n\n".$this->menuText();
+            }
         }
 
         $services = Service::query()->active()->orderBy('name')->get();
@@ -695,10 +697,9 @@ class WhatsappBotService
     /** El barbero atiende por orden de llegada: se crea el turno de una vez. */
     private function bookTurn(WhatsAppConversation $conversation, User $barber, ?int $serviceId, ?string $clientName = null): string
     {
-        if (! $this->businessOpenNow()) {
-            return '🌙 En este momento estamos fuera de horario, así que no es posible asignarte un turno para hoy.'."\n\n"
-                .'Puedo agendarte una *cita con hora* para otro día.'."\n\n"
-                .$this->menuText();
+        $turnState = TurnSchedule::forNow();
+        if (! $turnState['open']) {
+            return '🌙 '.$turnState['message']."\n\n".$this->menuText();
         }
 
         $name = trim((string) $clientName) ?: (trim((string) $conversation->client_name) ?: 'Cliente WhatsApp');
@@ -820,20 +821,17 @@ class WhatsappBotService
         $date = (string) ($data['date'] ?? '');
         $time = (string) ($data['time'] ?? '');
 
-        if (! $barber || $date === '' || $time === '') {
+        if (! $service || ! $barber || $date === '' || $time === '') {
             return $this->menuText();
         }
 
         $lines = [
-            '✂️ Servicio: *'.($service?->name ?? 'Por definir con el barbero').'*',
+            '✂️ Servicio: *'.$service->name.'*',
             '💈 Barbero: *'.$barber->name.'*',
             '📅 Fecha: *'.$this->dateLabel(Carbon::parse($date)).'*',
             '🕒 Hora: *'.$this->slotLabel($time).'*',
+            '💰 Valor: *'.$this->money($service->price).'*',
         ];
-
-        if ($service) {
-            $lines[] = '💰 Valor: *'.$this->money($service->price).'*';
-        }
 
         if (! empty($data['client_name'])) {
             array_unshift($lines, '👤 Cliente: *'.$data['client_name'].'*');
@@ -950,7 +948,7 @@ class WhatsappBotService
 
         $details = '📅 Fecha: *'.$this->dateLabel(Carbon::parse($appointment->appointment_date?->toDateString()))."*\n"
             .'🕒 Hora: *'.$this->slotLabel(substr((string) $appointment->appointment_time, 0, 5))."*\n"
-            .'✂️ Servicio: *'.($appointment->service?->name ?? 'Por definir con el barbero')."*\n"
+            .($appointment->service ? '✂️ Servicio: *'.$appointment->service->name."*\n" : '')
             .'💈 Barbero: *'.($appointment->barber?->name ?? 'Por asignar')."*\n"
             .'👤 Cliente: *'.$appointment->client_name."*\n";
         $footer = '1. 🏠 Volver al menú principal.'."\n"
@@ -1191,7 +1189,7 @@ class WhatsappBotService
     private function appointmentDetails(Appointment $appointment): string
     {
         return '📅 *Tu próxima cita*'."\n\n"
-            .'✂️ Servicio: *'.($appointment->service?->name ?? 'Por definir con el barbero')."*\n"
+            .($appointment->service ? '✂️ Servicio: *'.$appointment->service->name."*\n" : '')
             .'💈 Barbero: *'.($appointment->barber?->name ?? 'Por asignar')."*\n"
             .'📅 Fecha: *'.$this->dateLabel(Carbon::parse($appointment->appointment_date?->toDateString()))."*\n"
             .'🕒 Hora: *'.$this->slotLabel(substr((string) $appointment->appointment_time, 0, 5))."*\n"
@@ -1205,9 +1203,13 @@ class WhatsappBotService
 
         $lines = [
             '🎟️ Número de turno: *'.$this->turnNumber($turn).'*',
-            '✂️ Servicio: *'.($turn->service?->name ?? 'Por definir con el barbero').'*',
-            '💈 Barbero: *'.($turn->barber?->name ?? 'Por asignar').'*',
         ];
+
+        if ($turn->service) {
+            $lines[] = '✂️ Servicio: *'.$turn->service->name.'*';
+        }
+
+        $lines[] = '💈 Barbero: *'.($turn->barber?->name ?? 'Por asignar').'*';
 
         if ($turn->status === 'esperando' && $estimate) {
             $lines[] = '⏳ Posición en la fila: *'.($estimate['ahead'] + 1).'*';
@@ -2148,9 +2150,13 @@ class WhatsappBotService
 
         $lines = [
             '🎟️ Número de turno: *'.$this->turnNumber($turn).'*',
-            '✂️ Servicio: *'.($turn->service?->name ?? 'Por definir con el barbero').'*',
-            '💈 Barbero: *'.($turn->barber?->name ?? 'Por asignar').'*',
         ];
+
+        if ($turn->service) {
+            $lines[] = '✂️ Servicio: *'.$turn->service->name.'*';
+        }
+
+        $lines[] = '💈 Barbero: *'.($turn->barber?->name ?? 'Por asignar').'*';
 
         $this->saveFlow($conversation->phone, [
             'step' => 'turn_actions',

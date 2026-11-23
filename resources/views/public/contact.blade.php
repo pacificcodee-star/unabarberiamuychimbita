@@ -5,13 +5,18 @@
 
 @php
     $fullAddress = trim($siteSettings['address'].', '.($siteSettings['city'] ?? ''), ', ');
-    $directionsUrl = 'https://www.google.com/maps/search/?api=1&query='.urlencode(($siteSettings['brand_name'] ?? '').' '.$fullAddress);
-    // Horario de los 7 días, tal como lo escribe el admin en "Configuración del negocio".
-    $hours = \App\Models\SiteSetting::weekHours($siteSettings);
+    // Indicaciones desde la ubicación actual del visitante hasta la dirección del negocio.
+    // Google Maps abre la app (Android/iOS) cuando está instalada y usa "Mi ubicación" como origen.
+    $directionsUrl = 'https://www.google.com/maps/dir/?api=1&destination='.rawurlencode($fullAddress).'&travelmode=driving&dir_action=navigate';
+    // Mapa generado desde la dirección configurada para que nunca quede desfasado.
+    $mapEmbedUrl = $fullAddress !== ''
+        ? 'https://www.google.com/maps?q='.rawurlencode($fullAddress).'&z=17&hl=es&output=embed'
+        : ($siteSettings['map_url'] ?? '');
     $contactBg = !empty($siteSettings['contact_image_path']) ? asset('storage/'.$siteSettings['contact_image_path']) : null;
 @endphp
 
 @section('content')
+    <div class="contact-page">
     {{-- Encabezado editorial --}}
     <section class="ct-hero" aria-labelledby="ct-title">
         @if($contactBg)<div class="ct-hero-bg" aria-hidden="true"><img src="{{ $contactBg }}" alt="" width="1920" height="1080" fetchpriority="high" decoding="async"></div>@endif
@@ -19,7 +24,7 @@
             <h1 class="ct-title" id="ct-title">{{ $siteSettings['contact_hero_title'] }}</h1>
             <p class="ct-lead">{{ $siteSettings['contact_hero_description'] }}</p>
             <div class="ct-hero-actions">
-                <a href="{{ route('public.booking') }}" class="xbtn"><span>Reservar cita o turno</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                <a href="{{ route('public.booking') }}" class="xbtn btn-booking-blue"><span>Reservar cita o turno</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                 <a href="https://wa.me/{{ $siteSettings['whatsapp'] }}" class="xlink" target="_blank" rel="noopener">Escribir por WhatsApp</a>
             </div>
         </div>
@@ -27,37 +32,49 @@
 
     @php
         $mapsKey = config('services.google_maps.key');
-        $todayHours = \App\Models\SiteSetting::todayHours($siteSettings);
-        $todayClosed = \App\Models\SiteSetting::isClosedText($todayHours);
-        $dayShorts = array_column(\App\Models\SiteSetting::DAYS, 1);
-        $todayIndex = array_search(collect($hours)->firstWhere('today', true)['short'] ?? '', $dayShorts, true);
-        $hourGroups = array_map(function ($group) use ($dayShorts, $todayIndex) {
-            [$from, $to] = array_pad(explode(' – ', $group['label']), 2, null);
-            $start = array_search($from, $dayShorts, true);
-            $end = $to ? array_search($to, $dayShorts, true) : $start;
-            $group['today'] = $todayIndex !== false && $todayIndex >= $start && $todayIndex <= $end;
-
-            return $group;
-        }, \App\Models\SiteSetting::groupedHours($siteSettings));
+        $hourGroups = \App\Models\SiteSetting::groupedHours($siteSettings);
     @endphp
     <section class="ct-body" aria-label="Datos de contacto y ubicación">
         <div class="container">
             <div class="ct-grid">
+                {{-- Horario semanal --}}
+                @php
+                    // Días con nombre completo ("Lun – Sáb" → "Lunes a sábado") y horas con raya tipográfica.
+                    $dayNames = ['Lun' => 'lunes', 'Mar' => 'martes', 'Mié' => 'miércoles', 'Jue' => 'jueves', 'Vie' => 'viernes', 'Sáb' => 'sábado', 'Dom' => 'domingo'];
+                    $dayLabel = function (string $label) use ($dayNames) {
+                        $parts = array_map(fn ($p) => $dayNames[trim($p)] ?? trim($p), preg_split('/\s*[–-]\s*/u', $label));
+                        $text = count($parts) > 1 ? $parts[0].' a '.end($parts) : $parts[0];
+
+                        return mb_strtoupper(mb_substr($text, 0, 1)).mb_substr($text, 1);
+                    };
+                    $niceHours = fn (string $value) => preg_replace('/\s+[-–]\s+/u', ' – ', trim($value));
+                @endphp
+                <aside class="ct-hours-card reveal" aria-labelledby="ct-hours-title">
+                    <header class="ct-hours-head">
+                        <h2 class="ct-hours-title" id="ct-hours-title">Horario</h2>
+                    </header>
+
+                    <dl class="ct-hours-list" aria-label="Horario de la semana">
+                        @foreach($hourGroups as $group)
+                            <div>
+                                <dt>{{ $dayLabel($group['label']) }}</dt>
+                                <dd class="{{ \App\Models\SiteSetting::isClosedText($group['value']) ? 'is-closed' : '' }}">{{ $niceHours($group['value']) }}</dd>
+                            </div>
+                        @endforeach
+                    </dl>
+
+                    <p class="ct-note"><i class="bi bi-info-circle" aria-hidden="true"></i><span><strong>Con cita</strong> te atendemos a tu hora. <strong>Sin cita</strong>, por orden de llegada.</span></p>
+                    <a href="{{ route('public.booking') }}" class="xbtn"><span>Reservar</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                </aside>
+
                 <div class="ct-info">
-                    {{-- Canales de contacto: lista compacta, una acción clara por fila --}}
+                    {{-- Canales de contacto: correo, visita, llamada y WhatsApp --}}
                     <h2 class="ct-subtitle reveal">Hablemos</h2>
                     <ul class="ct-channels">
                         <li class="reveal">
-                            <a class="ct-channel ct-channel--wa" href="https://wa.me/{{ $siteSettings['whatsapp'] }}?text={{ rawurlencode('Hola, quiero información para un corte') }}" target="_blank" rel="noopener">
-                                <span class="ct-channel-icon"><img src="{{ asset('images/redes/whatsapp.svg') }}" alt="" width="26" height="26"></span>
-                                <span class="ct-channel-text"><small>WhatsApp</small><strong>Escríbenos ahora</strong></span>
-                                <i class="bi bi-arrow-up-right ct-channel-arrow" aria-hidden="true"></i>
-                            </a>
-                        </li>
-                        <li class="reveal">
-                            <a class="ct-channel" href="tel:{{ $siteSettings['phone_link'] }}">
-                                <span class="ct-channel-icon"><i class="bi bi-telephone-outbound" aria-hidden="true"></i></span>
-                                <span class="ct-channel-text"><small>Llámanos</small><strong>{{ $siteSettings['phone'] }}</strong></span>
+                            <a class="ct-channel" href="mailto:{{ $siteSettings['email'] }}">
+                                <span class="ct-channel-icon"><i class="bi bi-envelope-paper" aria-hidden="true"></i></span>
+                                <span class="ct-channel-text"><small>Correo</small><strong>{{ $siteSettings['email'] }}</strong></span>
                                 <i class="bi bi-arrow-up-right ct-channel-arrow" aria-hidden="true"></i>
                             </a>
                         </li>
@@ -69,63 +86,21 @@
                             </a>
                         </li>
                         <li class="reveal">
-                            <a class="ct-channel" href="mailto:{{ $siteSettings['email'] }}">
-                                <span class="ct-channel-icon"><i class="bi bi-envelope-paper" aria-hidden="true"></i></span>
-                                <span class="ct-channel-text"><small>Correo</small><strong>{{ $siteSettings['email'] }}</strong></span>
+                            <a class="ct-channel" href="tel:{{ $siteSettings['phone_link'] }}">
+                                <span class="ct-channel-icon"><i class="bi bi-telephone-outbound" aria-hidden="true"></i></span>
+                                <span class="ct-channel-text"><small>Llámanos</small><strong>{{ $siteSettings['phone'] }}</strong></span>
+                                <i class="bi bi-arrow-up-right ct-channel-arrow" aria-hidden="true"></i>
+                            </a>
+                        </li>
+                        <li class="reveal">
+                            <a class="ct-channel ct-channel--wa" href="https://wa.me/{{ $siteSettings['whatsapp'] }}?text={{ rawurlencode('Hola, quiero información para un corte') }}" target="_blank" rel="noopener">
+                                <span class="ct-channel-icon"><img src="{{ asset('images/redes/whatsapp.svg') }}" alt="" width="26" height="26"></span>
+                                <span class="ct-channel-text"><small>WhatsApp</small><strong>Escríbenos ahora</strong></span>
                                 <i class="bi bi-arrow-up-right ct-channel-arrow" aria-hidden="true"></i>
                             </a>
                         </li>
                     </ul>
-
                 </div>
-
-                {{-- Horario: tarjeta destacada con el estado de hoy --}}
-                @php
-                    // Días con nombre completo ("Lun – Sáb" → "Lunes a sábado") y horas con raya tipográfica.
-                    $dayNames = ['Lun' => 'lunes', 'Mar' => 'martes', 'Mié' => 'miércoles', 'Jue' => 'jueves', 'Vie' => 'viernes', 'Sáb' => 'sábado', 'Dom' => 'domingo'];
-                    $dayLabel = function (string $label) use ($dayNames) {
-                        $parts = array_map(fn ($p) => $dayNames[trim($p)] ?? trim($p), preg_split('/\s*[–-]\s*/u', $label));
-                        $text = count($parts) > 1 ? $parts[0].' a '.end($parts) : $parts[0];
-
-                        return mb_strtoupper(mb_substr($text, 0, 1)).mb_substr($text, 1);
-                    };
-                    $niceHours = fn (string $value) => preg_replace('/\s+[-–]\s+/u', ' – ', trim($value));
-                    $todayRange = $todayClosed ? [] : preg_split('/\s+[-–]\s+/u', trim($todayHours), 2);
-                @endphp
-                <aside class="ct-hours-card reveal {{ $todayClosed ? 'is-closed' : 'is-open' }}" aria-labelledby="ct-hours-title">
-                    <header class="ct-hours-head">
-                        <h2 class="ct-hours-title" id="ct-hours-title">Horario</h2>
-                        <span class="ct-status {{ $todayClosed ? 'is-closed' : 'is-open' }}"><span class="ct-dot" aria-hidden="true"></span>{{ $todayClosed ? 'Hoy cerrado' : 'Abierto hoy' }}</span>
-                    </header>
-
-                    <div class="ct-hours-hero">
-                        <span class="ct-hours-label">Hoy</span>
-                        @if($todayClosed)
-                            <p class="ct-hours-today">Cerrado</p>
-                        @elseif(count($todayRange) === 2)
-                            <p class="ct-hours-today">
-                                <span><small>Abre</small>{{ $todayRange[0] }}</span>
-                                <span class="ct-hours-sep" aria-hidden="true">—</span>
-                                <span><small>Cierra</small>{{ $todayRange[1] }}</span>
-                            </p>
-                        @else
-                            <p class="ct-hours-today">{{ $todayHours }}</p>
-                        @endif
-                    </div>
-
-                    <dl class="ct-hours-list" aria-label="Horario de la semana">
-                        @foreach($hourGroups as $group)
-                            @php($isToday = $group['today'])
-                            <div class="{{ $isToday ? 'is-today' : '' }}">
-                                <dt>{{ $dayLabel($group['label']) }} @if($isToday)<span class="ct-today">Hoy</span>@endif</dt>
-                                <dd class="{{ \App\Models\SiteSetting::isClosedText($group['value']) ? 'is-closed' : '' }}">{{ $niceHours($group['value']) }}</dd>
-                            </div>
-                        @endforeach
-                    </dl>
-
-                    <p class="ct-note"><i class="bi bi-info-circle" aria-hidden="true"></i><span><strong>Con cita</strong> te atendemos a tu hora. <strong>Sin cita</strong>, por orden de llegada.</span></p>
-                    <a href="{{ route('public.booking') }}" class="xbtn"><span>Reservar</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-                </aside>
             </div>
 
             {{-- Mapa de Google a todo el ancho, con la dirección en una ficha flotante.
@@ -136,20 +111,21 @@
                         <div id="ctGoogleMap" class="ct-gmap" role="region" aria-label="Mapa de Google con la ubicación de {{ $siteSettings['brand_name'] }}"
                              data-address="{{ $fullAddress }}" data-coords="{{ $siteSettings['map_coords'] ?? '' }}" data-title="{{ $siteSettings['brand_name'] }}"
                              data-directions="{{ $directionsUrl }}" data-map-id="{{ config('services.google_maps.map_id') }}"></div>
-                        <noscript><iframe src="{{ $siteSettings['map_url'] }}" title="Ubicación en el mapa" loading="lazy"></iframe></noscript>
+                        <noscript><iframe src="{{ $mapEmbedUrl }}" title="Ubicación de {{ $siteSettings['brand_name'] }} en Google Maps" loading="lazy"></iframe></noscript>
                     @else
-                        <iframe src="{{ $siteSettings['map_url'] }}" title="Ubicación de {{ $siteSettings['brand_name'] }} en Google Maps" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+                        <iframe src="{{ $mapEmbedUrl }}" title="Mapa de {{ $siteSettings['brand_name'] }} en {{ $fullAddress }}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
                     @endif
                 </div>
                 <div class="ct-map-card">
-                    <span class="ct-label">Dónde estamos</span>
+                    <span class="ct-label">¿Dónde estamos?</span>
                     <strong>{{ $siteSettings['address'] }}</strong>
                     <span>{{ $siteSettings['city'] }}</span>
-                    <a class="ct-map-pill" href="{{ $directionsUrl }}" target="_blank" rel="noopener"><i class="bi bi-sign-turn-right-fill" aria-hidden="true"></i> Cómo llegar</a>
+                    <a class="ct-map-pill" href="{{ $directionsUrl }}" target="_blank" rel="noopener" aria-label="Abrir indicaciones en Google Maps desde tu ubicación hasta {{ $fullAddress }}"><i class="bi bi-sign-turn-right-fill" aria-hidden="true"></i> Cómo llegar</a>
                 </div>
             </div>
         </div>
     </section>
+    </div>
 @endsection
 
 @if(config('services.google_maps.key'))

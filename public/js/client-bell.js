@@ -4,7 +4,8 @@
 (() => {
     const bell = document.getElementById('clientBell');
     const panel = document.getElementById('clientBellPanel');
-    if (!bell || !panel) return;
+    const backdrop = document.getElementById('clientBellBackdrop');
+    if (!bell || !panel || !backdrop) return;
 
     const badge = bell.querySelector('[data-bell-badge]');
     const body = panel.querySelector('[data-bell-body]');
@@ -92,13 +93,15 @@
 
     const toggle = (open) => {
         panel.hidden = !open;
+        backdrop.hidden = !open;
         bell.setAttribute('aria-expanded', open ? 'true' : 'false');
-        if (open) { paintPanel(); markSeen(); }
+        if (open) { paintPanel(); markSeen(); panel.focus({ preventScroll: true }); }
     };
 
     bell.addEventListener('click', (event) => { event.stopPropagation(); toggle(panel.hidden); });
     panel.addEventListener('click', (event) => event.stopPropagation());
-    panel.querySelector('[data-bell-close]')?.addEventListener('click', () => toggle(false));
+    backdrop.addEventListener('click', (event) => { event.stopPropagation(); toggle(false); bell.focus(); });
+    panel.querySelector('[data-bell-close]')?.addEventListener('click', () => { toggle(false); bell.focus(); });
     document.addEventListener('click', () => { if (!panel.hidden) toggle(false); });
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !panel.hidden) { toggle(false); bell.focus(); } });
 

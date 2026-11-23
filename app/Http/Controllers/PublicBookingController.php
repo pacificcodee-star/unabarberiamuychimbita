@@ -13,6 +13,7 @@ use App\Services\TurnService;
 use App\Services\WhatsApp\BookingMessenger;
 use App\Services\WhatsAppService;
 use App\Support\ClientServiceAccess;
+use App\Support\TurnSchedule;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -27,7 +28,7 @@ class PublicBookingController extends Controller
     {
         $data = $request->validate([
             'barber_id' => ['required', 'integer', 'exists:users,id'],
-            'date' => ['required', 'date', 'after_or_equal:today'],
+            'date' => ['required', 'date', 'after_or_equal:today', 'before_or_equal:'.now()->addDays(29)->toDateString()],
         ]);
         $barber = User::barbers()->where('active', true)->where('attention_mode', 'citas')->find($data['barber_id']);
         abort_if(! $barber, 404);
@@ -54,7 +55,8 @@ class PublicBookingController extends Controller
 
         $settings = SiteSetting::currentData();
         $paymentMethods = $this->enabledPaymentMethods($settings);
-        $businessOpenNow = $this->isBusinessOpenNow($settings);
+        $turnState = TurnSchedule::forNow(null, $settings);
+        $businessOpenNow = $turnState['open'];
 
         $activeTab = $request->input('tipo') === 'turno' ? 'turno' : 'cita';
         $selectedBarberId = (int) $request->input('barbero', 0);
@@ -66,7 +68,8 @@ class PublicBookingController extends Controller
             'activeTab',
             'selectedBarberId',
             'paymentMethods',
-            'businessOpenNow'
+            'businessOpenNow',
+            'turnState'
         ));
     }
 
@@ -89,21 +92,26 @@ class PublicBookingController extends Controller
         }
 
         $enabled = array_keys($this->enabledPaymentMethods($settings));
+        // Hoy cuenta como día 1: el último día reservable es hoy + 29 (30 días calendario).
+        $maxBookingDate = now()->addDays(29)->toDateString();
 
         $data = $request->validate([
             'barber_id' => ['required', 'exists:users,id'],
-            'service_id' => ['nullable', 'exists:services,id'],
+            'service_id' => ['required', 'integer', 'exists:services,id'],
             'client_name' => ['required', 'string', 'max:120'],
             'client_phone' => $this->phoneRules(),
             'client_email' => ['nullable', 'email', 'max:150'],
             'whatsapp_consent' => ['nullable', 'boolean'],
             'payment_method' => ['required', Rule::in($enabled)],
-            'appointment_date' => ['required', 'date', 'after_or_equal:today'],
+            'appointment_date' => ['required', 'date', 'after_or_equal:today', 'before_or_equal:'.$maxBookingDate],
             'appointment_time' => ['required', 'date_format:H:i'],
             'notes' => ['nullable', 'string', 'max:500'],
         ], [
+            'service_id.required' => 'Selecciona un servicio.',
+            'service_id.exists' => 'El servicio seleccionado ya no está disponible. Elige otro.',
             'payment_method.required' => 'Selecciona un método de pago.',
             'payment_method.in' => 'El método de pago seleccionado no está disponible.',
+            'appointment_date.before_or_equal' => 'Solo puedes agendar hasta 30 días calendario desde hoy.',
             'client_phone.regex' => 'Escribe un número de teléfono válido (solo números, por ejemplo 300 123 4567).',
             'client_email.email' => 'Escribe un correo electrónico válido o deja el campo vacío.',
         ]);
@@ -119,7 +127,7 @@ class PublicBookingController extends Controller
             ]);
         }
 
-        if (! empty($data['service_id']) && ! $barber->offersService((int) $data['service_id'])) {
+        if (! $barber->offersService((int) $data['service_id'])) {
             throw ValidationException::withMessages([
                 'service_id' => 'Ese barbero no ofrece el servicio seleccionado. Elige otro servicio u otro barbero.',
             ]);
@@ -131,9 +139,11 @@ class PublicBookingController extends Controller
         }
 
         // Se vuelve a comprobar el horario en el servidor, con bloqueo, al momento de guardar.
+        // El precio se congela con el servicio para que el historial no cambie si luego se edita.
         $appointment = Appointment::reserveSlot([
             'barber_id' => $barber->id,
-            'service_id' => $data['service_id'] ?? null,
+            'service_id' => $data['service_id'],
+            'service_price' => Service::whereKey($data['service_id'])->value('price'),
             'client_name' => $data['client_name'],
             'client_phone' => $data['client_phone'],
             'client_email' => $data['client_email'] ?? null,
@@ -161,7 +171,7 @@ class PublicBookingController extends Controller
         StaffNotification::record(
             'appt_new',
             'Nueva cita: '.$appointment->client_name,
-            Carbon::parse($appointment->appointment_date)->locale('es')->translatedFormat('l j \d\e F').' a las '.$this->timeLabel($appointment->appointment_time).' con '.$barber->name.($appointment->service ? ' · '.$appointment->service->name : '').'. Pendiente de confirmar.',
+            Carbon::parse($appointment->appointment_date)->locale('es')->translatedFormat('l j \d\e F').' a las '.$this->timeLabel($appointment->appointment_time).' con '.$barber->name.' · '.$appointment->service->name.'. Pendiente de confirmar.',
             route('appointments.index', ['date' => $appointmentDate], false),
             $barber->id,
         );
@@ -171,7 +181,7 @@ class PublicBookingController extends Controller
             'title' => '¡Tu cita quedó registrada!',
             'client' => $appointment->client_name,
             'barber' => $barber->name,
-            'service' => $appointment->service?->name,
+            'service' => $appointment->service->name,
             'date' => Carbon::parse($appointment->appointment_date)->locale('es')->translatedFormat('l, d \d\e F'),
             'time' => $this->timeLabel($appointment->appointment_time),
             'status' => 'Pendiente de confirmación',
@@ -198,7 +208,7 @@ class PublicBookingController extends Controller
 
         $data = $request->validate([
             'barber_id' => ['required', 'exists:users,id'],
-            'service_id' => ['nullable', 'exists:services,id'],
+            'service_id' => ['required', 'integer', 'exists:services,id'],
             'client_name' => ['required', 'string', 'max:120'],
             'client_phone' => $this->phoneRules(),
             'client_email' => ['nullable', 'email', 'max:150'],
@@ -206,16 +216,18 @@ class PublicBookingController extends Controller
             'payment_method' => ['required', Rule::in($enabled)],
             'notes' => ['nullable', 'string', 'max:500'],
         ], [
+            'service_id.required' => 'Selecciona un servicio.',
+            'service_id.exists' => 'El servicio seleccionado ya no está disponible. Elige otro.',
             'payment_method.required' => 'Selecciona un método de pago.',
             'payment_method.in' => 'El método de pago seleccionado no está disponible.',
             'client_phone.regex' => 'Escribe un número de teléfono válido (solo números, por ejemplo 300 123 4567).',
             'client_email.email' => 'Escribe un correo electrónico válido o deja el campo vacío.',
         ]);
 
-        if (! $this->isBusinessOpenNow($settings)) {
-            throw ValidationException::withMessages([
-                'barber_id' => 'En este momento el negocio no está abierto para tomar turnos. Puedes agendar una cita para otro horario.',
-            ]);
+        // Se vuelve a validar en el servidor: nadie puede saltarse el límite llamando directo a la ruta.
+        $turnState = TurnSchedule::forNow(null, $settings);
+        if (! $turnState['open']) {
+            throw ValidationException::withMessages(['barber_id' => $turnState['message']]);
         }
 
         $barber = User::barbers()
@@ -229,13 +241,15 @@ class PublicBookingController extends Controller
             ]);
         }
 
-        if (! empty($data['service_id']) && ! $barber->offersService((int) $data['service_id'])) {
+        if (! $barber->offersService((int) $data['service_id'])) {
             throw ValidationException::withMessages([
                 'service_id' => 'Ese barbero no ofrece el servicio seleccionado. Elige otro servicio u otro barbero.',
             ]);
         }
 
         $turn = $turnService->createFor($barber, $data);
+        $turn->loadMissing('service');
+        $turn->forceFill(['service_price' => $turn->service?->price])->saveQuietly();
         ClientServiceAccess::remember($request, $turn);
         $this->recordConsents($turn, (bool) ($data['whatsapp_consent'] ?? false));
         $turn->load('service');
@@ -244,7 +258,7 @@ class PublicBookingController extends Controller
         StaffNotification::record(
             'turn_new',
             'Nuevo turno #'.$turn->turn_number.': '.$turn->client_name,
-            'Con '.$barber->name.($turn->service ? ' · '.$turn->service->name : '').'. Pedido desde la página.',
+            'Con '.$barber->name.' · '.$turn->service->name.'. Pedido desde la página.',
             route('turns.index', [], false),
             $barber->id,
         );
@@ -254,7 +268,7 @@ class PublicBookingController extends Controller
             'title' => '¡Tu turno quedó registrado!',
             'client' => $turn->client_name,
             'barber' => $barber->name,
-            'service' => $turn->service?->name,
+            'service' => $turn->service->name,
             'turn_number' => $turn->turn_number,
             'status' => $turn->status === 'llamado' ? '¡Es tu turno! Puedes pasar' : 'Esperando ser llamado',
             'payment' => $this->enabledPaymentMethods($settings)[$data['payment_method']] ?? $data['payment_method'],
@@ -414,18 +428,6 @@ class PublicBookingController extends Controller
         $moment = Carbon::parse($time);
 
         return $moment->format('g:i').' '.($moment->hour >= 12 ? 'p. m.' : 'a. m.');
-    }
-
-    private function isBusinessOpenNow(array $settings): bool
-    {
-        $now = now();
-        if (SiteSetting::isClosedOn($now, $settings)) {
-            return false;
-        }
-        $start = $settings['booking_start'] ?? '00:00';
-        $end = $settings['booking_end'] ?? '23:59';
-        $current = $now->format('H:i');
-        return $current >= $start && $current <= $end;
     }
 
     private function sendPaymentInfoIfVirtual(WhatsAppService $whatsApp, array $settings, string $phone, string $clientName, string $method, string $tipo): void

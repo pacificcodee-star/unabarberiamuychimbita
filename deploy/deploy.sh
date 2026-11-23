@@ -55,12 +55,18 @@ echo "Esperando a que el panel responda..."
 APP_HOST="$(grep '^APP_HOST=' .env | cut -d= -f2)"
 WA_HOST="$(grep '^WA_HOST=' .env | cut -d= -f2)"
 
+ready=false
 for _ in $(seq 1 60); do
-  if curl -fsSk "https://${APP_HOST}/login" >/dev/null 2>&1; then
+  if curl -fsS --max-time 5 "https://${APP_HOST}/up" >/dev/null 2>&1; then
+    ready=true
     break
   fi
   sleep 5
 done
+if [ "$ready" != true ]; then
+  echo "El sitio no respondió por HTTPS. Revisa el dominio, los puertos 80/443 y docker compose logs web." >&2
+  exit 1
+fi
 
 echo
 echo "Listo. URLs:"

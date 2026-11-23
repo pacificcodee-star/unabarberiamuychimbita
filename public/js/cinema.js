@@ -1,6 +1,6 @@
 /*
  * Scroll cinematográfico del sitio público.
- *  - Lenis suaviza el scroll (solo con mouse/trackpad) y se sincroniza con GSAP ScrollTrigger.
+ *  - Scroll nativo: Lenis añadía espera y estela artificiales; ScrollTrigger escucha el scroll nativo.
  *  - Portada: el fotograma se abre a pantalla completa mientras la sección queda fija (pin + scrub).
  *  - "La experiencia": video controlado por el scroll (currentTime ↔ progreso) o fotogramas si no hay video.
  *  - Espiral, frase y propósito del inicio: mismas animaciones de antes, ahora dirigidas por ScrollTrigger.
@@ -21,47 +21,20 @@
     root.classList.add('cx-ready');
 
     const clamp = (v, min = 0, max = 1) => Math.min(max, Math.max(min, v));
-    const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
     const mm = gsap.matchMedia();
     const DESKTOP = '(min-width: 992px)';
     const MOBILE = '(max-width: 991.98px)';
     const cleanups = [];
 
-    /* ---------- 1. Lenis + ScrollTrigger ---------- */
-    let lenis = null;
-    if (window.Lenis && finePointer) {
-        const headerH = () => parseFloat(getComputedStyle(root).getPropertyValue('--header-h')) || 80;
-        lenis = new window.Lenis({
-            lerp: 0.11,
-            wheelMultiplier: 1,
-            autoRaf: false, // el reloj lo lleva GSAP para que ambos avancen en el mismo fotograma
-            anchors: { offset: -headerH() },
-            // Zonas con scroll propio (avisos, mapa, ventanas modales, filtros): se dejan con scroll nativo.
-            prevent: (node) => !!node.closest?.('[data-lenis-prevent], .bell-panel, .modal, .ct-map, .svc-filters, .pwa-prompt, textarea, select'),
-        });
-        lenis.on('scroll', ScrollTrigger.update);
-        // Cada vez que GSAP recalcula la página (secciones fijadas, imágenes que cargan, cambio de tamaño) Lenis vuelve
-        // a medir el alto: si no, se queda con una altura vieja y el scroll se detiene antes del final de la página.
-        const syncLenis = () => lenis?.resize();
-        ScrollTrigger.addEventListener('refresh', syncLenis);
-        window.addEventListener('load', syncLenis, { once: true });
-        cleanups.push(() => ScrollTrigger.removeEventListener('refresh', syncLenis));
-        const raf = (time) => lenis.raf(time * 1000);
-        gsap.ticker.add(raf);
-        gsap.ticker.lagSmoothing(0);
-        cleanups.push(() => { gsap.ticker.remove(raf); lenis.destroy(); lenis = null; });
-
-        // Mientras hay pantalla de carga o el menú móvil está abierto, el scroll se detiene.
-        const syncLock = () => {
-            const locked = root.classList.contains('is-loading') || document.body.classList.contains('nav-locked');
-            if (locked) lenis?.stop(); else lenis?.start();
-        };
-        const lockObserver = new MutationObserver(syncLock);
-        lockObserver.observe(root, { attributes: true, attributeFilter: ['class'] });
-        lockObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-        cleanups.push(() => lockObserver.disconnect());
-        syncLock();
-    }
+    /* ---------- 1. Scroll nativo + ScrollTrigger ---------- */
+    // Se retiró Lenis: medido con rueda real, un solo gesto tardaba 44 ms en arrancar y seguía moviéndose
+    // hasta 861 ms después. Con scroll nativo responde en el mismo fotograma y se detiene al soltar.
+    // Los anclajes conservan su margen por la regla [id] { scroll-margin-top } de site.css.
+    let refreshFrame = 0;
+    const refreshScroll = () => {
+        if (refreshFrame) return;
+        refreshFrame = requestAnimationFrame(() => { refreshFrame = 0; ScrollTrigger.refresh(); });
+    };
 
     const whenLoaderDone = (callback) => {
         if (!root.classList.contains('is-loading')) { callback(); return; }
@@ -109,13 +82,13 @@
         spin: { z: -200, yPercent: 90, rotation: -38 },
         flip: { z: -160, rotateY: 95 },
     };
-    const depthHide = (chars, from = 'back') => gsap.set(chars, { ...DEPTH_FROM[from], autoAlpha: 0, filter: 'blur(8px)', transformOrigin: '50% 100%' });
+    const depthHide = (chars, from = 'back') => gsap.set(chars, { ...DEPTH_FROM[from], autoAlpha: 0, transformOrigin: '50% 100%' });
     const depthShow = (chars, options = {}) => gsap.to(chars, {
-        z: 0, xPercent: 0, yPercent: 0, rotateX: 0, rotateY: 0, rotation: 0, scale: 1, autoAlpha: 1, filter: 'blur(0px)',
+        z: 0, xPercent: 0, yPercent: 0, rotateX: 0, rotateY: 0, rotation: 0, scale: 1, autoAlpha: 1,
         duration: options.duration ?? 1.4, ease: 'expo.out', delay: options.delay ?? 0,
         stagger: { each: 0.065, from: options.order ?? 'start', amount: Math.min(2.2, chars.length * 0.065) },
         overwrite: true,
-        onComplete: () => gsap.set(chars, { clearProps: 'filter,transform,willChange' }),
+        onComplete: () => gsap.set(chars, { clearProps: 'transform,willChange' }),
     });
 
     // Titulares de sección: llegan desde el fondo cuando entran en pantalla (lados alternos para dar ritmo).
@@ -143,13 +116,13 @@
         measure();
         // Las letras van apareciendo una por una a medida que se baja (atado al scroll; al subir se esconden).
         // Cada renglón empieza cuando el anterior va por la mitad.
-        gsap.set(chars, { yPercent: 90, rotateX: -80, autoAlpha: 0, filter: 'blur(6px)', transformOrigin: '50% 100%' });
+        gsap.set(chars, { yPercent: 90, rotateX: -80, autoAlpha: 0, transformOrigin: '50% 100%' });
         const redColor = last ? getComputedStyle(last).color : null;
         const baseColor = getComputedStyle(filmTitle).color;
         const reveal = gsap.timeline({
             defaults: { ease: 'power2.out' },
             scrollTrigger: {
-                trigger: filmTitle, start: 'top 92%', end: 'top 28%', scrub: 0.6, invalidateOnRefresh: true,
+                trigger: filmTitle, start: 'top 92%', end: 'top 28%', scrub: 0.3, invalidateOnRefresh: true,
                 pinnedContainer: filmTitle.closest('[data-cx-film-stage]') || undefined,
                 onRefresh: measure,
                 onUpdate: (self) => filmTitle.classList.toggle('is-live', self.progress > 0.98),
@@ -157,7 +130,7 @@
         });
         chars.forEach((c, i) => {
             const line = lineOf.get(c) || 0;
-            reveal.to(c, { yPercent: 0, rotateX: 0, autoAlpha: 1, filter: 'blur(0px)', duration: 0.5 }, line * 0.6 + i * 0.07);
+            reveal.to(c, { yPercent: 0, rotateX: 0, autoAlpha: 1, duration: 0.5 }, line * 0.6 + i * 0.07);
         });
         if (last && redColor) {
             gsap.set(last, { color: baseColor });
@@ -177,8 +150,8 @@
         el.setAttribute('data-cx-chars', ''); // motion.js no lo vuelve a partir
         const chars = splitDeep(el);
         if (!chars.length) return;
-        gsap.set(chars, { yPercent: 100, rotateX: -75, autoAlpha: 0, filter: 'blur(6px)', transformOrigin: '50% 100%' });
-        const show = { yPercent: 0, rotateX: 0, autoAlpha: 1, filter: 'blur(0px)', ease: 'power3.out' };
+        gsap.set(chars, { yPercent: 100, rotateX: -75, autoAlpha: 0, transformOrigin: '50% 100%' });
+        const show = { yPercent: 0, rotateX: 0, autoAlpha: 1, ease: 'power3.out' };
         const top = el.getBoundingClientRect().top;
         if (top < window.innerHeight * 0.82) {
             whenLoaderDone(() => {
@@ -189,17 +162,19 @@
             });
             return;
         }
-        const tl = gsap.timeline({ scrollTrigger: { trigger: el, start, end, scrub: 0.9, refreshPriority: -1 } });
+        const tl = gsap.timeline({ scrollTrigger: { trigger: el, start, end, scrub: 0.35, refreshPriority: -1 } });
         chars.forEach((c, i) => tl.to(c, { ...show, duration: 0.6 }, i * 0.12));
     };
-    gsap.utils.toArray('main .purpose-title, main .purpose-label h3, main .cx-outro-title, main .page-hero h1, main .ct-title, main .section-title, main .cta-band h2, main .ct-subtitle, main .rv-title, main .cx-proof-title, main .svc-head h1').forEach((el) => lettersOnScroll(el));
+    gsap.utils.toArray('main .purpose-title, main .purpose-label h3, main .cx-outro-title, main .page-hero h1, main .ct-title, main .section-title, main .cta-band h2, main .ct-subtitle, main .rv-title, main .cx-proof-title, main .svc-head h1')
+        .filter((el) => !el.closest('.booking-page, .contact-page')) // Reservas y Contacto: títulos quietos, sin animación de letras.
+        .forEach((el) => lettersOnScroll(el));
 
     // Textos largos: palabra por palabra con el scroll ("Nuestra esencia", Misión y Visión).
     const wordsOnScroll = (el, words, { start = 'top 88%', end = 'center 52%' } = {}) => {
         if (!words.length) return;
-        gsap.set(words, { yPercent: 70, autoAlpha: 0, filter: 'blur(4px)' });
-        const tl = gsap.timeline({ scrollTrigger: { trigger: el, start, end, scrub: 0.9, refreshPriority: -1 } });
-        words.forEach((w, i) => tl.to(w, { yPercent: 0, autoAlpha: 1, filter: 'blur(0px)', duration: 0.6, ease: 'power2.out' }, i * 0.18));
+        gsap.set(words, { yPercent: 70, autoAlpha: 0 });
+        const tl = gsap.timeline({ scrollTrigger: { trigger: el, start, end, scrub: 0.35, refreshPriority: -1 } });
+        words.forEach((w, i) => tl.to(w, { yPercent: 0, autoAlpha: 1, duration: 0.6, ease: 'power2.out' }, i * 0.18));
     };
     const quoteText = document.querySelector('.home-quote-text p');
     if (quoteText) wordsOnScroll(quoteText, [...quoteText.querySelectorAll('.qw')]);
@@ -296,7 +271,7 @@
         const stepWords = []; // la frase gigante sobre la foto se quitó a pedido del cliente
         const showStepWord = (index, previous) => {
             if (previous >= 0 && stepWords[previous]) {
-                gsap.to(stepWords[previous], { z: 260, yPercent: -40, autoAlpha: 0, filter: 'blur(10px)', duration: 0.45, ease: 'power2.in', stagger: 0.012, overwrite: true });
+                gsap.to(stepWords[previous], { z: 260, yPercent: -40, autoAlpha: 0, duration: 0.45, ease: 'power2.in', stagger: 0.012, overwrite: true });
             }
             if (!stepWords[index]) return;
             depthHide(stepWords[index], index > previous ? 'back' : 'below');
@@ -438,7 +413,6 @@
                 card.style.transform = `translate(-50%, -50%) translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, ${z.toFixed(1)}px) rotateY(${(Math.sin(angle) * 28).toFixed(2)}deg) rotateZ(${(-u * 6).toFixed(2)}deg)`;
                 card.style.opacity = clamp(1.35 - Math.abs(u)).toFixed(3);
                 card.style.zIndex = z > 0 ? 3 : 1;
-                card.style.filter = z < 0 ? `brightness(${(0.55 + 0.45 * (1 + z / radius)).toFixed(2)})` : 'none';
             });
         };
         ScrollTrigger.create({
@@ -528,17 +502,17 @@
                 lead.innerHTML = text.split(/\s+/).map((w) => `<span class="wg-lead-w" aria-hidden="true">${w.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))}</span>`).join(' ');
                 words = [...lead.querySelectorAll('.wg-lead-w')];
             }
-            gsap.set(chars, { yPercent: 120, rotateX: -95, z: -160, autoAlpha: 0, filter: 'blur(8px)', transformOrigin: '50% 100%' });
+            gsap.set(chars, { yPercent: 120, rotateX: -95, z: -160, autoAlpha: 0, transformOrigin: '50% 100%' });
             if (words.length) gsap.set(words, { y: 22, autoAlpha: 0 });
             if (kicker) gsap.set(kicker, { autoAlpha: 0, x: -24 });
             const intro = gsap.timeline({
                 scrollTrigger: {
-                    trigger: el, start: 'top 88%', end: 'top 22%', scrub: 0.6, refreshPriority: -1,
+                    trigger: el, start: 'top 88%', end: 'top 22%', scrub: 0.3, refreshPriority: -1,
                     onUpdate: (self) => title.classList.toggle('is-live', self.progress > 0.98),
                 },
             })
                 .to(kicker || {}, { autoAlpha: 1, x: 0, duration: 0.7, ease: 'power3.out' }, 0)
-                .to(chars, { yPercent: 0, rotateX: 0, z: 0, autoAlpha: 1, filter: 'blur(0px)', duration: 0.9, ease: 'power3.out', stagger: { each: 0.11, from: 'start' } }, 0.45)
+                .to(chars, { yPercent: 0, rotateX: 0, z: 0, autoAlpha: 1, duration: 0.9, ease: 'power3.out', stagger: { each: 0.11, from: 'start' } }, 0.45)
                 .to(words, { y: 0, autoAlpha: 1, duration: 0.6, ease: 'power3.out', stagger: 0.12 }, '>-0.2');
             const reveal = intro.scrollTrigger;
             // La palabra gigante del fondo se desliza en sentido contrario mientras pasa la sección (capa de fondo).
@@ -559,8 +533,9 @@
         const depth = () => {
             const half = window.innerWidth / 2;
             const range = window.innerWidth * 0.62;
-            items.forEach((item) => {
-                const rect = item.getBoundingClientRect();
+            const rects = items.map((item) => item.getBoundingClientRect());
+            items.forEach((item, i) => {
+                const rect = rects[i];
                 const p = clamp((rect.left + rect.width / 2 - half) / range, -1, 1);
                 item.style.setProperty('--p', p.toFixed(3));
                 item.style.setProperty('--a', Math.abs(p).toFixed(3));
@@ -606,7 +581,7 @@
             if (el.hidden && galleries.has(el)) { galleries.get(el)(); galleries.delete(el); }
             if (!el.hidden && !galleries.has(el)) galleries.set(el, mountGallery(el));
         });
-        ScrollTrigger.refresh();
+        refreshScroll();
     };
     syncGalleries();
     // La página de barberos avisa cuando cambia el barbero en pantalla (se muestra otra galería).
@@ -625,13 +600,18 @@
         if (frame) {
             gsap.fromTo(frame,
                 { clipPath: 'inset(16% 20% 16% 20% round 36px)', scale: 1.18 },
-                { clipPath: 'inset(0% 0% 0% 0% round 0px)', scale: 1, ease: 'none', scrollTrigger: { trigger: scene, start: 'top 85%', end: 'top 5%', scrub: 0.6 } });
+                { clipPath: 'inset(0% 0% 0% 0% round 0px)', scale: 1, ease: 'none', scrollTrigger: { trigger: scene, start: 'top 85%', end: 'top 5%', scrub: 0.3 } });
             // El halo oscuro detrás del texto aparece a la par de la foto (antes se vería como una mancha sobre el azul).
-            gsap.fromTo(scene, { '--open': 0 }, { '--open': 1, ease: 'none', scrollTrigger: { trigger: scene, start: 'top 60%', end: 'top 5%', scrub: 0.6 } });
+            gsap.fromTo(scene, { '--open': 0 }, { '--open': 1, ease: 'none', scrollTrigger: { trigger: scene, start: 'top 60%', end: 'top 5%', scrub: 0.3 } });
         }
         layers.forEach((layer, i) => {
             const depth = [70, 110, 90, 130][i % 4];
             gsap.fromTo(layer, { y: depth }, { y: -depth * 0.6, ease: 'none', scrollTrigger: { trigger: layer, start: 'top bottom', end: 'bottom top', scrub: true } });
+        });
+        // will-change solo mientras la escena está en juego (una capa fija a pantalla completa todo el rato consume memoria).
+        ScrollTrigger.create({
+            trigger: scene, start: 'top bottom', end: 'bottom top',
+            onToggle: (self) => scene.classList.toggle('is-near', self.isActive),
         });
     }
 
@@ -647,10 +627,10 @@
 
     /* ---------- 8. Mantenimiento ---------- */
     // Al cerrarse la pantalla de carga vuelve la barra de scroll y cambia el ancho útil: se recalculan las secciones fijadas.
-    whenLoaderDone(() => requestAnimationFrame(() => ScrollTrigger.refresh()));
+    whenLoaderDone(() => refreshScroll());
     // Las medidas cambian cuando terminan de cargar fuentes e imágenes.
-    document.fonts?.ready.then(() => ScrollTrigger.refresh());
-    window.addEventListener('load', () => ScrollTrigger.refresh(), { once: true });
+    document.fonts?.ready.then(() => refreshScroll());
+    window.addEventListener('load', () => refreshScroll(), { once: true });
     // Limpieza al salir (no en bfcache: la página puede volver tal cual con el botón "atrás").
     window.addEventListener('pagehide', (event) => {
         if (event.persisted) return;
@@ -659,5 +639,5 @@
         cleanups.forEach((fn) => fn());
     });
 
-    window.Cinema = { get lenis() { return lenis; }, refresh: () => ScrollTrigger.refresh() };
+    window.Cinema = { refresh: () => ScrollTrigger.refresh() };
 })();

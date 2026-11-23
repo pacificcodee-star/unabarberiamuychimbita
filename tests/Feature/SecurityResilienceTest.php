@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Appointment;
+use App\Models\Service;
 use App\Models\Turn;
 use App\Models\User;
 use App\Services\TurnService;
@@ -34,10 +35,21 @@ class SecurityResilienceTest extends TestCase
         return User::factory()->create(['role' => 'admin', 'active' => true]);
     }
 
+    private function service(): Service
+    {
+        return Service::create([
+            'name' => 'Corte clásico',
+            'price' => 18000,
+            'duration_minutes' => 30,
+            'active' => true,
+        ]);
+    }
+
     private function bookingPayload(User $barber, array $extra = []): array
     {
         return $extra + [
             'barber_id' => $barber->id,
+            'service_id' => $this->service()->id,
             'client_name' => 'Cliente Prueba',
             'client_phone' => '300 123 4567',
             'payment_method' => 'efectivo',

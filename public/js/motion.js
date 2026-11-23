@@ -14,7 +14,7 @@
     root.classList.add('motion-ready');
 
     /* ---------- 1. Títulos palabra por palabra ---------- */
-    const SKIP = '[data-xh], [data-xq], [data-cx-chars], [data-bx], .svc-slide, .home-quote, .barber-chapter-word, .xq-card, .nav-links, .ct-map';
+    const SKIP = '.booking-page .page-hero, .contact-page, [data-xh], [data-xq], [data-cx-chars], [data-bx], .svc-slide, .home-quote, .barber-chapter-word, .xq-card, .nav-links, .ct-map';
     const splitTargets = [...document.querySelectorAll('main h1, main h2, main .section-kicker, main [data-split]')]
         .filter((el) => !el.closest(SKIP) && !el.querySelector('.word, .xh-line, .qw, .sw') && el.textContent.trim().length > 0 && el.children.length <= 2);
     splitTargets.forEach((el) => {
@@ -34,7 +34,7 @@
 
     /* ---------- 2. Revelado de imágenes ---------- */
     const imgTargets = [...document.querySelectorAll('main img, main video')]
-        .filter((el) => !el.closest('[data-xh], [data-xq], [data-cx], .svc-carousel, .barber-story, .ct-map, .alpha-video, .whatsapp-float, .payment-logo') && el.offsetWidth > 120);
+        .filter((el) => !el.closest('[data-xh], [data-xq], [data-cx], [data-cx-scene], .svc-carousel, .barber-story, .ct-map, .alpha-video, .whatsapp-float, .payment-logo, .booking-page .page-hero') && el.offsetWidth > 120);
     imgTargets.forEach((el) => (el.parentElement.classList.contains('img-reveal') ? null : el.parentElement.classList.add('img-reveal')));
 
     /* ---------- Observador común ---------- */
@@ -59,6 +59,7 @@
     // y ya no se cambia ninguna variable en <html> (obligaba al navegador a recalcular TODA la página).
     let mx = 0, my = 0, tx = 0, ty = 0, ticking = false, maxScroll = 1, heroVisible = true;
     const hero = document.querySelector('[data-xh]');
+    const heroImg = hero?.querySelector('.cx-hero-img');
     const measure = () => { maxScroll = Math.max(1, document.documentElement.scrollHeight - innerHeight); };
     measure();
     if ('ResizeObserver' in window) new ResizeObserver(measure).observe(document.body);
@@ -71,8 +72,8 @@
         if (!hero || !heroVisible) return;
         tx += (mx - tx) * 0.08;
         ty += (my - ty) * 0.08;
-        hero.style.setProperty('--mx', tx.toFixed(3));
-        hero.style.setProperty('--my', ty.toFixed(3));
+        // Se mueve solo la foto: antes se cambiaban variables en la portada entera y el navegador recalculaba su árbol.
+        if (heroImg) heroImg.style.translate = `${(tx * -16).toFixed(1)}px ${(ty * -10).toFixed(1)}px`;
         if (Math.abs(mx - tx) > 0.002 || Math.abs(my - ty) > 0.002) request();
     };
     const request = () => { if (!ticking) { ticking = true; requestAnimationFrame(frame); } };

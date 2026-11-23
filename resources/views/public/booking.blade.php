@@ -16,12 +16,25 @@
         $fieldError = fn (string $form, string $field) => old('_form') === $form ? ($errors->first($field) ?: null) : null;
         $closedOn = fn ($day) => \App\Models\SiteSetting::isClosedOn($day, $siteSettings);
         $selectedDate = old('_form') === 'cita' ? old('appointment_date', now()->toDateString()) : now()->toDateString();
+        // Calendario: hoy cuenta como día 1 y el último día reservable es hoy + 29 (30 días calendario).
+        $calMax = now()->addDays(29)->toDateString();
+        $calClosed = collect(range(0, 29))
+            ->map(fn ($offset) => now()->addDays($offset))
+            ->filter($closedOn)
+            ->map(fn ($day) => $day->toDateString())
+            ->values();
     @endphp
 
+    {{-- Contenedor de la página de reservas: fondo crema #EFE8DC (ver cinema.css, sección "Página de reservas"). --}}
+    <div class="booking-page">
     @include('public.partials.page-hero', [
         'crumb' => 'Reservar',
+        'ghost' => false,
         'title' => $siteSettings['booking_hero_title'],
         'description' => $siteSettings['booking_hero_description'],
+        'image' => asset('images/reserva-herramientas.webp'),
+        'image_fallback' => asset('images/reserva-herramientas.jpg'),
+        'image_alt' => 'Herramientas de barbería: tijeras, peine, brocha de afeitar, máquina y navaja sobre una repisa de mármol.',
     ])
 
     <section class="section">
@@ -52,7 +65,7 @@
                         </div>
                         <div>
                             <dt>Servicio</dt>
-                            <dd>{{ $success['service'] ?: 'Por definir' }}</dd>
+                            <dd>{{ $success['service'] }}</dd>
                         </div>
                         @if($success['type'] === 'cita')
                             <div>
@@ -160,42 +173,40 @@
                                                 @if($fieldError('cita', 'barber_id'))<div class="invalid-feedback" id="appointmentBarberError"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>{{ $fieldError('cita', 'barber_id') }}</div>@endif
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label" for="appointmentService">Servicio <span class="optional">(opcional)</span></label>
-                                                <select name="service_id" id="appointmentService" class="form-select {{ $fieldError('cita', 'service_id') ? 'is-invalid' : '' }}">
-                                                    <option value="">Por definir con el barbero</option>
+                                                <label class="form-label" for="appointmentService">Servicio <span class="req" aria-hidden="true">*</span></label>
+                                                <select name="service_id" id="appointmentService" class="form-select {{ $fieldError('cita', 'service_id') ? 'is-invalid' : '' }}" required @if($fieldError('cita', 'service_id')) aria-invalid="true" aria-describedby="appointmentServiceError" @endif>
+                                                    <option value="">Selecciona un servicio</option>
                                                     @foreach($services as $service)
                                                         <option value="{{ $service->id }}" @selected($citaService == $service->id)>{{ $service->name }} · {{ format_money($service->price) }}</option>
                                                     @endforeach
                                                 </select>
-                                                @if($fieldError('cita', 'service_id'))<div class="invalid-feedback"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>{{ $fieldError('cita', 'service_id') }}</div>@endif
+                                                @if($fieldError('cita', 'service_id'))<div class="invalid-feedback" id="appointmentServiceError"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>{{ $fieldError('cita', 'service_id') }}</div>@endif
                                             </div>
                                         </div>
                                     </fieldset>
 
                                     <fieldset class="booking-step">
-                                        <legend class="booking-step-title"><span>2</span> Fecha y hora</legend>
-                                        <div class="chip-row" role="group" aria-label="Próximos días">
-                                            @for($offset = 0; $offset < 7; $offset++)
-                                                @php
-                                                    $day = now()->addDays($offset);
-                                                    $isClosed = $closedOn($day);
-                                                @endphp
-                                                <button type="button" class="date-chip {{ $day->toDateString() === $selectedDate ? 'is-selected' : '' }}" data-date="{{ $day->toDateString() }}" aria-label="{{ \Illuminate\Support\Str::ucfirst($day->locale('es')->translatedFormat('l j \d\e F')) }}{{ $isClosed ? ' (cerrado)' : '' }}" aria-pressed="{{ $day->toDateString() === $selectedDate ? 'true' : 'false' }}" @disabled($isClosed)>
-                                                    <small>{{ $offset === 0 ? 'Hoy' : rtrim($day->locale('es')->translatedFormat('D'), '.') }}</small>
-                                                    <strong>{{ $day->format('j') }}</strong>
-                                                </button>
-                                            @endfor
-                                        </div>
-                                        <div class="row g-3">
-                                            <div class="col-md-6">
-                                                <label class="form-label" for="appointmentDate">Fecha <span class="req" aria-hidden="true">*</span></label>
-                                                <input type="date" name="appointment_date" id="appointmentDate" value="{{ $selectedDate }}" min="{{ now()->toDateString() }}" class="form-control {{ $fieldError('cita', 'appointment_date') ? 'is-invalid' : '' }}" required>
-                                                @if($fieldError('cita', 'appointment_date'))<div class="invalid-feedback"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>{{ $fieldError('cita', 'appointment_date') }}</div>@endif
+                                        <legend class="booking-step-title"><span>2</span> Fecha</legend>
+                                        <div class="cal-picker" data-calendar data-closed="{{ $calClosed->toJson() }}">
+                                            <div class="cal-card">
+                                                <div class="cal-head">
+                                                    <button type="button" class="cal-nav" data-cal-prev aria-label="Mes anterior"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+                                                    <p class="cal-title" data-cal-title>{{ \Illuminate\Support\Str::ucfirst(\Illuminate\Support\Carbon::parse($selectedDate)->locale('es')->translatedFormat('F \d\e Y')) }}</p>
+                                                    <button type="button" class="cal-nav" data-cal-next aria-label="Mes siguiente"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+                                                </div>
+                                                <div class="cal-week" aria-hidden="true">
+                                                    <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+                                                </div>
+                                                <div class="cal-grid" data-cal-grid></div>
+                                                <button type="button" class="cal-apply" data-cal-apply disabled>Aplicar</button>
                                             </div>
+                                            <label class="visually-hidden" for="appointmentDate">Fecha</label>
+                                            <input type="hidden" name="appointment_date" id="appointmentDate" value="{{ $selectedDate }}" min="{{ now()->toDateString() }}" max="{{ $calMax }}" class="{{ $fieldError('cita', 'appointment_date') ? 'is-invalid' : '' }}" required>
+                                            @if($fieldError('cita', 'appointment_date'))<div class="invalid-feedback d-block"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>{{ $fieldError('cita', 'appointment_date') }}</div>@endif
                                         </div>
                                         <div class="mt-4">
                                             <span class="form-label d-block" id="appointmentTimeLabel">Hora disponible <span class="req" aria-hidden="true">*</span></span>
-                                            <div id="appointmentTimes" class="slot-grid" role="radiogroup" aria-labelledby="appointmentTimeLabel" aria-describedby="appointmentTimeHelp" data-selected="{{ old('_form') === 'cita' ? old('appointment_time') : '' }}" aria-live="polite"></div>
+                                            <div id="appointmentTimes" class="slot-grid slot-card" role="radiogroup" aria-labelledby="appointmentTimeLabel" aria-describedby="appointmentTimeHelp" data-selected="{{ old('_form') === 'cita' ? old('appointment_time') : '' }}" aria-live="polite"></div>
                                             <div class="form-text" id="appointmentTimeHelp">Selecciona primero el barbero y la fecha.</div>
                                             @if($fieldError('cita', 'appointment_time'))<div class="invalid-feedback"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>{{ $fieldError('cita', 'appointment_time') }}</div>@endif
                                         </div>
@@ -247,11 +258,11 @@
 
                                     <div class="booking-note mt-4">
                                         <i class="bi bi-info-circle" aria-hidden="true"></i>
-                                        <span>Tu cita quedará pendiente hasta que el equipo la confirme por teléfono.</span>
+                                        <span>Tu cita quedará pendiente de confirmación.<br>Al enviar tu solicitud, podrás consultar los detalles de tu reserva en la sección «Mis servicios», donde deberás confirmar tu cita para completar el proceso.</span>
                                     </div>
 
-                                    <button type="submit" class="btn btn-gold btn-lg w-100 mt-4" data-submit-label="Confirmar cita">
-                                        <i class="bi bi-calendar2-check" aria-hidden="true"></i> Confirmar cita
+                                    <button type="submit" class="btn btn-gold btn-lg w-100 mt-4 btn-submit-blue" data-submit-label="Enviar solicitud">
+                                        <i class="bi bi-calendar2-check" aria-hidden="true"></i> Enviar solicitud
                                     </button>
                                     <p class="form-legal-note text-center">Al confirmar aceptas el tratamiento de tus datos según la <a href="{{ route('legal.privacy') }}">política de privacidad</a>.</p>
                                     <p class="form-text text-center mt-2 mb-0" data-push-hint hidden><i class="bi bi-bell" aria-hidden="true"></i> Al enviar, tu navegador te preguntará si permites los avisos. Elige <strong>Permitir</strong> para que te avisemos al celular.</p>
@@ -263,11 +274,20 @@
                         <div class="tab-pane fade {{ $currentTab === 'turno' ? 'show active' : '' }}" id="turno-pane" role="tabpanel" aria-labelledby="turno-tab" tabindex="0">
                             <p class="booking-intro">Para barberos que atienden por orden de llegada. Toma tu turno virtual y espera a que te llamen.</p>
 
+                            @if($businessOpenNow)
+                                <p class="booking-intro small" id="turnDeadlineNote" data-turn-note><i class="bi bi-clock" aria-hidden="true"></i> {{ $turnState['message'] }}</p>
+                            @endif
+
+                            <div class="alert alert-warning mb-4" id="turnClosedAlert" role="alert" hidden>
+                                <i class="bi bi-clock-history me-1" aria-hidden="true"></i>
+                                <strong data-turn-closed-text>{{ $turnState['cutoff_message'] }}</strong>
+                                <div class="small mt-1">Puedes agendar una <strong>cita</strong> en un horario disponible.</div>
+                            </div>
+
                             @if(empty($businessOpenNow))
                                 <div class="alert alert-warning mb-4" role="alert">
                                     <i class="bi bi-clock-history me-1" aria-hidden="true"></i>
-                                    <strong>En este momento el negocio no está abierto para tomar turnos.</strong>
-                                    <div class="small mt-1">Puedes agendar una <strong>cita</strong> en un horario disponible.</div>
+                                    <strong>{{ $turnState['message'] }}</strong>
                                 </div>
                             @endif
 
@@ -282,11 +302,13 @@
                                 <div class="empty-state">
                                     <i class="bi bi-door-closed" aria-hidden="true"></i>
                                     <h3>Turnos no disponibles ahora</h3>
-                                    <p>Los turnos por llegada solo se pueden tomar cuando el negocio está abierto. Aún puedes reservar una cita.</p>
+                                    <p>{{ $turnState['message'] }}</p>
                                     <button type="button" class="btn btn-ghost-light mt-2" data-switch-tab="#cita-tab">Reservar cita</button>
                                 </div>
                             @else
-                                <form method="POST" action="{{ route('public.booking.turn') }}" data-booking-form="turno" novalidate>
+                                <form method="POST" action="{{ route('public.booking.turn') }}" data-booking-form="turno" novalidate
+                                      data-turn-deadline="{{ $turnState['deadline']?->toIso8601String() }}"
+                                      data-turn-closed-message="{{ $turnState['cutoff_message'] }}">
                                     @csrf
                                     <input type="hidden" name="_form" value="turno">
                                     <input type="hidden" name="idempotency_key" value="{{ (string) \Illuminate\Support\Str::uuid() }}" data-idempotency-key>
@@ -306,13 +328,14 @@
                                                 @if($fieldError('turno', 'barber_id'))<div class="invalid-feedback"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>{{ $fieldError('turno', 'barber_id') }}</div>@endif
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label" for="turnService">Servicio <span class="optional">(opcional)</span></label>
-                                                <select name="service_id" id="turnService" class="form-select">
-                                                    <option value="">Por definir con el barbero</option>
+                                                <label class="form-label" for="turnService">Servicio <span class="req" aria-hidden="true">*</span></label>
+                                                <select name="service_id" id="turnService" class="form-select {{ $fieldError('turno', 'service_id') ? 'is-invalid' : '' }}" required @if($fieldError('turno', 'service_id')) aria-invalid="true" aria-describedby="turnServiceError" @endif>
+                                                    <option value="">Selecciona un servicio</option>
                                                     @foreach($services as $service)
                                                         <option value="{{ $service->id }}" @selected($turnoService == $service->id)>{{ $service->name }} · {{ format_money($service->price) }}</option>
                                                     @endforeach
                                                 </select>
+                                                @if($fieldError('turno', 'service_id'))<div class="invalid-feedback" id="turnServiceError"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>{{ $fieldError('turno', 'service_id') }}</div>@endif
                                             </div>
                                         </div>
                                     </fieldset>
@@ -382,7 +405,7 @@
                         <ul class="booking-summary" data-booking-summary>
                             <li><span>Tipo</span><strong data-summary="type">{{ $currentTab === 'turno' ? 'Turno por llegada' : 'Cita' }}</strong></li>
                             <li><span>Barbero</span><strong data-summary="barber" class="is-empty">Sin elegir</strong></li>
-                            <li><span>Servicio</span><strong data-summary="service" class="is-empty">Por definir</strong></li>
+                            <li><span>Servicio</span><strong data-summary="service" class="is-empty">Sin elegir</strong></li>
                             <li data-summary-row="date"><span>Fecha</span><strong data-summary="date" class="is-empty">Sin elegir</strong></li>
                             <li data-summary-row="time"><span>Hora</span><strong data-summary="time" class="is-empty">Sin elegir</strong></li>
                         </ul>
@@ -395,7 +418,7 @@
                             <li><i class="bi bi-clock" aria-hidden="true"></i><div><strong>Horario</strong><p>@foreach(\App\Models\SiteSetting::groupedHours($siteSettings) as $group){{ $group['label'] }} {{ $group['value'] }}@unless($loop->last) · @endunless @endforeach</p></div></li>
                         </ul>
                         @if(!empty($siteSettings['whatsapp']))
-                            <a href="https://wa.me/{{ $siteSettings['whatsapp'] }}" target="_blank" rel="noopener" class="btn btn-ghost-light w-100 mt-4">
+                            <a href="https://wa.me/{{ $siteSettings['whatsapp'] }}" target="_blank" rel="noopener" class="btn-whatsapp-green btn btn-ghost-light w-100 mt-4">
                                 <i class="bi bi-whatsapp" aria-hidden="true"></i> ¿Dudas? Escríbenos
                             </a>
                         @endif
@@ -404,6 +427,7 @@
             </div>
         </div>
     </section>
+    </div>
 @endsection
 
 @push('scripts')
@@ -418,6 +442,27 @@
         const success = document.getElementById('bookingSuccess');
         if (success) success.focus({ preventScroll: false });
 
+        // Los turnos dejan de aceptarse al llegar al límite (30 min antes del cierre), sin esperar recarga.
+        const turnForm = document.querySelector('[data-booking-form="turno"]');
+        const closeTurnRequests = () => {
+            if (!turnForm) return;
+            turnForm.hidden = true;
+            const note = document.querySelector('[data-turn-note]');
+            if (note) note.hidden = true;
+            const text = document.querySelector('[data-turn-closed-text]');
+            if (text && turnForm.dataset.turnClosedMessage) text.textContent = turnForm.dataset.turnClosedMessage;
+            const alertBox = document.getElementById('turnClosedAlert');
+            if (alertBox) alertBox.hidden = false;
+        };
+        if (turnForm?.dataset.turnDeadline) {
+            const remaining = Date.parse(turnForm.dataset.turnDeadline) - Date.now();
+            if (remaining <= 0) {
+                closeTurnRequests();
+            } else if (remaining < 86400000) {
+                setTimeout(closeTurnRequests, remaining);
+            }
+        }
+
         // Cambiar de pestaña desde los estados vacíos.
         document.querySelectorAll('[data-switch-tab]').forEach((button) => {
             button.addEventListener('click', () => document.querySelector(button.dataset.switchTab)?.click());
@@ -426,6 +471,11 @@
         // Validación accesible en el navegador + estado de envío (evita reservas duplicadas).
         document.querySelectorAll('[data-booking-form]').forEach((form) => {
             form.addEventListener('submit', (event) => {
+                if (form.dataset.turnDeadline && Date.now() > Date.parse(form.dataset.turnDeadline)) {
+                    event.preventDefault();
+                    closeTurnRequests();
+                    return;
+                }
                 if (!form.checkValidity()) {
                     event.preventDefault();
                     const firstInvalid = form.querySelector(':invalid');
@@ -472,7 +522,7 @@
             const form = document.querySelector(`[data-booking-form="${isTurn ? 'turno' : 'cita'}"]`);
             setSummary('type', isTurn ? 'Turno por llegada' : 'Cita', '');
             setSummary('barber', optionText(form?.querySelector('[name="barber_id"]')), 'Sin elegir');
-            setSummary('service', optionText(form?.querySelector('[name="service_id"]')), 'Por definir');
+            setSummary('service', optionText(form?.querySelector('[name="service_id"]')), 'Sin elegir');
             summary.querySelector('[data-summary-row="date"]').hidden = isTurn;
             summary.querySelector('[data-summary-row="time"]').hidden = isTurn;
             if (!isTurn && form) {
@@ -511,7 +561,6 @@
         const date = document.getElementById('appointmentDate');
         const slots = document.getElementById('appointmentTimes');
         const help = document.getElementById('appointmentTimeHelp');
-        const chips = [...document.querySelectorAll('.date-chip')];
         if (!form || !barber || !date || !slots) { updateSummary(); return; }
 
         const to12h = (value) => {
@@ -535,21 +584,21 @@
             }
             slots.replaceChildren(box);
         };
-        const syncChips = () => chips.forEach((chip) => {
-            const selected = chip.dataset.date === date.value;
-            chip.classList.toggle('is-selected', selected);
-            chip.setAttribute('aria-pressed', selected ? 'true' : 'false');
-        });
 
         let requestId = 0;
         async function loadTimes(quiet = false) {
             quiet = quiet === true;
-            syncChips();
             help.classList.remove('text-danger');
             const current = ++requestId;
             if (!barber.value || !date.value) {
                 status('bi-info-circle', 'Selecciona un barbero y una fecha para ver las horas disponibles.');
-                help.textContent = 'Los horarios ocupados no aparecen.';
+                help.textContent = 'Aquí se muestran únicamente los horarios que aún están libres. Los horarios que ya han sido reservados por otros clientes se ocultan automáticamente para evitar reservas duplicadas.';
+                updateSummary();
+                return;
+            }
+            if (date.max && date.value > date.max) {
+                status('bi-calendar-x', 'Solo puedes agendar hasta 30 días calendario desde hoy. Elige una fecha más cercana.');
+                help.textContent = '';
                 updateSummary();
                 return;
             }
@@ -591,7 +640,7 @@
                         return wrap;
                     });
                     slots.replaceChildren(...items);
-                    help.textContent = `${result.times.length} ${result.times.length === 1 ? 'hora disponible' : 'horas disponibles'}. Las ocupadas no aparecen.`;
+                    help.textContent = 'Aquí se muestran únicamente los horarios que aún están libres. Los horarios que ya han sido reservados por otros clientes se ocultan automáticamente para evitar reservas duplicadas.';
                 }
                 slots.dataset.selected = '';
             } catch (error) {
@@ -610,10 +659,6 @@
             }
         }
 
-        chips.forEach((chip) => chip.addEventListener('click', () => {
-            date.value = chip.dataset.date;
-            date.dispatchEvent(new Event('change', { bubbles: true }));
-        }));
         barber.addEventListener('change', loadTimes);
         date.addEventListener('change', loadTimes);
         // Para volver a consultar la agenda cuando el servidor dice que la hora ya la tomó otra persona.
@@ -626,6 +671,126 @@
         window.reloadBookingSlots = loadTimes;
         document.addEventListener('booking:draft-restored', loadTimes);
         loadTimes();
+    })();
+
+    // Calendario de fecha propio: solo deja elegir 30 días calendario desde hoy.
+    (() => {
+        const box = document.querySelector('[data-calendar]');
+        if (!box) return;
+        const input = box.querySelector('#appointmentDate');
+        const grid = box.querySelector('[data-cal-grid]');
+        const title = box.querySelector('[data-cal-title]');
+        const apply = box.querySelector('[data-cal-apply]');
+        const prev = box.querySelector('[data-cal-prev]');
+        const next = box.querySelector('[data-cal-next]');
+        if (!input || !grid || !title || !apply || !prev || !next) return;
+
+        const pad = (n) => String(n).padStart(2, '0');
+        const toKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+        const fromKey = (value) => new Date(`${value}T00:00:00`);
+        const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+        const closed = new Set(JSON.parse(box.dataset.closed || '[]'));
+        const minDate = fromKey(input.min);
+        const maxDate = fromKey(input.max);
+        const todayKey = toKey(new Date());
+        const monthLabel = (date) => capitalize(date.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }));
+        const dayLabel = (date) => capitalize(date.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' }));
+        const canPick = (date) => date >= minDate && date <= maxDate && !closed.has(toKey(date));
+
+        // Si hoy está cerrado (p. ej. domingo), se propone el primer día disponible.
+        let initial = input.value && input.value >= input.min && input.value <= input.max ? input.value : todayKey;
+        if (!canPick(fromKey(initial))) {
+            for (const day = new Date(minDate); day <= maxDate; day.setDate(day.getDate() + 1)) {
+                if (canPick(day)) { initial = toKey(day); break; }
+            }
+        }
+        const initialChanged = initial !== input.value;
+        if (initialChanged) input.value = initial;
+
+        let applied = initial;
+        let pending = initial;
+        let view = new Date(fromKey(initial).getFullYear(), fromKey(initial).getMonth(), 1);
+
+        const render = () => {
+            title.textContent = monthLabel(view);
+            const firstMonth = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+            const lastMonth = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+            prev.disabled = view <= firstMonth;
+            next.disabled = view >= lastMonth;
+
+            const offset = (new Date(view.getFullYear(), view.getMonth(), 1).getDay() + 6) % 7;
+            const daysInMonth = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+            const total = Math.ceil((offset + daysInMonth) / 7) * 7;
+            const cells = [];
+
+            for (let i = 0; i < total; i++) {
+                const dayNumber = i - offset + 1;
+                const date = new Date(view.getFullYear(), view.getMonth(), dayNumber);
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'cal-day';
+                button.innerHTML = `<span>${date.getDate()}</span>`;
+                const outside = dayNumber < 1 || dayNumber > daysInMonth;
+
+                if (outside) {
+                    button.classList.add('is-outside');
+                    button.disabled = true;
+                    button.tabIndex = -1;
+                    button.setAttribute('aria-hidden', 'true');
+                } else {
+                    const key = toKey(date);
+                    const available = canPick(date);
+                    if (!available) {
+                        button.classList.add('is-off');
+                        button.disabled = true;
+                    }
+                    if (key === todayKey) button.classList.add('is-today');
+                    if (key === pending) button.classList.add('is-selected');
+                    if (available) {
+                        button.setAttribute('aria-label', dayLabel(date) + (key === todayKey ? ' (hoy)' : ''));
+                        button.setAttribute('aria-pressed', key === pending ? 'true' : 'false');
+                        const dot = document.createElement('i');
+                        dot.className = 'cal-dot';
+                        dot.setAttribute('aria-hidden', 'true');
+                        button.appendChild(dot);
+                        button.addEventListener('click', () => {
+                            pending = key;
+                            apply.disabled = pending === applied;
+                            render();
+                        });
+                    } else {
+                        button.setAttribute('aria-label', dayLabel(date) + ' (no disponible)');
+                    }
+                }
+                cells.push(button);
+            }
+            grid.replaceChildren(...cells);
+        };
+
+        apply.addEventListener('click', () => {
+            if (!pending || pending === applied) return;
+            applied = pending;
+            input.value = pending;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            apply.disabled = true;
+            render();
+        });
+        prev.addEventListener('click', () => { view = new Date(view.getFullYear(), view.getMonth() - 1, 1); render(); });
+        next.addEventListener('click', () => { view = new Date(view.getFullYear(), view.getMonth() + 1, 1); render(); });
+        document.addEventListener('booking:draft-restored', () => {
+            const value = input.value;
+            if (!value || value === pending) return;
+            const date = fromKey(value);
+            if (Number.isNaN(date.getTime())) return;
+            applied = value;
+            pending = value;
+            view = new Date(date.getFullYear(), date.getMonth(), 1);
+            apply.disabled = true;
+            render();
+        });
+
+        render();
+        if (initialChanged) input.dispatchEvent(new Event('change', { bubbles: true }));
     })();
 </script>
 @endpush

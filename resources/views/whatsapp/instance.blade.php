@@ -18,13 +18,6 @@
         <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i>{{ session('error') }}</div>
     @endif
 
-    <div class="alert alert-light border small mb-4">
-        <i class="bi bi-info-circle text-warning me-1"></i>
-        Aquí se conecta el <strong>WhatsApp de la barbería</strong> mediante <strong>Evolution API</strong> (servicio alojado en Northflank).
-        Desde hoy los avisos de citas y turnos salen por este canal, los clientes pueden escribirnos y el
-        <strong>bot responde solo</strong>: confirma, cancela y responde precios y horarios.
-    </div>
-
     <div class="row g-3">
         {{-- Estado y QR --}}
         <div class="col-lg-6">

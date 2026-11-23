@@ -12,10 +12,39 @@
     const submit = form.querySelector('#service-submit');
     const message = form.querySelector('[role=status]');
     const feedback = root.querySelector('#service-feedback');
+    const tabs = Array.from(root.querySelectorAll('[data-service-tab]'));
+    let activeTab = 'activos';
     let trigger;
     let saving = false;
     let listRequest = 0;
     let slotRequest = 0;
+
+    function showTab(name) {
+        if (!tabs.some(tab => tab.dataset.serviceTab === name)) name = 'activos';
+        activeTab = name;
+        tabs.forEach(tab => {
+            const selected = tab.dataset.serviceTab === name;
+            tab.setAttribute('aria-selected', String(selected));
+            tab.tabIndex = selected ? 0 : -1;
+        });
+        list.querySelectorAll('[data-service-panel]').forEach(panel => {
+            panel.hidden = panel.dataset.servicePanel !== name;
+        });
+    }
+
+    tabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => showTab(tab.dataset.serviceTab));
+        tab.addEventListener('keydown', event => {
+            const last = tabs.length - 1;
+            const target = event.key === 'ArrowRight' ? (index === last ? 0 : index + 1)
+                : event.key === 'ArrowLeft' ? (index === 0 ? last : index - 1)
+                : event.key === 'Home' ? 0 : event.key === 'End' ? last : null;
+            if (target === null) return;
+            event.preventDefault();
+            tabs[target].focus();
+            showTab(tabs[target].dataset.serviceTab);
+        });
+    });
 
     async function refresh(force = false) {
         if (document.hidden || (dialog.open && !force)) return;
@@ -27,10 +56,11 @@
             if (request !== listRequest || dialog.open) return;
             const content = document.createElement('template');
             content.innerHTML = html;
-            if (!content.content.querySelector('.service-group')) throw Error();
+            if (!content.content.querySelector('.service-panel')) throw Error();
             const focusedUrl = document.activeElement?.dataset.url;
             if (list.innerHTML.trim() !== content.innerHTML.trim()) {
                 list.replaceChildren(content.content);
+                showTab(activeTab);
                 if (focusedUrl) Array.from(list.querySelectorAll('[data-url]')).find(el => el.dataset.url === focusedUrl)?.focus();
             }
         } catch {
