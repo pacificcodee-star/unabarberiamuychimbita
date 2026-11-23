@@ -617,7 +617,7 @@ textarea.form-control { min-height: 96px; }
 /* Pie de página sobre la superficie del tema, con filete de latón.
    Todo el texto pasa a blanco y los enlaces llevan subrayado en hover
    para no depender solo del color. */
-.site-footer { --footer-bg: var(--surface); padding: clamp(22px, 2.6vw, 32px) 0 calc(14px + env(safe-area-inset-bottom)); background: var(--footer-bg); border-top: 1px solid rgba(var(--accent-rgb), .28); color: #fff; }
+.site-footer { --footer-bg: var(--surface); padding: clamp(22px, 2.6vw, 32px) 0 calc(14px + env(safe-area-inset-bottom)); background: var(--footer-bg); border-top: 1px solid rgba(var(--accent-rgb), .28); color: #fff; /* El color del pie continúa hacia abajo: la foto de fondo nunca asoma por debajo, en ningún navegador ni tamaño. */ box-shadow: 0 100vmax 0 100vmax var(--footer-bg); }
 .footer-grid { display: grid; grid-template-columns: 1.4fr 1.1fr 1.2fr; gap: clamp(16px, 2vw, 24px); }
 /* Las columnas pueden encogerse: sin esto, el nombre del negocio (sin saltos de línea)
    empuja el pie más allá del ancho en pantallas de 320 px. */
