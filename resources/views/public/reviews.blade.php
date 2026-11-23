@@ -46,7 +46,7 @@
                         <span class="rv-thanks-icon" aria-hidden="true"><i class="bi bi-check2"></i></span>
                         <h3>¡Gracias por tu opinión!</h3>
                         <p>Recibimos tu opinión.</p>
-                        <a href="{{ route('public.booking') }}" class="xbtn"><span>Reservar de nuevo</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                        <a href="{{ route('public.booking') }}" class="xbtn btn-booking-blue"><span>Reservar de nuevo</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                     </div>
                 @else
                     <form class="rv-form" method="POST" action="{{ route('public.reviews.store') }}" novalidate>

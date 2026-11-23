@@ -143,7 +143,8 @@
 .msv-card > * { min-width: 0; }
 .msv-card:hover { border-color: var(--line-strong); }
 .msv-card.is-next { border-color: var(--gold-line); background: linear-gradient(180deg, #fdf4dd, #f7ecd2); box-shadow: 0 18px 40px rgba(138, 106, 18, .16); }
-.msv-card.is-history { opacity: .88; }
+/* Historial: el contenido va un poco atenuado, pero el botón azul de reservar conserva su tono exacto. */
+.msv-card.is-history > :not(.service-actions) { opacity: .88; }
 .msv-flag { margin: 0; display: inline-flex; align-items: center; gap: .4rem; color: var(--gold); font-size: .72rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .msv-main { display: flex; gap: 1rem; align-items: flex-start; }
 .msv-when { flex: none; display: grid; justify-items: center; align-content: center; width: auto; min-width: 4.4rem; overflow-wrap: normal; white-space: nowrap; min-height: 4.6rem; padding: .45rem .3rem; border-radius: .9rem; background: #fffdf8; border: 1px solid var(--line); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8); text-align: center; line-height: 1.05; }
@@ -204,9 +205,8 @@
 .msv-btn-reschedule:hover, .msv-btn-reschedule:focus-visible { background: #5b574f; border-color: #5b574f; color: #fff; }
 .msv-btn-cancel { background: #a23b34; border-color: #a23b34; }
 .msv-btn-cancel:hover, .msv-btn-cancel:focus-visible { background: #872f29; border-color: #872f29; color: #fff; }
-/* Botón para repetir una reserva del historial: píldora redondeada a lo ancho de la tarjeta. */
-.service-actions .msv-btn-rebook { flex: 1 1 100%; justify-content: center; min-height: 40px; border-radius: 999px; border-color: var(--line-strong); color: var(--text); font-size: .8rem; font-weight: 600; }
-.service-actions .msv-btn-rebook:hover, .service-actions .msv-btn-rebook:focus-visible { background: var(--text); border-color: var(--text); color: #fbf7ef; }
+/* Botón para repetir una reserva del historial: píldora azul (como todos los de Reservar) a lo ancho de la tarjeta. */
+.service-actions .msv-btn-rebook { flex: 1 1 100%; justify-content: center; min-height: 40px; border-radius: 999px; font-size: .8rem; font-weight: 600; }
 @media (max-width: 575.98px) {
     .msv-card { padding: 1rem; }
     .msv-when { min-width: 3.9rem; min-height: 4.2rem; }

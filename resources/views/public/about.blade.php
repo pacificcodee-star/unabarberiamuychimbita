@@ -100,7 +100,7 @@
                     </div>
                     <div class="col-lg-4">
                         <div class="cta-band-actions">
-                            <a href="{{ route('public.booking') }}" class="btn btn-gold btn-lg"><i class="bi bi-calendar2-check" aria-hidden="true"></i> Reservar ahora</a>
+                            <a href="{{ route('public.booking') }}" class="btn btn-gold btn-lg btn-booking-blue"><i class="bi bi-calendar2-check" aria-hidden="true"></i> Reservar ahora</a>
                         </div>
                     </div>
                 </div>

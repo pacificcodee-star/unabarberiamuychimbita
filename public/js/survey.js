@@ -229,7 +229,7 @@
             else if (state.review_status === 'revision' || state.review_status === 'pendiente') msg += ' Revisaremos tu comentario antes de publicarlo.';
             card.appendChild(el('p', 'sv-help', msg));
             var actions = el('div', 'sv-actions');
-            var book = el('a', 'xbtn');
+            var book = el('a', 'xbtn btn-booking-blue');
             book.href = '/reservar';
             book.innerHTML = '<span>Reservar de nuevo</span><i class="bi bi-arrow-right" aria-hidden="true"></i>';
             var home = el('a', 'xlink', 'Ir al inicio');

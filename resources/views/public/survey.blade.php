@@ -13,7 +13,7 @@
             <h1 class="sv-title" id="sv-title">Esta encuesta no está disponible</h1>
             <p class="sv-help">Puede que el servicio no se haya completado o que el enlace esté incompleto. Si quieres contarnos cómo te fue, escríbenos por WhatsApp; con gusto te leemos.</p>
             <div class="sv-actions">
-                <a class="xbtn" href="{{ route('public.booking') }}"><span>Reservar</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                <a class="xbtn btn-booking-blue" href="{{ route('public.booking') }}"><span>Reservar</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                 <a class="xlink" href="{{ route('landing') }}">Ir al inicio</a>
             </div>
         </div>

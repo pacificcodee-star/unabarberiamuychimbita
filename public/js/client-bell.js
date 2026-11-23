@@ -65,7 +65,7 @@
         if (groups.length === 0) {
             const empty = el('div', 'bell-empty');
             empty.append(el('i', 'bi bi-bell'), el('p', '', 'Aquí verás los avisos de tu turno o cita.'));
-            const link = el('a', 'btn btn-gold btn-sm', 'Reservar');
+            const link = el('a', 'btn btn-gold btn-sm btn-booking-blue', 'Reservar');
             link.href = panel.dataset.bookingUrl;
             empty.append(link);
             body.append(empty);

@@ -16,7 +16,7 @@
             <h2>No tienes servicios activos.</h2>
             <p>Puedes solicitar una nueva cita o turno cuando quieras.</p>
             <div class="service-empty-actions">
-                <a class="btn btn-gold" href="{{ route('public.booking') }}">Solicitar nuevo servicio</a>
+                <a class="btn btn-gold btn-booking-blue" href="{{ route('public.booking') }}">Solicitar nuevo servicio</a>
             </div>
         </div>
     @endif

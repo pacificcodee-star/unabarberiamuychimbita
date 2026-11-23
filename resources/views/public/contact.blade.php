@@ -60,7 +60,7 @@
                     </dl>
 
                     <p class="ct-note"><i class="bi bi-info-circle" aria-hidden="true"></i><span><strong>Con cita</strong> te atendemos a tu hora. <strong>Sin cita</strong>, por orden de llegada.</span></p>
-                    <a href="{{ route('public.booking') }}" class="xbtn"><span>Reservar</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                    <a href="{{ route('public.booking') }}" class="xbtn btn-booking-blue"><span>Reservar</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                 </aside>
 
                 <div class="ct-info">

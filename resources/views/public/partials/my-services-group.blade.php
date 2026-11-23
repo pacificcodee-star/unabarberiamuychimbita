@@ -82,7 +82,7 @@
                                     data-date="{{ $turn ? '' : $subject->appointment_date->toDateString() }}"><i class="bi {{ $icons[$action] ?? 'bi-arrow-right' }}" aria-hidden="true"></i> {{ $labels[$action] }}</button>
                             @endforeach
                             @if($history && $subject->service?->active)
-                                <a class="btn btn-sm btn-ghost-light msv-btn-rebook" href="{{ route('public.booking', ['tipo' => $type, 'servicio' => $subject->service_id]) }}"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Volver a reservar</a>
+                                <a class="btn btn-sm msv-btn-rebook btn-booking-blue" href="{{ route('public.booking', ['tipo' => $type, 'servicio' => $subject->service_id]) }}"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Volver a reservar</a>
                             @endif
                         </div>
                     @endif
