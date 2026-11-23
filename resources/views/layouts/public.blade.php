@@ -64,6 +64,8 @@
     {{-- App instalable (PWA) --}}
     <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
     <meta name="theme-color" content="#0c0a08">
+    {{-- Chrome/Edge: no muestran la página nueva hasta tener la barra inferior (sin parpadeo al cambiar de pestaña). --}}
+    <link rel="expect" href="#mobileBottomNav" blocking="render">
     <meta name="vapid-public-key" content="{{ config('services.webpush.public_key') }}">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -194,6 +196,9 @@
 })();
 </script>
 <a class="skip-link" href="#main-content">Saltar al contenido</a>
+{{-- Navegación inferior flotante (móvil). Va al inicio del <body> a propósito: así existe desde el primer
+     cuadro de cada página y no desaparece un instante al cambiar de pestaña. --}}
+@include('public.partials.mobile-bottom-nav')
 @php
     // Datos estructurados (schema.org) para Google: negocio local con horario, ubicación y ficha.
     $toTime = function (string $text): ?string {
@@ -448,8 +453,6 @@
 })();
 </script>
 
-{{-- Navegación inferior flotante (móvil): usa las mismas rutas públicas que el encabezado. --}}
-@include('public.partials.mobile-bottom-nav')
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
 <script>
