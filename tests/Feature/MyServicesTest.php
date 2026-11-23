@@ -55,7 +55,7 @@ class MyServicesTest extends TestCase
         $appointment = $this->book($barber, 'cita');
         $this->get('/')->assertSee('Mis servicios');
         $action = "/mis-servicios/cita/{$appointment->id}/";
-        $this->get('/mis-servicios')->assertSee('Confirmar cita')->assertSee('Volver');
+        $this->get('/mis-servicios')->assertSee('data-action="confirmar"', false)->assertSee('Volver');
         $this->postJson($action.'confirmar')->assertOk();
         $this->assertTrue(AttendanceConfirmation::confirmed($appointment));
         $this->assertSame('confirmada', $appointment->fresh()->status);
@@ -76,7 +76,7 @@ class MyServicesTest extends TestCase
         $this->postJson($action.'cancelar')->assertUnprocessable();
         $this->assertSame(1, $appointment->clientNotifications()->where('type', 'appt_cancelled')->count());
         $this->assertContains('13:00', Appointment::availableTimes($barber, '2026-11-19'));
-        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertSeeInOrder(['Citas anteriores', 'Cancelada'])->assertDontSee('Confirmar cita');
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertSeeInOrder(['Citas anteriores', 'Cancelada'])->assertDontSee('data-action="confirmar"', false);
         $this->postJson("/mis-servicios/cita/{$occupied->id}/cancelar")->assertNotFound();
 
         foreach ([$barber, User::factory()->create(['role' => 'admin'])] as $staff) {

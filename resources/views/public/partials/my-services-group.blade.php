@@ -5,7 +5,7 @@
             'pendiente' => 'amber', 'confirmada' => 'green', 'atendida' => 'muted', 'cancelada' => 'red',
             'esperando' => 'gold', 'llamado' => 'green', 'atendiendo' => 'blue', 'atendido' => 'muted', 'cancelado' => 'red',
         ];
-        $icons = ['confirmar' => 'bi-check2-circle', 'reprogramar' => 'bi-calendar2-week', 'cancelar' => 'bi-x-circle'];
+        $icons = ['confirmar' => 'bi-check2-circle', 'reprogramar' => 'bi-calendar2-check', 'cancelar' => 'bi-x-circle'];
     @endphp
     <section class="service-group" aria-labelledby="service-group-{{ $groupKey }}">
         <h2 id="service-group-{{ $groupKey }}">{{ $title }} <span class="msv-count">{{ $subjects->count() }}</span></h2>
@@ -16,7 +16,7 @@
                     $type = $turn ? 'turno' : 'cita';
                     $estimate = $turn && ! $history ? ($estimates[$subject->id] ?? null) : null;
                     $when = $turn ? $subject->turn_date->format('d/m/Y') : $subject->startsAt()->format('d/m/Y · g:i a');
-                    $labels = ['confirmar' => 'Confirmar cita', 'reprogramar' => 'Reprogramar cita', 'cancelar' => 'Cancelar '.$type];
+                    $labels = ['confirmar' => 'Confirmar', 'reprogramar' => 'Reprogramar', 'cancelar' => 'Cancelar'];
                     $day = $turn ? $subject->turn_date->copy()->locale('es') : $subject->startsAt()->locale('es');
                     $isNext = ! $history && isset($nextKey) && $nextKey === $type.':'.$subject->id;
                     $tone = $tones[$subject->status] ?? 'muted';
@@ -67,7 +67,7 @@
 
                     @php $actions = \App\Services\ClientBookingActions::actions($subject); @endphp
                     @if(count($actions) || ($history && $subject->service?->active))
-                        <div class="service-actions">
+                        <div class="service-actions{{ count($actions) ? ' has-actions' : '' }}">
                             @foreach($actions as $action)
                                 <button type="button" class="btn btn-sm {{ $action === 'confirmar' ? 'msv-btn-confirm' : ($action === 'cancelar' ? 'msv-btn-cancel' : 'msv-btn-reschedule') }}"
                                     data-action="{{ $action }}" data-url="{{ route('my-services.update', ['type' => $type, 'id' => $subject->id, 'action' => $action]) }}"

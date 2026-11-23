@@ -89,7 +89,7 @@ class PublicBookingTest extends TestCase
         // La cita recién creada aparece en Mis servicios con sus acciones.
         if ($device = $response->getCookie('mis_servicios')) {
             $this->withCookie('mis_servicios', $device->getValue());
-            $this->get(route('my-services.index'))->assertOk()->assertSee('Confirmar cita');
+            $this->get(route('my-services.index'))->assertOk()->assertSee('data-action="confirmar"', false);
         }
 
         $this->get(route('public.booking', ['tipo' => 'cita']))
