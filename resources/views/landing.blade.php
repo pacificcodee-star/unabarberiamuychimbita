@@ -80,7 +80,7 @@
             <picture>
                 <source type="image/webp" media="(max-width: 767px)" srcset="{{ asset('images/esencia-fondo-movil.webp') }}">
                 <source type="image/webp" srcset="{{ asset('images/esencia-fondo.webp') }}">
-                <img src="{{ asset('images/esencia-fondo.jpg') }}" alt="" width="1672" height="941" fetchpriority="low" decoding="async">
+                <img src="{{ asset('images/esencia-fondo.jpg') }}" alt="" width="1672" height="941" fetchpriority="low" loading="lazy" decoding="async">
             </picture>
         </div>
 

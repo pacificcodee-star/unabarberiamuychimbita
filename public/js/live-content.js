@@ -39,7 +39,9 @@
         }
     };
 
-    window.setInterval(check, 10000);
+    // Cada 30 s (antes 10 s) y solo con la pestaña a la vista: con muchos visitantes, estas consultas
+    // de fondo pesaban más que las visitas mismas. Al volver a la pestaña se revisa enseguida.
+    window.setInterval(check, 30000);
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') check();
     });

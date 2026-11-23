@@ -22,15 +22,17 @@
         return;
     }
     const match = booking && booking.url.match(/\/seguimiento\/(cita|turno)\/([^/?#]+)/);
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-    if (!match || !csrf) return;
+    if (!match) return;
 
-    fetch('/mis-servicios/vincular', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
-        body: JSON.stringify({ type: match[1], token: decodeURIComponent(match[2]) }),
-    })
-        .then((response) => (response.ok ? location.reload() : null))
+    // En las páginas servidas desde la caché el token CSRF se pide aparte (window.ubmcCsrf, layout).
+    const token = window.ubmcCsrf ? window.ubmcCsrf() : Promise.resolve(document.querySelector('meta[name="csrf-token"]')?.content || '');
+    token
+        .then((csrf) => (csrf ? fetch('/mis-servicios/vincular', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+            body: JSON.stringify({ type: match[1], token: decodeURIComponent(match[2]) }),
+        }) : null))
+        .then((response) => (response && response.ok ? location.reload() : null))
         .catch(() => {});
 })();

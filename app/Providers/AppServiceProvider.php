@@ -35,6 +35,22 @@ class AppServiceProvider extends ServiceProvider
             'review' => \App\Models\Review::class,
         ]);
 
+        // Lo que se ve en las páginas públicas cambió en el panel: se borran las copias guardadas
+        // (PageCache) y la huella del contenido, para que la próxima visita vea el cambio al instante.
+        foreach ([\App\Models\Service::class, \App\Models\User::class, SiteSetting::class, \App\Models\FeaturedCut::class, \App\Models\Review::class, \App\Models\HomeSlide::class] as $model) {
+            $model::saved(fn () => \App\Support\PublicContentVersion::changed());
+            $model::deleted(fn () => \App\Support\PublicContentVersion::changed());
+        }
+
+        // El equipo ve las páginas públicas armadas para su sesión, no la copia anónima: al entrar se marca
+        // el navegador con la cookie ubmc_staff (solo indica "no usar la caché", no da ningún acceso).
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Login::class, function (): void {
+            \Illuminate\Support\Facades\Cookie::queue(cookie('ubmc_staff', '1', 60 * 24 * 30, null, null, null, true, false, 'lax'));
+        });
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Auth\Events\Logout::class, function (): void {
+            \Illuminate\Support\Facades\Cookie::queue(\Illuminate\Support\Facades\Cookie::forget('ubmc_staff'));
+        });
+
         // Encuesta de satisfacción: se programa cuando un servicio queda atendido y se cancela si se revierte.
         foreach ([Appointment::class, Turn::class] as $model) {
             $model::created(function ($subject): void {

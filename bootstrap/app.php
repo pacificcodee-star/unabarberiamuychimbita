@@ -4,6 +4,7 @@ use App\Http\Middleware\AssignRequestId;
 use App\Http\Middleware\BlockPhonesFromPanel;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\ForceHttps;
+use App\Http\Middleware\PublicPageCache;
 use App\Http\Middleware\RevalidatePublicContent;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -23,6 +24,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(ForceHttps::class);
         // Identificador de correlación en todos los registros y en la cabecera X-Request-Id.
         $middleware->prepend(AssignRequestId::class);
+        // Páginas públicas ya armadas para visitantes anónimos: se responden antes de abrir la sesión
+        // (sin consultas ni escrituras en la base de datos). Ver App\Support\PageCache.
+        $middleware->web(prepend: [PublicPageCache::class]);
 
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,

@@ -76,9 +76,19 @@ Route::post('/resenas', [PublicReviewController::class, 'store'])->middleware('t
 Route::get('/contacto', [LandingController::class, 'contact'])->middleware('public-fresh')->name('public.contact');
 Route::get('/reservar', [PublicBookingController::class, 'index'])->middleware('public-fresh')->name('public.booking');
 // Huella del contenido: la página abierta la consulta para refrescarse sola tras un cambio en el panel.
+// Sin sesión ni cookies: cada pestaña abierta la consulta cada 30 s; así no escribe la sesión en la base
+// de datos ni descifra cookies en cada consulta. La versión sale de la caché (PublicContentVersion).
 Route::get('/contenido/version', fn () => response()
     ->json(['v' => \App\Support\PublicContentVersion::current()])
     ->header('Cache-Control', 'no-store'))
+    ->withoutMiddleware([
+        \Illuminate\Cookie\Middleware\EncryptCookies::class,
+        \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+        \Illuminate\Session\Middleware\StartSession::class,
+        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+        \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
+        \App\Http\Middleware\PublicPageCache::class,
+    ])
     ->middleware('throttle:120,1,public.content.version')->name('public.content.version');
 Route::get('/reservar/horarios', [PublicBookingController::class, 'availableTimes'])->middleware('throttle:60,1,public.booking.slots')->name('public.booking.slots');
 Route::post('/reservar/cita', [PublicBookingController::class, 'storeAppointment'])->middleware('throttle:10,1,public.booking.appointment')->name('public.booking.appointment');

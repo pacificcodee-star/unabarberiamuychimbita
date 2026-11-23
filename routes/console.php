@@ -10,6 +10,19 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+// Caché de páginas públicas (App\Support\PageCache). "vaciar" al publicar una versión nueva
+// (docker-entrypoint); "purgar" borra solo las copias vencidas.
+Artisan::command('barberia:page-cache {accion=purgar : purgar (solo vencidas) o vaciar (todas)}', function (string $accion) {
+    if ($accion === 'vaciar') {
+        \App\Support\PageCache::flush();
+        \App\Support\PublicContentVersion::forget();
+        $this->info('Caché de páginas vaciada.');
+
+        return;
+    }
+    $this->info('Copias vencidas borradas: '.\App\Support\PageCache::purgeExpired());
+})->purpose('Vacía o purga la caché de páginas públicas');
+
 Schedule::command('app:send-service-reminders')->everyMinute();
 
 // Fila automática de turnos + avisos y recordatorios a clientes. Necesita el programador encendido:

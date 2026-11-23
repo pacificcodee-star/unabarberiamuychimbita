@@ -8,6 +8,21 @@
 	email {$ACME_EMAIL:hola@barberiachimbita.com}
 }
 
+# Respuesta para las páginas públicas ya armadas (App\Support\PageCache): las mismas cabeceras de
+# seguridad que pone Laravel (ForceHttps) y sin caché en el navegador, para que siempre vuelva a preguntar.
+(page_cache_response) {
+	header {
+		Content-Type "text/html; charset=utf-8"
+		Cache-Control "no-cache, must-revalidate, max-age=0"
+		X-Page-Cache "STATIC"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Frame-Options "SAMEORIGIN"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()"
+		Content-Security-Policy "base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; upgrade-insecure-requests"
+	}
+	file_server
+}
+
 # Sitio Laravel (panel + web pública) con HTTPS automático.
 # www redirige al dominio principal para no duplicar contenido ni certificados.
 www.{$APP_HOST} {
@@ -31,6 +46,38 @@ www.{$APP_HOST} {
 		file {path}.webp
 	}
 	rewrite @webp {path}.webp
+
+	# Páginas públicas ya armadas: a un visitante anónimo (sin la cookie mis_servicios de quien tiene
+	# reservas ni la ubmc_staff del equipo) y sin parámetros en la URL se le entregan directo del disco,
+	# sin pasar por PHP ni por la base de datos. Si no hay copia, va a Laravel, que la arma y la guarda.
+	# Las copias se borran al cambiar algo en el panel y al vencer (supervisord: page-cache-purge).
+	@pageCacheHome {
+		method GET HEAD
+		path /
+		expression `{query} == ""`
+		not header Cookie *mis_servicios=*
+		not header Cookie *ubmc_staff=*
+		file /page-cache/index.html
+	}
+	handle @pageCacheHome {
+		rewrite * /page-cache/index.html
+		import page_cache_response
+	}
+	@pageCachePage {
+		method GET HEAD
+		path /servicios /barberos /nosotros /contacto /aviso-legal /politica-de-privacidad /cookies
+		expression `{query} == ""`
+		not header Cookie *mis_servicios=*
+		not header Cookie *ubmc_staff=*
+		file /page-cache{path}.html
+	}
+	handle @pageCachePage {
+		rewrite * /page-cache{path}.html
+		import page_cache_response
+	}
+	# Nadie pide los archivos de la caché por su nombre.
+	@pageCacheDirect path /page-cache/*
+	respond @pageCacheDirect 404
 
 	@noPhpStorage path /storage/* /images/* /videos/* /icons/* /vendor/* /css/* /js/*
 	handle @noPhpStorage {

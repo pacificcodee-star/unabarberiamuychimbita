@@ -1,0 +1,67 @@
+{
+	# Certificados y cuentas ACME en el volumen caddy_data: así un despliegue (que recrea el contenedor)
+	# no pierde el certificado. Antes quedaban dentro del contenedor y cada despliegue pedía uno nuevo,
+	# hasta chocar con el límite de Let's Encrypt (5 certificados iguales por semana).
+	storage file_system /data/caddy
+	# Correo de contacto para los emisores de certificados. Con correo, Caddy usa ZeroSSL de respaldo
+	# si Let's Encrypt no está disponible o limita las solicitudes. Se cambia con ACME_EMAIL en deploy/.env.
+	email {$ACME_EMAIL:hola@barberiachimbita.com}
+}
+
+# Sitio Laravel (panel + web pública) con HTTPS automático.
+# www redirige al dominio principal para no duplicar contenido ni certificados.
+www.{$APP_HOST} {
+	redir https://{$APP_HOST}{uri} permanent
+}
+
+{$APP_HOST} {
+	root * /var/www/html/public
+	# Nunca ejecutar PHP subido: solo public/index.php pasa a PHP.
+	# Imágenes en WebP: si existe foto.png.webp (php artisan barberia:webp) y el navegador acepta WebP,
+	# se entrega esa copia liviana en lugar del PNG/JPG. Rutas, base de datos y vistas no cambian.
+	@images {
+		path /storage/* /images/*
+		path_regexp \.(?i:png|jpe?g)$
+	}
+	header @images Vary Accept
+	@webp {
+		path /storage/* /images/*
+		path_regexp \.(?i:png|jpe?g)$
+		header Accept *image/webp*
+		file {path}.webp
+	}
+	rewrite @webp {path}.webp
+
+	@noPhpStorage path /storage/* /images/* /videos/* /icons/* /vendor/* /css/* /js/*
+	handle @noPhpStorage {
+		header X-Content-Type-Options nosniff
+		# Caché del navegador: así cambiar de página no vuelve a pedir CSS, JS ni imágenes.
+		# Con ?v= (la fecha del archivo) la URL cambia en cada versión: se guarda un año sin preguntar.
+		@versioned query v=*
+		header @versioned Cache-Control "public, max-age=31536000, immutable"
+		# Sin versión (fotos subidas, logos): un día, y luego se revisa en segundo plano.
+		@unversioned not query v=*
+		header @unversioned Cache-Control "public, max-age=86400, stale-while-revalidate=604800"
+		file_server
+	}
+	# Archivos de Vite: el nombre ya trae la huella del contenido.
+	@buildAssets path /build/assets/*
+	header @buildAssets Cache-Control "public, max-age=31536000, immutable"
+	# Peticiones de más de 120 MB se cortan antes de llegar a PHP.
+	request_body {
+		max_size 120MB
+	}
+	encode zstd gzip
+	php_fastcgi 127.0.0.1:9000
+	file_server
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}
+
+# Evolution API (WhatsApp) solo por HTTPS; el 8080 nunca se publica.
+{$WA_HOST} {
+	reverse_proxy evolution:8080
+}

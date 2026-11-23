@@ -43,6 +43,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>
+        // Token CSRF para los envíos hechos con JavaScript. En las páginas servidas desde la caché
+        // (App\Support\PageCache) la etiqueta viene vacía: se pide una vez a /sesion/token y se guarda.
+        window.ubmcCsrf = (() => {
+            let pending = null;
+            return () => {
+                const meta = document.querySelector('meta[name="csrf-token"]');
+                if (meta && meta.content) return Promise.resolve(meta.content);
+                pending = pending || fetch('/sesion/token', { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' })
+                    .then((response) => response.ok ? response.json() : {})
+                    .then((data) => { if (meta && data.token) meta.content = data.token; pending = null; return data.token || ''; })
+                    .catch(() => { pending = null; return ''; });
+                return pending;
+            };
+        })();
+    </script>
     @php
         $brandName = $siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita';
         $pageTitle = trim($__env->yieldContent('title', $brandName.' · Más que un corte, una experiencia'));
@@ -722,7 +738,7 @@
         const payload = Object.assign(subscription.toJSON(), { contentEncoding: encodings.includes('aes128gcm') ? 'aes128gcm' : 'aesgcm' });
         const response = await fetch(staffUrl, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' },
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': await window.ubmcCsrf() },
             body: JSON.stringify(payload),
         });
         if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || 'No se pudo registrar este dispositivo.');

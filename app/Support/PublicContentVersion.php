@@ -14,12 +14,43 @@ final class PublicContentVersion
 {
     private const TABLES = ['services', 'users', 'site_settings', 'featured_cuts', 'reviews', 'home_slides'];
 
+    private const CACHE_KEY = 'public-content:version';
+
+    /**
+     * Antes se calculaba en cada página y en cada consulta de /contenido/version (6 consultas COUNT/MAX
+     * por petición). Ahora se guarda 5 minutos y se borra al guardar cualquiera de esos modelos
+     * (AppServiceProvider → changed()); los 5 minutos solo cubren cambios hechos por fuera de Laravel.
+     */
     public static function current(): string
     {
         if (app()->bound('public-content.version')) {
             return app('public-content.version');
         }
 
+        $version = Cache::remember(self::CACHE_KEY, now()->addMinutes(5), fn () => self::compute());
+        app()->instance('public-content.version', $version);
+
+        return $version;
+    }
+
+    /** Algo público cambió: nueva huella y fuera las páginas guardadas. */
+    public static function changed(): void
+    {
+        Cache::forget(self::CACHE_KEY);
+        app()->forgetInstance('public-content.version');
+        PageCache::flush();
+    }
+
+    /** Al publicar una versión nueva (docker-entrypoint). */
+    public static function forget(): void
+    {
+        Cache::forget(self::CACHE_KEY);
+        Cache::forget('public-content:deploy-hash');
+        app()->forgetInstance('public-content.version');
+    }
+
+    private static function compute(): string
+    {
         $parts = [];
         foreach (self::TABLES as $table) {
             $row = DB::table($table)->selectRaw('COUNT(*) as total, MAX(updated_at) as latest')->first();
@@ -28,10 +59,7 @@ final class PublicContentVersion
 
         $parts[] = 'deploy:'.self::deployHash();
 
-        $version = substr(sha1(implode(';', $parts)), 0, 12);
-        app()->instance('public-content.version', $version);
-
-        return $version;
+        return substr(sha1(implode(';', $parts)), 0, 12);
     }
 
     /** Huella de las plantillas, estilos y controladores: cambia al publicar una versión nueva. */

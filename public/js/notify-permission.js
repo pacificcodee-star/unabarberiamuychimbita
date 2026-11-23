@@ -35,7 +35,7 @@
             if (!targets.length) return;
             const encodings = PushManager.supportedContentEncodings || ['aes128gcm'];
             const payload = JSON.stringify(Object.assign(subscription.toJSON(), { contentEncoding: encodings.includes('aes128gcm') ? 'aes128gcm' : 'aesgcm' }));
-            const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            const csrf = (await window.ubmcCsrf?.()) || document.querySelector('meta[name="csrf-token"]')?.content || '';
             await Promise.all(targets.map((b) => fetch(b.pushUrl, {
                 method: 'POST', credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': csrf },

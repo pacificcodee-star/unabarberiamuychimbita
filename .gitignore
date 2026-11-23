@@ -28,3 +28,4 @@ yarn-error.log
 /deploy/.env.local
 *.tgz
 /deploy/.env.render
+/public/page-cache

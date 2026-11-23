@@ -33,6 +33,9 @@ x-app-env: &app-env
   EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_APIKEY}
   WHATSAPP_BOT_ENABLED: "true"
   WHATSAPP_DEFAULT_COUNTRY: "57"
+  # Caché de páginas públicas (App\Support\PageCache): segundos que se usa una copia.
+  PAGE_CACHE_TTL: ${PAGE_CACHE_TTL:-60}
+  PHP_FPM_MAX_CHILDREN: ${PHP_FPM_MAX_CHILDREN:-}
   VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
   VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
   VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:no-reply@example.com}
@@ -95,12 +98,15 @@ services:
   db:
     image: mysql:8.4
     restart: unless-stopped
+    # Memoria de MySQL según el servidor (deploy/.env). Por defecto 256 MB de buffer (antes 64 MB) y
+    # 150 conexiones (antes 50; con más procesos de PHP-FPM, 50 se quedaban cortas en un pico).
+    # En una máquina de 1 GB (e2-micro) pon MYSQL_BUFFER_POOL=64M y MYSQL_MAX_CONNECTIONS=50.
     command:
-      - "--innodb-buffer-pool-size=64M"
+      - "--innodb-buffer-pool-size=${MYSQL_BUFFER_POOL:-256M}"
       - "--innodb-log-buffer-size=8M"
       - "--performance-schema=OFF"
-      - "--max-connections=50"
-      - "--table-open-cache=64"
+      - "--max-connections=${MYSQL_MAX_CONNECTIONS:-150}"
+      - "--table-open-cache=400"
     environment:
       MYSQL_DATABASE: barberia
       MYSQL_USER: barberia
