@@ -23,9 +23,14 @@
                     $relative = $day->isToday() ? 'Hoy' : ($day->isTomorrow() ? 'Mañana' : ucfirst($day->isoFormat('dddd D [de] MMMM')));
                 @endphp
                 <article class="msv-card {{ $isNext ? 'is-next' : '' }} {{ $history ? 'is-history' : '' }}">
-                    @if($isNext)
-                        <p class="msv-flag"><i class="bi bi-stars" aria-hidden="true"></i> Tu próximo servicio</p>
-                    @endif
+                    {{-- Fila superior fija en todas las tarjetas: aviso de próximo servicio (si aplica) a la izquierda
+                         y el estado siempre arriba a la derecha, sin importar el largo del nombre del servicio. --}}
+                    <div class="msv-top">
+                        @if($isNext)
+                            <p class="msv-flag"><i class="bi bi-stars" aria-hidden="true"></i> Tu próximo servicio</p>
+                        @endif
+                        <span class="msv-status tone-{{ $tone }}">{{ $subject->statusLabel() }}</span>
+                    </div>
                     <div class="msv-main">
                         <div class="msv-when{{ $turn ? ' is-turn' : '' }}" aria-hidden="true">
                             @if($turn)
@@ -41,7 +46,6 @@
                         <div class="msv-body">
                             <div class="service-heading">
                                 <h3>{{ $subject->service?->name ?? ($turn ? 'Turno' : 'Cita') }}</h3>
-                                <span class="msv-status tone-{{ $tone }}">{{ $subject->statusLabel() }}</span>
                             </div>
                             <ul class="msv-meta">
                                 <li><i class="bi bi-calendar3" aria-hidden="true"></i> {{ $relative }}@unless($turn) · {{ $subject->startsAt()->format('g:i a') }}@else · por orden de llegada @endunless</li>

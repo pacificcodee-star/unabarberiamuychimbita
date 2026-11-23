@@ -154,7 +154,11 @@
 .msv-when.is-turn strong { font-size: 1.4rem; letter-spacing: -.01em; }
 .msv-card.is-next .msv-when { background: rgba(201, 162, 39, .16); border-color: var(--gold-line); }
 .msv-body { min-width: 0; flex: 1; display: grid; gap: .55rem; }
-.service-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem .75rem; flex-wrap: wrap; }
+/* Estado: siempre en la misma posición (arriba a la derecha de la tarjeta), en celular y computador. */
+.msv-top { display: flex; align-items: center; gap: .5rem; min-height: 1.6rem; }
+.msv-top .msv-flag { flex: 1 1 auto; min-width: 0; }
+.msv-top .msv-status { margin-inline-start: auto; flex: none; }
+.service-heading { display: block; }
 .service-heading h3 { margin: 0; font-size: 1.12rem; line-height: 1.25; }
 .msv-status { display: inline-flex; align-items: center; gap: .4rem; padding: .2rem .6rem; border-radius: 999px; font-size: .72rem; font-weight: 700; white-space: nowrap; }
 .msv-status::before { content: ''; width: .45rem; height: .45rem; border-radius: 50%; background: currentColor; }
