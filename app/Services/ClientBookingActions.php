@@ -78,7 +78,7 @@ class ClientBookingActions
             } else {
                 AttendanceConfirmation::mark($appointment);
             }
-            $this->notifier->appointmentChanged($appointment, $before);
+            $this->notifier->appointmentChanged($appointment, $before, 'client');
 
             return $appointment;
         }, 3);

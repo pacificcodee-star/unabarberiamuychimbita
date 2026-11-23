@@ -1985,7 +1985,11 @@ class WhatsappBotService
         AttendanceConfirmation::mark($appointment);
 
         if ($wasPending) {
+            $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
             $appointment->update(['status' => 'confirmada']);
+            // El bot ya le responde en el chat: aquí solo sale el aviso al navegador (push).
+            $this->notifier->appointmentChanged($appointment, $before, 'bot');
+            $this->notifier->flush();
 
             StaffNotification::record(
                 'client_confirmed',

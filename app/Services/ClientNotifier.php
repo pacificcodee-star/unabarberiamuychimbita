@@ -242,34 +242,42 @@ class ClientNotifier
 
     /**
      * Llamar después de modificar una cita. $before = ['status' => ..., 'starts_at' => Carbon] con los valores anteriores.
-     * Cancela los recordatorios viejos y crea los nuevos cuando corresponde.
-     * La cancelación se avisa siempre, tanto si la pidió el cliente como si la anuló la barbería.
+     * Todo cambio de estado se le avisa al cliente por WhatsApp (si lo autorizó) y por push al navegador:
+     * confirmada, pendiente otra vez, reprogramada, cancelada, reactivada o atendida.
+     *
+     * $by: 'client' (lo hizo el cliente en la página), 'staff' (panel) o 'bot' (el cliente por WhatsApp:
+     * el bot ya le contestó en el chat, así que solo se manda el push para no repetir el mensaje).
      */
-    public function appointmentChanged(Appointment $appointment, array $before): void
+    public function appointmentChanged(Appointment $appointment, array $before, string $by = 'staff'): void
     {
-        $active = in_array($appointment->status, ['pendiente', 'confirmada'], true);
-        $wasActive = in_array($before['status'] ?? null, ['pendiente', 'confirmada'], true);
+        $appointment->loadMissing(['service', 'barber']);
+        $from = $before['status'] ?? null;
+        $to = $appointment->status;
+        $active = in_array($to, ['pendiente', 'confirmada'], true);
+        $wasActive = in_array($from, ['pendiente', 'confirmada'], true);
         $start = $appointment->startsAt();
         $moved = isset($before['starts_at']) && ! $start->equalTo($before['starts_at']);
+        $ttl = (int) config('notificaciones.ttl_minutes.change', 120);
+        $only = $by === 'bot' ? ['push'] : null;
+        $stamp = now()->format('YmdHis');
 
         if (! $active) {
             $this->cancelPending($appointment);
-            if ($appointment->status === 'cancelada' && $wasActive) {
-                $this->queue(
-                    $appointment,
-                    'appt_cancelled',
-                    'Cita cancelada',
-                    $this->cancellationBody($appointment),
-                    ttlMinutes: (int) config('notificaciones.ttl_minutes.change', 120),
-                    stamp: now()->format('YmdHi'),
-                );
+
+            if ($to === 'cancelada' && $from !== 'cancelada') {
+                $this->queue($appointment, 'appt_cancelled', 'Cita cancelada', $this->cancellationBody($appointment),
+                    ttlMinutes: $ttl, stamp: $stamp, only: $only);
+            } elseif ($to === 'atendida' && $from !== 'atendida') {
+                $this->serviceThanks($appointment);
             }
 
             return;
         }
 
-        if (! $wasActive) { // se reactivó una cita cancelada
+        if (! $wasActive) { // se reactivó una cita cancelada o atendida
             $this->scheduleAppointmentReminders($appointment);
+            $this->queue($appointment, 'appt_reactivated', 'Tu cita fue reactivada', AppointmentMessages::reactivated($appointment),
+                ttlMinutes: $ttl, stamp: $stamp, only: $only);
 
             return;
         }
@@ -277,26 +285,20 @@ class ClientNotifier
         if ($moved) {
             $this->cancelPending($appointment, self::REMINDER_TYPES);
             $this->scheduleAppointmentReminders($appointment);
-            $this->queue(
-                $appointment,
-                'appt_rescheduled',
-                'Cita reprogramada',
-                $this->withDot('Tu cita quedó reprogramada para '.$this->appointmentWhen($appointment, lower: true)),
-                ttlMinutes: (int) config('notificaciones.ttl_minutes.change', 120),
-                stamp: $start->format('YmdHi'),
-            );
+            $this->queue($appointment, 'appt_rescheduled', '🔄 Tu cita fue reprogramada', AppointmentMessages::rescheduled($appointment),
+                ttlMinutes: $ttl, stamp: $start->format('YmdHi'), only: $only);
 
             return;
         }
 
-        if (($before['status'] ?? null) === 'pendiente' && $appointment->status === 'confirmada') {
-            $this->queue(
-                $appointment,
-                'appt_confirmed',
-                '✅ Tu cita quedó confirmada',
-                AppointmentMessages::confirmed($appointment, thanks: true),
-                ttlMinutes: (int) config('notificaciones.ttl_minutes.change', 120),
-            );
+        if ($from === 'pendiente' && $to === 'confirmada') {
+            $this->queue($appointment, 'appt_confirmed', '✅ Tu cita quedó confirmada',
+                AppointmentMessages::confirmed($appointment, thanks: $by !== 'staff'),
+                ttlMinutes: $ttl, stamp: $stamp, only: $only);
+        } elseif ($from === 'confirmada' && $to === 'pendiente') {
+            $this->queue($appointment, 'appt_pending', '📅 Confirma tu cita',
+                AppointmentMessages::confirmationRequest($appointment, 'Tu cita en *'.$this->brand().'* quedó *pendiente de confirmación*.'),
+                ttlMinutes: $ttl, stamp: $stamp, only: $only);
         }
     }
 
@@ -359,12 +361,15 @@ class ClientNotifier
      * Guarda el aviso (push siempre; WhatsApp solo si el cliente lo autorizó y dejó teléfono).
      * $stamp distingue avisos del mismo tipo que sí deben repetirse (p. ej. recordatorios tras reprogramar).
      */
-    public function queue(Model $subject, string $type, string $title, string $body, ?Carbon $at = null, int $ttlMinutes = 60, string $stamp = '', ?string $url = null): void
+    public function queue(Model $subject, string $type, string $title, string $body, ?Carbon $at = null, int $ttlMinutes = 60, string $stamp = '', ?string $url = null, ?array $only = null): void
     {
         $at = $at ?: now();
         $channels = ['push'];
         if ($subject->whatsapp_consent && filled($subject->client_phone)) {
             $channels[] = 'whatsapp';
+        }
+        if ($only !== null) {
+            $channels = array_values(array_intersect($channels, $only)); // p. ej. solo push cuando el bot ya respondió
         }
 
         foreach ($channels as $channel) {

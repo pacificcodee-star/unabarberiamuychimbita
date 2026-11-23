@@ -17,11 +17,11 @@ use Carbon\Carbon;
  */
 final class AppointmentMessages
 {
-    /** Pide confirmar la cita recién agendada. */
-    public static function confirmationRequest(Appointment $appointment): string
+    /** Pide confirmar la cita recién agendada (o que volvió a quedar pendiente). */
+    public static function confirmationRequest(Appointment $appointment, ?string $intro = null): string
     {
         return '👋 *'.self::hello($appointment).'*'."\n\n"
-            .'Recibimos tu solicitud de cita en *'.self::brand().'* 💈'."\n\n"
+            .($intro ?? 'Recibimos tu solicitud de cita en *'.self::brand().'* 💈')."\n\n"
             .'📋 *Detalles de tu reserva:*'."\n\n"
             .self::details($appointment)."\n\n"
             .'🙏 *Por favor confirma tu cita* respondiendo *SÍ* a este mensaje.'."\n"
@@ -31,7 +31,7 @@ final class AppointmentMessages
     }
 
     /** Cita confirmada (por el cliente o automáticamente). */
-    public static function confirmed(Appointment $appointment, bool $automatic = false, bool $thanks = false): string
+    public static function confirmed(Appointment $appointment, bool $automatic = false, bool $thanks = false, ?string $intro = null): string
     {
         $minutesLeft = (int) ceil(now()->diffInMinutes($appointment->startsAt(), false));
 
@@ -44,11 +44,34 @@ final class AppointmentMessages
 
         return '✅ *'.self::hello($appointment).'*'."\n\n"
             .($thanks ? '🙌 ¡Muchas gracias por confirmar!'."\n" : '')
-            .'Tu cita en *'.self::brand().'* quedó *confirmada*. 🎉'."\n\n"
+            .($intro ?? 'Tu cita en *'.self::brand().'* quedó *confirmada*. 🎉')."\n\n"
             .'📋 *Detalles de tu cita:*'."\n\n"
             .self::details($appointment)."\n\n"
             .$closing."\n\n"
             .'💈 ¡Te esperamos!';
+    }
+
+    /** Cambio de fecha u hora, con los datos nuevos. */
+    public static function rescheduled(Appointment $appointment): string
+    {
+        $pending = $appointment->status === 'pendiente';
+
+        return '🔄 *'.self::hello($appointment).'*'."\n\n"
+            .'Tu cita en *'.self::brand().'* fue *reprogramada*.'."\n\n"
+            .'📋 *Nuevos detalles:*'."\n\n"
+            .self::details($appointment)."\n\n"
+            .($pending
+                ? '🙏 *Por favor confirma tu cita* respondiendo *SÍ* a este mensaje.'."\n".'❌ Si no puedes asistir, responde *CANCELAR*.'
+                : '✅ Tu cita sigue *confirmada* en el nuevo horario.'."\n".'🔔 Te enviaremos un recordatorio *30 minutos antes*.')
+            ."\n\n".'💈 ¡Te esperamos!';
+    }
+
+    /** La barbería volvió a activar una cita que estaba cancelada. */
+    public static function reactivated(Appointment $appointment): string
+    {
+        return $appointment->status === 'confirmada'
+            ? self::confirmed($appointment, intro: 'Tu cita en *'.self::brand().'* fue *reactivada* y quedó *confirmada*. 🎉')
+            : self::confirmationRequest($appointment, 'Tu cita en *'.self::brand().'* fue *reactivada*. 💈');
     }
 
     /** Detalles en renglones separados, cada uno con su emoji. */
