@@ -102,6 +102,7 @@ Route::post('/mis-servicios/recuperar/codigo', [GuestRecoveryController::class, 
 
 Route::prefix('mis-servicios')->name('my-services.')->controller(MyServicesController::class)->group(function () {
     Route::get('/', 'index')->middleware('throttle:90,1,my-services.index')->name('index');
+    Route::post('/vincular', 'link')->middleware('throttle:10,1,my-services.link')->name('link');
     Route::get('/acceso/{type}/{token}', 'access')->whereIn('type', ['cita', 'turno'])
         ->middleware(['signed', 'throttle:20,1,my-services.access'])->name('access');
     Route::post('/{type}/{id}/{action}', 'update')->whereNumber('id')->whereIn('type', ['cita', 'turno'])

@@ -49,7 +49,8 @@
             ['route' => 'public.services', 'label' => 'Servicios', 'icon' => 'bi-scissors'],
             ['route' => 'public.barbers', 'label' => 'Barberos', 'icon' => 'bi-person-badge'],
         ];
-        if (\App\Support\ClientServiceAccess::hasServices(request())) {
+        $deviceKnown = \App\Support\ClientServiceAccess::hasServices(request());
+        if ($deviceKnown) {
             $navItems[] = ['route' => 'my-services.index', 'label' => 'Mis servicios', 'icon' => 'bi-calendar2-check'];
         }
         $navItems[] = ['route' => 'public.contact', 'label' => 'Contacto', 'icon' => 'bi-geo-alt'];
@@ -140,7 +141,7 @@
     @stack('styles')
     @include('partials.speculation-rules')
 </head>
-<body data-content-version="{{ $contentVersion ?? '' }}">
+<body data-content-version="{{ $contentVersion ?? '' }}" data-device-known="{{ $deviceKnown ? '1' : '0' }}">
 {{-- Pantalla de carga: contador gigante con franjas de barbero que sube hasta 100 y se abre como puertas --}}
 <div class="pl" id="pageLoader" role="status" aria-live="polite" aria-label="Cargando la página">
     <div class="pl-door pl-door--top" aria-hidden="true"></div>
@@ -811,5 +812,7 @@
 <script src="{{ asset('js/motion.js') }}?v={{ file_exists(public_path('js/motion.js')) ? filemtime(public_path('js/motion.js')) : '1' }}" defer></script>
 {{-- Refresco automático: los cambios hechos en el panel se ven sin recargar a mano. --}}
 <script src="{{ asset('js/live-content.js') }}?v={{ file_exists(public_path('js/live-content.js')) ? filemtime(public_path('js/live-content.js')) : '1' }}" defer></script>
+{{-- Vuelve a vincular el dispositivo con sus reservas si la cookie de «Mis servicios» se perdió. --}}
+<script src="{{ asset('js/device-recovery.js') }}?v={{ file_exists(public_path('js/device-recovery.js')) ? filemtime(public_path('js/device-recovery.js')) : '1' }}" defer></script>
 </body>
 </html>

@@ -12,6 +12,8 @@ use App\Services\TurnQueueService;
 use App\Support\AttendanceConfirmation;
 use App\Support\ClientServiceAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class MyServicesTest extends TestCase
@@ -83,6 +85,58 @@ class MyServicesTest extends TestCase
             $this->actingAs($staff)->get(route('appointments.index', ['date' => '2026-11-19']))->assertOk()->assertSee('data-status="Cancelada"', false);
             $this->getJson(route('staff-notifications.feed'))->assertJsonFragment(['title' => 'Cita cancelada por el cliente']);
         }
+    }
+
+    public function test_empty_page_offers_recovery_from_another_browser(): void
+    {
+        $this->get('/mis-servicios')->assertOk()
+            ->assertSee('Recuperar mis servicios')
+            ->assertSee(route('my-services.recover'));
+    }
+
+    public function test_the_saved_track_link_can_relink_the_device_after_the_cookie_is_lost(): void
+    {
+        $barber = $this->barber('citas');
+        $appointment = Appointment::reserveSlot([
+            'barber_id' => $barber->id, 'client_name' => 'Sofía', 'client_phone' => '3001234567',
+            'appointment_date' => '2026-11-19', 'appointment_time' => '14:00', 'status' => 'pendiente',
+        ]);
+
+        $this->postJson('/mis-servicios/vincular', ['type' => 'cita', 'token' => 'no-existe'])->assertNotFound();
+        $response = $this->postJson('/mis-servicios/vincular', ['type' => 'cita', 'token' => $appointment->public_token])
+            ->assertOk()->assertJson(['ok' => true]);
+        $device = $response->getCookie('mis_servicios');
+        $this->assertNotNull($device);
+
+        $this->withCookie('mis_servicios', $device->getValue());
+        $this->get('/mis-servicios')->assertOk()->assertSee('2:00 pm');
+    }
+
+    public function test_checking_a_lost_booking_response_relinks_the_device(): void
+    {
+        $barber = $this->barber('citas');
+        $appointment = Appointment::reserveSlot([
+            'barber_id' => $barber->id, 'client_name' => 'Lucía', 'client_phone' => '3001234567',
+            'appointment_date' => '2026-11-19', 'appointment_time' => '09:00', 'status' => 'pendiente',
+        ]);
+        $key = (string) Str::uuid();
+        Cache::put('reserva:'.$key, [
+            'success' => [
+                'type' => 'cita',
+                'track_url' => route('track.show', ['type' => 'cita', 'token' => $appointment->public_token]),
+                'track_type' => 'cita',
+                'track_token' => $appointment->public_token,
+                'access_url' => ClientServiceAccess::recoveryUrl($appointment),
+            ],
+            'redirect' => route('my-services.index'),
+        ], now()->addDay());
+
+        $response = $this->getJson('/reservar/estado/'.$key)->assertOk()->assertJson(['status' => 'done']);
+        $device = $response->getCookie('mis_servicios');
+        $this->assertNotNull($device, 'La consulta de estado debe volver a vincular el dispositivo.');
+
+        $this->withCookie('mis_servicios', $device->getValue());
+        $this->get('/mis-servicios')->assertOk()->assertSee('9:00 am');
     }
 
     public function test_only_a_valid_individual_link_recovers_an_existing_booking(): void

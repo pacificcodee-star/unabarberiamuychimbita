@@ -8,6 +8,7 @@ use App\Services\ClientBookingActions;
 use App\Services\TurnQueueService;
 use App\Support\ClientServiceAccess;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class MyServicesController extends Controller
 {
@@ -19,6 +20,29 @@ class MyServicesController extends Controller
         ClientServiceAccess::remember($request, $subject);
 
         return redirect()->route('my-services.index')->header('Referrer-Policy', 'no-referrer')->header('Cache-Control', 'private, no-store');
+    }
+
+    /**
+     * Vuelve a vincular este navegador con una reserva cuyo enlace secreto ya estaba guardado aquí
+     * (ver public/js/device-recovery.js). Sirve cuando la cookie de «Mis servicios» se perdió pero
+     * el navegador conserva el enlace: no entrega más de lo que ese mismo enlace ya permite ver.
+     */
+    public function link(Request $request)
+    {
+        $data = $request->validate([
+            'type' => ['required', Rule::in(['cita', 'turno'])],
+            'token' => ['required', 'string', 'max:64'],
+        ]);
+        $subject = ($data['type'] === 'turno' ? Turn::query() : Appointment::query())
+            ->where('public_token', $data['token'])->first();
+        abort_if(! $subject, 404);
+
+        $date = $subject instanceof Turn ? $subject->turn_date : $subject->appointment_date;
+        abort_if($date && $date->copy()->addDays((int) config('notificaciones.track_link_days', 30))->endOfDay()->isPast(), 404);
+
+        ClientServiceAccess::remember($request, $subject);
+
+        return response()->json(['ok' => true])->header('Cache-Control', 'no-store');
     }
 
     public function index(Request $request, TurnQueueService $queue)

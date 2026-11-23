@@ -7,6 +7,7 @@ use App\Models\Sale;
 use App\Models\SiteSetting;
 use App\Models\Service;
 use App\Models\StaffNotification;
+use App\Models\Turn;
 use App\Models\User;
 use App\Services\ClientNotifier;
 use App\Services\TurnService;
@@ -302,6 +303,26 @@ class PublicBookingController extends Controller
         $request->attributes->set('booking_success', $data);
     }
 
+    /**
+     * Si la respuesta original de la reserva nunca llegó al navegador, tampoco llegó la cookie de
+     * «Mis servicios». Al reintentar o consultar el estado se vuelve a vincular este dispositivo
+     * con la reserva ya hecha, sin duplicarla y sin perder el seguimiento.
+     */
+    private function relinkDevice(Request $request, array $success): void
+    {
+        $type = $success['track_type'] ?? null;
+        $token = $success['track_token'] ?? null;
+        if (! in_array($type, ['cita', 'turno'], true) || ! is_string($token) || $token === '') {
+            return;
+        }
+
+        $subject = ($type === 'turno' ? Turn::query() : Appointment::query())
+            ->where('public_token', $token)->first();
+        if ($subject) {
+            ClientServiceAccess::remember($request, $subject);
+        }
+    }
+
     /** Teléfono: entre 7 y 15 dígitos; se permiten espacios, guiones, paréntesis y el + inicial. */
     /**
      * ¿Ya se procesó la reserva con esta clave? Lo consulta el navegador cuando se perdió la respuesta
@@ -315,6 +336,7 @@ class PublicBookingController extends Controller
         $stored = Cache::get(self::IDEMPOTENCY_PREFIX.$key);
         if ($stored) {
             $this->rememberSuccess($request, $stored['success']);
+            $this->relinkDevice($request, $stored['success']);
 
             return response()->json(['status' => 'done', 'redirect' => $stored['redirect']]);
         }
@@ -363,6 +385,7 @@ class PublicBookingController extends Controller
             if ($stored = Cache::get($cacheKey)) {
                 Log::info('reservas.reintento_sin_duplicar');
                 $this->rememberSuccess($request, $stored['success']);
+                $this->relinkDevice($request, $stored['success']);
 
                 return $this->asBookingResponse($request, redirect()->to($stored['redirect']));
             }

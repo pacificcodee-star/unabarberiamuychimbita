@@ -105,6 +105,8 @@
 .service-empty-state h2 { margin: 0 0 .5rem; font-size: 1.45rem; }
 .service-empty-state p { margin: 0 0 1.25rem; color: var(--text-muted); }
 .service-empty-state .btn { min-height: 44px; }
+.service-empty-actions { display: flex; flex-wrap: wrap; gap: .75rem; justify-content: center; }
+.service-empty-note { margin: 1rem 0 0; font-size: .88rem; color: var(--text-subtle); }
 .service-group h2 { display: flex; align-items: center; gap: .6rem; margin: 0 0 1rem; font-size: 1.35rem; }
 .msv-count { display: inline-grid; place-items: center; min-width: 1.7rem; height: 1.7rem; padding: 0 .5rem; border-radius: 999px; background: rgba(21, 18, 14, .08); color: var(--text-muted); font-family: var(--font-body, system-ui); font-size: .78rem; font-weight: 700; }
 .msv-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 23rem), 1fr)); }
