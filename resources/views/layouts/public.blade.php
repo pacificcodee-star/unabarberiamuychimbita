@@ -831,7 +831,7 @@
     .notify-ask-yes:hover { background: var(--button-gold-hover); }
     .notify-ask-no { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); }
     .notify-ask-no:hover { background: rgba(var(--text-rgb), .08); color: var(--text); }
-    @media (max-width: 767.98px) { .notify-ask { bottom: calc(var(--mnav-clear, 86px) + 12px); } }
+    @media (max-width: 1099.98px) { .notify-ask { bottom: calc(var(--mnav-clear, 86px) + 12px); } }
     @media (max-width: 420px) { .notify-ask { flex-wrap: wrap; } .notify-ask-text { flex-basis: calc(100% - 100px); } .notify-ask-yes { flex: 1; } }
     @media (prefers-reduced-motion: reduce) { .notify-ask { transition: none; } }
 </style>
