@@ -1464,7 +1464,10 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
         overflow: hidden;
         border: 1px solid rgba(var(--text-rgb), .14);
         border-radius: 999px;
-        background: rgba(var(--bg-rgb), .66);
+        /* Fondo casi opaco a propósito: al cambiar de página la barra se copia como imagen aparte
+           (view-transition-name) y esa copia no lleva el desenfoque de fondo. Con .66 la barra se veía
+           transparente, sin diseño, durante el cambio; con .9 se ve igual antes, durante y después. */
+        background: linear-gradient(180deg, rgba(var(--bg-rgb), .86), rgba(var(--bg-rgb), .94));
         -webkit-backdrop-filter: blur(18px) saturate(160%);
         backdrop-filter: blur(18px) saturate(160%);
         box-shadow: 0 18px 40px rgba(0, 0, 0, .42), 0 2px 8px rgba(0, 0, 0, .22), inset 0 1px 0 rgba(255, 255, 255, .12);
@@ -1552,7 +1555,11 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
     }
 }
 
+/* La barra inferior no se anima ni se superpone consigo misma al cambiar de página: se ve solo la nueva,
+   fija en su sitio, para que su diseño no "parpadee" ni se pierda. */
 ::view-transition-group(mnav) { animation-duration: 0s; }
+::view-transition-old(mnav) { display: none; }
+::view-transition-new(mnav) { animation: none; opacity: 1; }
 @media print { .mnav { display: none !important; } }
 
 /* 23.14 Barberos — fondo negro con estilo:
