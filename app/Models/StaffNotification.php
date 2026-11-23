@@ -55,9 +55,16 @@ class StaffNotification extends Model
     {
         $query = $user->isAdmin() ? $query : $query->where('barber_id', $user->id);
 
-        return $user->notifications_cleared_at
-            ? $query->where('created_at', '>', $user->notifications_cleared_at)
+        // Por número de aviso, no por hora (ver migración add_notification_markers_to_users_table).
+        return $user->notifications_cleared_id
+            ? $query->where('id', '>', $user->notifications_cleared_id)
             : $query;
+    }
+
+    /** ¿Llegó después de la última vez que esta persona abrió la campana? */
+    public function isUnreadFor(User $user): bool
+    {
+        return ! $user->notifications_seen_id || $this->id > $user->notifications_seen_id;
     }
 
     public function icon(): string

@@ -290,6 +290,19 @@
         .nt-icon-btn:hover { background: rgba(192, 57, 43, .09); color: var(--danger); border-color: rgba(192, 57, 43, .18); }
         .nt-icon-btn[hidden] { display: none; }
 
+        .nt-device { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px 10px 18px; border-bottom: 1px solid var(--bs-border-color); background: rgba(127, 127, 127, .05); }
+        .nt-device-ico { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; font-size: .85rem; background: rgba(127, 127, 127, .14); color: var(--bs-secondary-color); }
+        .nt-device[data-state="on"] .nt-device-ico { background: rgba(31, 138, 91, .14); color: #1a7a50; }
+        .nt-device[data-state="off"] .nt-device-ico { background: rgba(196, 135, 24, .16); color: #96600a; }
+        .nt-device[data-state="denied"] .nt-device-ico, .nt-device[data-state="error"] .nt-device-ico { background: rgba(192, 57, 43, .12); color: #b03a2e; }
+        html.admin-dark .nt-device[data-state="on"] .nt-device-ico { color: #62d3a0; }
+        html.admin-dark .nt-device[data-state="off"] .nt-device-ico { color: #f0b54e; }
+        html.admin-dark .nt-device[data-state="denied"] .nt-device-ico, html.admin-dark .nt-device[data-state="error"] .nt-device-ico { color: #f08a7e; }
+        .nt-device-text { flex: 1 1 170px; min-width: 0; display: grid; gap: 1px; }
+        .nt-device-text strong { font-size: .8rem; }
+        .nt-device-text span { font-size: .74rem; line-height: 1.35; color: var(--bs-secondary-color); overflow-wrap: anywhere; }
+        .nt-device .btn { min-height: 32px; padding: .2rem .7rem; font-size: .78rem; }
+        .nt-device .btn[hidden] { display: none; }
         .nt-confirm { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 18px; background: rgba(192, 57, 43, .07); border-bottom: 1px solid rgba(192, 57, 43, .16); font-size: .82rem; }
         .nt-confirm[hidden] { display: none; }
         .nt-confirm span { flex: 1 1 180px; font-weight: 600; }
@@ -395,6 +408,15 @@
                                 <i class="bi bi-trash3" aria-hidden="true"></i>
                             </button>
                         </div>
+                        <div class="nt-device" data-push-device data-state="checking">
+                            <span class="nt-device-ico" aria-hidden="true"><i class="bi bi-bell-fill"></i></span>
+                            <div class="nt-device-text">
+                                <strong>Avisos en este dispositivo</strong>
+                                <span data-push-device-detail role="status" aria-live="polite">Comprobando…</span>
+                            </div>
+                            <button type="button" class="btn btn-gold" data-push-device-enable hidden>Activar</button>
+                            <button type="button" class="btn btn-outline-dark" data-push-device-test hidden><i class="bi bi-volume-up" aria-hidden="true"></i> Probar</button>
+                        </div>
                         <div class="nt-confirm" data-staff-bell-confirm hidden>
                             <span>¿Eliminar todas tus notificaciones?</span>
                             <button type="button" class="btn btn-outline-dark" data-staff-bell-cancel>Cancelar</button>
@@ -443,7 +465,7 @@
     </main>
 </div>
 
-<div class="staff-push-prompt" id="staffPushPrompt" role="dialog" aria-labelledby="staffPushTitle" data-store="{{ route('staff.push.store') }}" data-vapid="{{ config('services.webpush.public_key') }}" hidden>
+<div class="staff-push-prompt" id="staffPushPrompt" role="dialog" aria-labelledby="staffPushTitle" data-store="{{ route('staff.push.store') }}" data-test="{{ route('staff.push.test') }}" data-vapid="{{ config('services.webpush.public_key') }}" hidden>
     <div>
         <strong id="staffPushTitle">Activa los avisos del equipo</strong>
         <span data-staff-push-status role="status" aria-live="polite">Recibe avisos de nuevas reservas y cambios de turno.</span>
@@ -620,94 +642,44 @@
     load();
     setInterval(() => load(), live ? 5000 : 30000);
     document.addEventListener('visibilitychange', () => load());
-})();
-</script>
-<script>
-(() => {
-    const box = document.getElementById('staffPushPrompt');
-    if (!box) return;
-    const enable = box.querySelector('[data-staff-push-enable]');
-    const close = box.querySelector('[data-staff-push-close]');
-    const status = box.querySelector('[data-staff-push-status]');
-    const key = 'staff-push-dismissed-until';
-    const setStatus = (message) => { status.textContent = message; };
-    const bytes = (base64) => {
-        const padded = (base64 + '='.repeat((4 - (base64.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/');
-        return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
-    };
-    const dismissed = () => { try { return Number(localStorage.getItem(key) || 0) > Date.now(); } catch (e) { return false; } };
-    const snooze = () => { try { localStorage.setItem(key, String(Date.now() + 7 * 864e5)); } catch (e) {} box.hidden = true; };
+    // Llegó un push (sw.js avisa a las pestañas abiertas): la campana se actualiza al instante.
+    navigator.serviceWorker?.addEventListener('message', (event) => { if (event.data === 'booking-change') load(true); });
 
-    if (dismissed()) return;
-    if (!('Notification' in window) || !('PushManager' in window) || !('serviceWorker' in navigator) || !box.dataset.vapid) {
-        setStatus('Este navegador no admite avisos push.');
-        enable.hidden = true;
-        return;
-    }
-
-    const swReady = navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
-        .then((registration) => { registration.update().catch(() => {}); return navigator.serviceWorker.ready; })
-        .catch(() => null);
-
-    const saveSubscription = async (subscription) => {
-        const encodings = PushManager.supportedContentEncodings || ['aes128gcm'];
-        const payload = Object.assign(subscription.toJSON(), { contentEncoding: encodings.includes('aes128gcm') ? 'aes128gcm' : 'aesgcm' });
-        const response = await fetch(box.dataset.store, {
-            method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' },
-            body: JSON.stringify(payload),
+    // Fila "Avisos en este dispositivo": estado real, Activar y Probar (js/staff-push.js).
+    const device = root.querySelector('[data-push-device]');
+    const deviceDetail = device.querySelector('[data-push-device-detail]');
+    const deviceEnable = device.querySelector('[data-push-device-enable]');
+    const deviceTest = device.querySelector('[data-push-device-test]');
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!window.staffPush) { device.hidden = true; return; }
+        window.staffPush.onChange(({ name, message }) => {
+            device.dataset.state = name;
+            deviceDetail.textContent = message || (name === 'checking' ? 'Comprobando…' : '');
+            deviceEnable.hidden = !['off', 'error'].includes(name);
+            deviceEnable.textContent = name === 'error' ? 'Reintentar' : 'Activar';
+            deviceTest.hidden = name !== 'on';
         });
-        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).message || 'No se pudo registrar este dispositivo.');
-    };
-
-    // Si el navegador ya dio permiso, este dispositivo se registra solo (o se vuelve a
-    // registrar si el servidor lo perdió) y el aviso no aparece: nunca se pide dos veces.
-    const syncIfGranted = async () => {
-        if (Notification.permission !== 'granted') return false;
-        try {
-            const registration = await swReady;
-            if (!registration) throw new Error('El navegador no pudo iniciar el servicio de avisos.');
-            let subscription = await registration.pushManager.getSubscription();
-            if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(box.dataset.vapid) });
-            await saveSubscription(subscription);
-            box.hidden = true;
-            return true;
-        } catch (error) {
-            setStatus('Este dispositivo tiene permiso, pero no se pudo conectar con el servidor de avisos.');
-            return false;
-        }
-    };
-
-    close.addEventListener('click', snooze);
-    enable.addEventListener('click', async () => {
-        enable.setAttribute('aria-disabled', 'true');
-        setStatus('Conectando los avisos a este dispositivo…');
-        try {
-            const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
-            if (permission !== 'granted') throw new Error(permission === 'denied' ? 'Los avisos están bloqueados en la configuración del navegador.' : 'Permite las notificaciones para continuar.');
-            await syncIfGranted();
-            setStatus('Avisos activados. Este dispositivo recibirá las notificaciones del equipo.');
-            enable.textContent = 'Avisos activos';
-            window.setTimeout(snooze, 2400);
-        } catch (error) {
-            setStatus(error.message || 'No se pudieron activar los avisos.');
-        } finally {
-            enable.removeAttribute('aria-disabled');
-        }
+        deviceEnable.addEventListener('click', async () => {
+            deviceEnable.disabled = true;
+            await window.staffPush.enable();
+            deviceEnable.disabled = false;
+        });
+        deviceTest.addEventListener('click', async () => {
+            deviceTest.disabled = true;
+            deviceDetail.textContent = 'Enviando un aviso de prueba…';
+            try {
+                const result = await window.staffPush.test();
+                deviceDetail.textContent = result.message;
+            } catch (error) {
+                deviceDetail.textContent = error.message;
+            } finally {
+                deviceTest.disabled = false;
+            }
+        });
     });
-
-    (async () => {
-        if (Notification.permission === 'denied') {
-            setStatus('Los avisos están bloqueados en este navegador. Actívalos desde el candado de la barra de direcciones.');
-            enable.hidden = true;
-            box.hidden = false;
-            return;
-        }
-        // Oculto mientras se comprueba: si ya estaban activos, no llega a mostrarse.
-        if (!(await syncIfGranted())) box.hidden = false;
-    })();
 })();
 </script>
+<script src="{{ asset('js/staff-push.js') }}?v={{ @filemtime(public_path('js/staff-push.js')) }}"></script>
 @if(request()->routeIs('dashboard', 'turns.index', 'appointments.index'))
     <script src="{{ asset('js/booking-panels.js') }}?v={{ filemtime(public_path('js/booking-panels.js')) }}"></script>
 @endif

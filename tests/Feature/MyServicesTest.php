@@ -125,7 +125,7 @@ class MyServicesTest extends TestCase
         $this->assertTrue($after['start_at']->lt($before['start_at']));
         $this->assertSame(1, $first->clientNotifications()->where('type', 'turn_cancelled')->count());
         $this->assertSame(1, StaffNotification::where('type', 'client_cancelled')->count());
-        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertSeeInOrder(['Personas antes de ti: 1', 'Turnos anteriores', 'Anulado']);
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertSeeInOrder(['1 persona antes de ti', 'Turnos anteriores', 'Anulado']);
         $second->update(['status' => 'atendiendo']);
         $this->postJson("/mis-servicios/turno/{$second->id}/cancelar")->assertUnprocessable();
         foreach ([$barber, User::factory()->create(['role' => 'admin'])] as $staff) {

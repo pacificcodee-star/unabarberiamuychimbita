@@ -155,6 +155,7 @@ Route::middleware(['panel-desktop', 'auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/staff/push', [StaffPushController::class, 'store'])->middleware('throttle:20,1,staff.push.store')->name('staff.push.store');
     Route::delete('/staff/push', [StaffPushController::class, 'destroy'])->middleware('throttle:20,1,staff.push.destroy')->name('staff.push.destroy');
+    Route::post('/staff/push/prueba', [StaffPushController::class, 'test'])->middleware('throttle:10,1,staff.push.test')->name('staff.push.test');
 
     Route::get('/sales/{sale}/receipt', [SaleController::class, 'receipt'])->name('sales.receipt');
     Route::post('/sales/{sale}/items/{item}/return', [SaleController::class, 'returnItem'])->name('sales.items.return');

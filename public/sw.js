@@ -3,7 +3,7 @@
    - CSS, JS, imágenes y fuentes: se sirven del caché y se actualizan en segundo plano.
    - El panel de administración y los formularios (POST) nunca se guardan en caché.
    - Notificaciones push: muestra los avisos de turnos y citas aunque la página o el navegador estén cerrados. */
-const VERSION = 'v5'; // v4: páginas públicas siempre revalidadas; v5: contenido del panel al día
+const VERSION = 'v6'; // v4: páginas públicas siempre revalidadas; v5: contenido del panel al día; v6: aviso al instante a todas las pestañas
 const PAGES = `pages-${VERSION}`;
 const ASSETS = `assets-${VERSION}`;
 const OFFLINE_URL = '/offline.html';
@@ -80,7 +80,7 @@ self.addEventListener('push', (event) => {
     //  - requireInteraction: queda visible hasta que la persona lo toque o lo cierre.
     const tag = data.tag || ('aviso-' + Date.now());
     event.waitUntil(
-        Promise.all([self.clients.matchAll({ type: 'window' }).then(windows => windows.forEach(client => client.postMessage('booking-change'))),
+        Promise.all([self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windows => windows.forEach(client => client.postMessage('booking-change'))),
         self.registration.showNotification(title, {
             body: data.body || '',
             icon: '/icons/icon-192.png',

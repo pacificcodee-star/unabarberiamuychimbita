@@ -13,6 +13,7 @@ use App\Models\WhatsAppMessage;
 use App\Services\ClientNotifier;
 use App\Services\TurnQueueService;
 use App\Services\TurnService;
+use App\Support\AppointmentMessages;
 use App\Support\AttendanceConfirmation;
 use App\Support\TurnSchedule;
 use Carbon\Carbon;
@@ -946,42 +947,17 @@ class WhatsappBotService
             return $this->menuText();
         }
 
-        $details = '📅 Fecha: *'.$this->dateLabel(Carbon::parse($appointment->appointment_date?->toDateString()))."*\n"
-            .'🕒 Hora: *'.$this->slotLabel(substr((string) $appointment->appointment_time, 0, 5))."*\n"
-            .($appointment->service ? '✂️ Servicio: *'.$appointment->service->name."*\n" : '')
-            .'💈 Barbero: *'.($appointment->barber?->name ?? 'Por asignar')."*\n"
-            .'👤 Cliente: *'.$appointment->client_name."*\n";
         $footer = '1. 🏠 Volver al menú principal.'."\n"
             .'2. 👋 Finalizar conversación.';
         $window = (int) config('notificaciones.confirm_window_minutes', 15);
         $minutesLeft = (int) ceil(now()->diffInMinutes($appointment->startsAt(), false));
 
-        // Cita en 15 minutos o menos (14, 7, 3…): quedó confirmada sola, no se le pide nada más.
-        if ($minutesLeft <= $window && AttendanceConfirmation::confirmed($appointment)) {
-            $address = trim((string) (SiteSetting::currentData()['address'] ?? ''));
+        // El cliente ya confirmó en el chat: "¡Hola…! Tu cita en … quedó confirmada" con todos los detalles.
+        // Cita en 15 minutos o menos: además se aclara que quedó confirmada automáticamente.
+        $automatic = $minutesLeft <= $window && AttendanceConfirmation::confirmed($appointment);
 
-            return '⏰ *¡Tu cita es '.($minutesLeft <= 1 ? 'en este momento' : 'en '.$minutesLeft.' minutos').' y ya quedó confirmada!*'."\n\n"
-                .'Como falta poco para tu cita, la confirmamos *automáticamente*: no necesitas responder nada más.'."\n\n"
-                .'📋 *Detalles de tu cita:*'."\n\n"
-                .$details
-                .($address !== '' ? '📍 Dirección: *'.$address."*\n" : '')."\n"
-                .'🚶 Te recomendamos salir ya para llegar a tiempo. Si al final no puedes venir, escríbenos *cancelar*.'."\n\n"
-                .'💈 ¡Te esperamos en *'.$this->brand().'*!'."\n\n"
-                .$footer;
-        }
-
-        // Entre 16 y 30 minutos el recordatorio para confirmar ya salió (antes que este mensaje):
-        // igual que con el turno ya llamado, no se promete otro aviso. Con más tiempo, sí.
-        $reminder = $minutesLeft <= 30
-            ? ''
-            : '⏰ Te enviaremos un recordatorio automático *30 minutos antes* de tu cita para que confirmes tu asistencia (tendrás *'.$window.' minutos* para responder) o canceles si lo necesitas.'."\n\n";
-
-        return '✅ ¡Tu cita ha sido confirmada exitosamente!'."\n\n"
-            .'Gracias por elegir *'.$this->brand()."*.\n\n"
-            .'📋 *Estos son los detalles de tu reserva:*'."\n\n"
-            .$details."\n"
-            .$reminder
-            .'💈 ¡Será un placer atenderte!'."\n\n"
+        return AppointmentMessages::confirmed($appointment, automatic: $automatic)."\n\n"
+            .'❌ Si al final no puedes venir, escríbenos *cancelar*.'."\n\n"
             .$footer;
     }
 
@@ -2026,10 +2002,8 @@ class WhatsappBotService
             'history' => [],
         ]);
 
-        return $this->greeting('¡Muchas gracias por confirmar', $appointment->client_name).' 🙌'."\n\n"
-            .'✅ Hemos registrado tu asistencia.'."\n\n"
-            .'Tu cita continúa activa y nuestro equipo estará preparado para recibirte en el horario programado.'."\n\n"
-            .'💈 ¡Te esperamos en *'.$this->brand().'*!'."\n\n"
+        // "¡Hola, Ana! Tu cita en … quedó confirmada" con servicio, tipo de servicio, fecha, hora, barbero…
+        return AppointmentMessages::confirmed($appointment->loadMissing(['service', 'barber']), thanks: true)."\n\n"
             .'1. 🏠 Volver al menú principal.'."\n"
             .'2. 👋 Finalizar conversación.';
     }

@@ -43,6 +43,25 @@ class StaffNotificationClearTest extends TestCase
         $this->assertSame('red', $after->json('items.0.tone'));
     }
 
+    public function test_eliminar_todas_tambien_borra_avisos_con_la_hora_adelantada(): void
+    {
+        // Avisos importados con hora UTC: quedan 5 horas "en el futuro" respecto a la hora de Colombia.
+        $this->travelTo(Carbon::parse('2026-11-23 00:04:00'));
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        StaffNotification::record('whatsapp_message', 'WhatsApp: Ana');
+        StaffNotification::query()->latest('id')->first()->forceFill(['created_at' => '2026-11-23 05:04:00'])->save();
+        StaffNotification::record('appt_new', 'Nueva cita');
+
+        $this->assertSame(2, $this->actingAs($admin)->getJson(route('staff-notifications.feed'))->json('unread'));
+
+        // Abrir la campana deja todo como leído, aunque la hora guardada esté adelantada.
+        $this->actingAs($admin)->postJson(route('staff-notifications.seen'))->assertOk();
+        $this->assertSame(0, $this->actingAs($admin)->getJson(route('staff-notifications.feed'))->json('unread'));
+
+        $this->actingAs($admin)->deleteJson(route('staff-notifications.clear'))->assertOk();
+        $this->assertSame(0, $this->actingAs($admin)->getJson(route('staff-notifications.feed'))->json('total'));
+    }
+
     public function test_la_pagina_de_notificaciones_permite_eliminar_todas(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
@@ -60,6 +79,44 @@ class StaffNotificationClearTest extends TestCase
             ->assertOk()
             ->assertSee('No tienes notificaciones')
             ->assertDontSee('Nuevo turno #001');
+    }
+
+    public function test_probar_avisos_envia_un_push_real_a_los_dispositivos_del_usuario(): void
+    {
+        $push = new class extends \App\Services\PushSender
+        {
+            public array $sent = [];
+
+            public function isConfigured(): bool
+            {
+                return true;
+            }
+
+            public function send(\App\Models\PushSubscription $subscription, array $payload, int $ttlSeconds = 600): array
+            {
+                $this->sent[] = $payload;
+
+                return ['ok' => true, 'gone' => false, 'error' => null];
+            }
+        };
+        $this->app->instance(\App\Services\PushSender::class, $push);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+
+        // Sin dispositivos: lo dice claro.
+        $this->actingAs($admin)->postJson(route('staff.push.test'))
+            ->assertStatus(422)
+            ->assertJsonFragment(['message' => 'Este usuario todavía no tiene dispositivos con avisos activos. Toca «Activar».']);
+
+        $admin->pushSubscriptions()->create([
+            'endpoint' => 'https://fcm.googleapis.com/fcm/send/prueba',
+            'endpoint_hash' => \App\Models\PushSubscription::hashEndpoint('https://fcm.googleapis.com/fcm/send/prueba'),
+            'p256dh' => 'clave', 'auth' => 'auth', 'content_encoding' => 'aes128gcm',
+        ]);
+
+        $this->actingAs($admin)->postJson(route('staff.push.test'))
+            ->assertOk()
+            ->assertJson(['devices' => 1, 'sent' => 1]);
+        $this->assertSame('Prueba de avisos', $push->sent[0]['title']);
     }
 
     public function test_solo_el_equipo_puede_vaciar_su_bandeja(): void

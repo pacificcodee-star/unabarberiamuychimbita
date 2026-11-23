@@ -191,4 +191,6 @@
     };
     setInterval(poll, 15000);
     document.addEventListener('visibilitychange', poll);
+    // Llegó un push: el estado del turno o la cita se actualiza al instante.
+    navigator.serviceWorker?.addEventListener('message', (event) => { if (event.data === 'booking-change') poll(); });
 })();

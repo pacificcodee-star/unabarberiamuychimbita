@@ -6,20 +6,21 @@ use App\Models\Appointment;
 use App\Models\ClientNotification;
 use App\Models\StaffNotification;
 use App\Models\Turn;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 /** Campana del panel: avisos para el equipo e historial de avisos enviados a los clientes. */
 class StaffNotificationController extends Controller
 {
-    /** Datos para la campana (se consulta cada 30 segundos). */
+    /** Datos para la campana (se consulta cada 30 segundos y al instante cuando llega un push). */
     public function feed(Request $request)
     {
         $user = $request->user();
-        $seenAt = $user->notifications_seen_at;
 
-        $items = StaffNotification::visibleTo($user)->latest()->latest('id')->limit(15)->get();
+        // Orden de llegada (número de aviso): no depende de la hora guardada.
+        $items = StaffNotification::visibleTo($user)->latest('id')->limit(15)->get();
         $unread = StaffNotification::visibleTo($user)
-            ->when($seenAt, fn ($query) => $query->where('created_at', '>', $seenAt))
+            ->when($user->notifications_seen_id, fn ($query) => $query->where('id', '>', $user->notifications_seen_id))
             ->count();
 
         return response()->json([
@@ -35,7 +36,7 @@ class StaffNotificationController extends Controller
                 'day' => $n->dayLabel(),
                 'time' => $n->created_at->format('g:i a'),
                 'ago' => $n->created_at->locale('es')->diffForHumans(),
-                'unread' => ! $seenAt || $n->created_at->gt($seenAt),
+                'unread' => $n->isUnreadFor($user),
             ]),
         ])->header('Cache-Control', 'no-store, private');
     }
@@ -46,7 +47,10 @@ class StaffNotificationController extends Controller
      */
     public function clear(Request $request)
     {
+        $last = (int) StaffNotification::max('id');
         $request->user()->forceFill([
+            'notifications_cleared_id' => $last,
+            'notifications_seen_id' => $last,
             'notifications_cleared_at' => now(),
             'notifications_seen_at' => now(),
         ])->save();
@@ -61,7 +65,7 @@ class StaffNotificationController extends Controller
     /** El usuario abrió la campana: el contador vuelve a cero. */
     public function seen(Request $request)
     {
-        $request->user()->forceFill(['notifications_seen_at' => now()])->save();
+        $this->markSeen($request->user());
 
         return response()->json(['ok' => true]);
     }
@@ -72,7 +76,7 @@ class StaffNotificationController extends Controller
         $tab = $request->input('tab') === 'clientes' ? 'clientes' : 'equipo';
 
         $staff = $tab === 'equipo'
-            ? StaffNotification::visibleTo($user)->with('barber')->latest()->latest('id')->paginate(30)->withQueryString()
+            ? StaffNotification::visibleTo($user)->with('barber')->latest('id')->paginate(30)->withQueryString()
             : null;
 
         $clients = $tab === 'clientes'
@@ -90,9 +94,17 @@ class StaffNotificationController extends Controller
             : null;
 
         if ($tab === 'equipo') {
-            $user->forceFill(['notifications_seen_at' => now()])->save();
+            $this->markSeen($user);
         }
 
         return view('staff-notifications.index', compact('tab', 'staff', 'clients'));
+    }
+
+    private function markSeen(User $user): void
+    {
+        $user->forceFill([
+            'notifications_seen_id' => (int) StaffNotification::max('id'),
+            'notifications_seen_at' => now(),
+        ])->save();
     }
 }

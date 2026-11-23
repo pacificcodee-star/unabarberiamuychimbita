@@ -123,7 +123,7 @@ class BotCitaTurnoTest extends TestCase
         [$listo, $horas] = $this->reservarCitaA('2026-11-18 10:10:00'); // 10:30 → faltan 20 minutos
         $this->assertStringContainsString('10:30', $horas);
 
-        $this->assertStringContainsString('👤 Cliente: *Miguel Torres*', $listo);
+        $this->assertStringContainsString('👤 *Cliente:* Miguel Torres', $listo);
         $this->assertStringNotContainsString('Te enviaremos un recordatorio', $listo);
         $this->assertStringNotContainsString('En un momento te llegará', $listo);
         $this->assertStringNotContainsString('A nombre de', $listo);
@@ -138,7 +138,7 @@ class BotCitaTurnoTest extends TestCase
 
         $this->assertGreaterThan(30, now()->diffInMinutes($cita->startsAt(), false));
         $this->assertStringContainsString('30 minutos antes', $listo);
-        $this->assertStringContainsString('👤 Cliente: *Miguel Torres*', $listo);
+        $this->assertStringContainsString('👤 *Cliente:* Miguel Torres', $listo);
     }
 
     public function test_tomar_turno_solo_muestra_barberos_de_turno_y_crea_un_turno(): void

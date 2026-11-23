@@ -111,6 +111,8 @@
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !panel.hidden) { toggle(false); bell.focus(); } });
 
     window.addEventListener('ubmc:bookings', load);
+    // Llegó un push (sw.js avisa a las pestañas abiertas): se actualiza al instante, sin esperar 30 segundos.
+    navigator.serviceWorker?.addEventListener('message', (event) => { if (event.data === 'booking-change') load(); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
     setInterval(() => { if (!document.hidden && read('ubmc-bookings', []).length) load(); }, 30000);
     load();

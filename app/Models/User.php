@@ -42,6 +42,8 @@ class User extends Authenticatable
             'active' => 'boolean',
             'notifications_seen_at' => 'datetime',
             'notifications_cleared_at' => 'datetime',
+            'notifications_seen_id' => 'integer',
+            'notifications_cleared_id' => 'integer',
         ];
     }
 

@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\ClientNotification;
 use App\Models\SiteSetting;
 use App\Models\Turn;
+use App\Support\AppointmentMessages;
 use App\Support\AttendanceConfirmation;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
@@ -193,28 +194,19 @@ class ClientNotifier
     public function appointmentBooked(Appointment $appointment): void
     {
         $autoConfirmed = $this->autoConfirmIfSoon($appointment);
-        $window = (int) config('notificaciones.confirm_window_minutes', 15);
-        $minutesLeft = (int) ceil(now()->diffInMinutes($appointment->startsAt(), false));
 
         if ($autoConfirmed) {
-            // Agendada en el último cuarto de hora: mensaje propio, sin recordatorio ni pregunta de confirmación.
-            $name = $this->firstName($appointment->client_name);
-            $address = trim((string) (SiteSetting::currentData()['address'] ?? ''));
+            // Agendada en el último cuarto de hora: queda confirmada sola, sin pregunta de confirmación.
             $title = '✅ Tu cita quedó confirmada';
-            $body = '⏰ ¡Hola'.($name !== '' ? ', '.$name : '').'! Tu cita es '.($minutesLeft <= 1 ? 'en este momento' : 'en '.$minutesLeft.' minutos')
-                .' y ya quedó *confirmada automáticamente*: no necesitas responder nada más.'."\n\n"
-                .'📅 '.ucfirst($this->appointmentWhen($appointment, lower: true))."\n"
-                .($appointment->service?->name ? '✂️ Servicio: '.$appointment->service->name."\n" : '')
-                .($appointment->barber?->name ? '💈 Barbero: '.$appointment->barber->name."\n" : '')
-                .($address !== '' ? '📍 Dirección: '.$address."\n" : '')."\n"
-                .'🚶 Te recomendamos salir ya para llegar a tiempo. ¡Te esperamos en '.$this->brand().'!';
-        } elseif ($minutesLeft <= 30) {
-            $title = '¡Tu cita quedó registrada!';
-            $body = $this->withDot('Te esperamos '.$this->appointmentWhen($appointment, lower: true))
-                .' En un momento te llegará un mensaje para confirmar tu asistencia: tendrás '.$window.' minutos para responder.';
+            $body = AppointmentMessages::confirmed($appointment, automatic: true);
+        } elseif ($appointment->status === 'confirmada') {
+            // Agendada ya confirmada (p. ej. desde el panel): se envía directamente la confirmación completa.
+            $title = '✅ Tu cita quedó confirmada';
+            $body = AppointmentMessages::confirmed($appointment);
         } else {
-            $title = '¡Tu cita quedó registrada!';
-            $body = $this->withDot('Te esperamos '.$this->appointmentWhen($appointment, lower: true)).' Te enviaremos un recordatorio 30 minutos antes.';
+            // Primero se pide confirmar; al confirmar llega el mensaje "¡Hola…! Tu cita quedó confirmada".
+            $title = '📅 Confirma tu cita';
+            $body = AppointmentMessages::confirmationRequest($appointment);
         }
 
         $this->queue(
@@ -301,8 +293,8 @@ class ClientNotifier
             $this->queue(
                 $appointment,
                 'appt_confirmed',
-                'Cita confirmada',
-                $this->withDot('Tu cita quedó confirmada para '.$this->appointmentWhen($appointment, lower: true)).' ¡Te esperamos!',
+                '✅ Tu cita quedó confirmada',
+                AppointmentMessages::confirmed($appointment, thanks: true),
                 ttlMinutes: (int) config('notificaciones.ttl_minutes.change', 120),
             );
         }
