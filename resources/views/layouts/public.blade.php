@@ -133,14 +133,22 @@
         .bell-empty p { margin: 8px 0 14px; }
         .bell-group { padding: 12px 0; border-bottom: 1px solid var(--line); }
         .bell-group:last-child { border-bottom: 0; }
-        .bell-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; color: var(--text); text-decoration: none; }
-        .bell-group-head:hover strong { color: var(--gold); }
+        .bell-group { overflow: hidden; }
+        .bell-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; color: var(--text); }
         .bell-group-head span { font-size: .78rem; padding: 2px 9px; border: 1px solid var(--line-strong); border-radius: 999px; white-space: nowrap; }
         .bell-detail, .bell-none { margin: 4px 0 8px; font-size: .85rem; opacity: .8; }
         .bell-item { padding: 9px 11px; margin-top: 6px; background: var(--surface-3); border-radius: 10px; }
         .bell-item-top { display: flex; justify-content: space-between; gap: 10px; font-size: .88rem; }
         .bell-item-top time { font-size: .76rem; opacity: .7; white-space: nowrap; }
         .bell-item p { margin: 3px 0 0; font-size: .84rem; opacity: .88; }
+        /* Papelera centrada al pie del panel: borra todos los avisos. */
+        .bell-panel-foot { display: flex; justify-content: center; padding: 8px 16px 12px; border-top: 1px solid var(--line); }
+        .bell-panel-foot:has(.bell-clear[hidden]) { display: none; }
+        .bell-clear { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid var(--line-strong); border-radius: 999px; background: transparent; color: var(--text); font-size: 1.05rem; cursor: pointer; transition: border-color .2s ease, color .2s ease, transform .15s ease; }
+        .bell-clear:hover, .bell-clear:focus-visible { border-color: var(--brand-red); color: var(--brand-red); }
+        .bell-clear:active { transform: scale(.92); }
+        .bell-clear.is-busy { pointer-events: none; opacity: .6; }
+        .bell-clear[hidden] { display: none; }
         /* Caja de activación de avisos (página de seguimiento y confirmación de reserva) */
         .track-push { padding: 1.1rem 1.25rem; border: 1px solid var(--line-strong); border-radius: 14px; margin-bottom: 1.25rem; }
         .track-push h2 { font-size: 1.05rem; margin: 0 0 .4rem; }
@@ -321,6 +329,11 @@
         <button type="button" data-bell-close aria-label="Cerrar avisos"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
     </div>
     <div class="bell-panel-body" data-bell-body></div>
+    <div class="bell-panel-foot">
+        <button type="button" class="bell-clear" data-bell-clear aria-label="Borrar todos los avisos" title="Borrar todos los avisos" hidden>
+            <i class="bi bi-trash3" aria-hidden="true"></i>
+        </button>
+    </div>
 </div>
 
 <main id="main-content" tabindex="-1">

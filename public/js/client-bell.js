@@ -35,9 +35,20 @@
         } catch (e) {}
     };
 
+    /* Avisos borrados con la papelera: por reserva se guarda el último aviso borrado y solo se muestran los
+       que lleguen después. No se borra nada del servidor ni la reserva guardada (la siguen usando los avisos
+       push y la recuperación del dispositivo). */
+    const clearedOf = () => read('ubmc-bell-cleared', {});
+    const visible = () => {
+        const cleared = clearedOf();
+        return results
+            .map(({ booking, state }) => ({ booking, state, notifications: state.notifications.filter((n) => !(booking.key in cleared) || n.id > cleared[booking.key]) }))
+            .filter(({ booking, notifications }) => !(booking.key in cleared) || notifications.length > 0);
+    };
+
     const unreadCount = () => {
         const seen = read('ubmc-bell-seen', {});
-        return results.reduce((total, { booking, state }) => total + state.notifications.filter((n) => n.id > (seen[booking.key] || 0)).length, 0);
+        return visible().reduce((total, { booking, notifications }) => total + notifications.filter((n) => n.id > (seen[booking.key] || 0)).length, 0);
     };
 
     const paintBadge = () => {
@@ -49,7 +60,9 @@
 
     const paintPanel = () => {
         body.replaceChildren();
-        if (results.length === 0) {
+        const groups = visible();
+        if (clearButton) clearButton.hidden = groups.length === 0;
+        if (groups.length === 0) {
             const empty = el('div', 'bell-empty');
             empty.append(el('i', 'bi bi-bell'), el('p', '', 'Aquí verás los avisos de tu turno o cita.'));
             const link = el('a', 'btn btn-gold btn-sm', 'Reservar');
@@ -58,16 +71,16 @@
             body.append(empty);
             return;
         }
-        results.forEach(({ booking, state }) => {
+        groups.forEach(({ booking, state, notifications }) => {
             const group = el('section', 'bell-group');
-            const head = el('a', 'bell-group-head');
-            head.href = booking.url;
+            // Solo informa (Confirmada, Cancelada…): no lleva a ninguna página.
+            const head = el('div', 'bell-group-head');
             head.append(el('strong', '', booking.label), el('span', '', state.label));
             group.append(head, el('p', 'bell-detail', state.detail));
-            if (state.notifications.length === 0) {
+            if (notifications.length === 0) {
                 group.append(el('p', 'bell-none', 'Todavía no hay avisos.'));
             }
-            state.notifications.forEach((n) => {
+            notifications.forEach((n) => {
                 const item = el('article', 'bell-item');
                 const top = el('div', 'bell-item-top');
                 top.append(el('strong', '', n.title), el('time', '', n.at));
@@ -77,6 +90,37 @@
             body.append(group);
         });
     };
+
+    // Papelera: borra todos los avisos de la campana con un desvanecido breve.
+    const clearButton = panel.querySelector('[data-bell-clear]');
+    let clearing = false;
+    const clearAll = () => {
+        if (clearing) return;
+        clearing = true;
+        const cleared = clearedOf();
+        results.forEach(({ booking, state }) => {
+            cleared[booking.key] = state.notifications.reduce((max, n) => Math.max(max, n.id), cleared[booking.key] || 0);
+        });
+        write('ubmc-bell-cleared', cleared);
+        markSeen();
+        const groups = Array.from(body.querySelectorAll('.bell-group'));
+        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduced || !groups.length || !groups[0].animate) { clearing = false; paintPanel(); return; }
+        clearButton.classList.add('is-busy');
+        const done = groups.map((group, i) => group.animate([
+            { opacity: 1, transform: 'translateX(0)', height: group.offsetHeight + 'px' },
+            { opacity: 0, transform: 'translateX(14px)', height: group.offsetHeight + 'px', offset: .7 },
+            { opacity: 0, transform: 'translateX(14px)', height: '0px', paddingTop: '0px', paddingBottom: '0px' },
+        ], { duration: 320, delay: i * 50, easing: 'cubic-bezier(.22, 1, .36, 1)', fill: 'forwards' }).finished.catch(() => {}));
+        Promise.all(done).then(() => {
+            clearing = false;
+            clearButton.classList.remove('is-busy');
+            paintPanel();
+            const empty = body.querySelector('.bell-empty');
+            empty?.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+        });
+    };
+    clearButton?.addEventListener('click', clearAll);
 
     const load = async () => {
         const bookings = read('ubmc-bookings', []);
@@ -106,7 +150,7 @@
         lastNewest = newest;
         results = next;
         paintBadge();
-        if (!panel.hidden) { paintPanel(); markSeen(); }
+        if (!panel.hidden && !clearing) { paintPanel(); markSeen(); }
     };
 
     const markSeen = () => {
