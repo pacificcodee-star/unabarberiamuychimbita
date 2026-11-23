@@ -150,6 +150,32 @@
     </section>
 @endsection
 
+@push('styles')
+<style>
+/* Foto de la barbería de fondo, fija detrás del contenido y sin velo: se ve a todo color. */
+.svc-page { position: relative; isolation: isolate; }
+.svc-page::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat, #efe8dc;
+}
+/* Sobre la foto, el filtro de categorías lleva su propia cápsula crema para leerse. */
+.svc-page .svc-filters { background: rgba(250, 248, 243, .92); border: 1px solid rgba(21, 18, 14, .12); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+/* La foto se ve completa: un halo claro separa el texto que cruza zonas oscuras de la foto. */
+.svc-page .svc-media-name,
+.svc-page .svc-includes,
+.svc-page .svc-includes * { text-shadow: 0 1px 2px rgba(250, 248, 243, .92), 0 0 20px rgba(250, 248, 243, .8); }
+@media (max-width: 767.98px) {
+    /* En el celular la foto asoma por los bordes: el halo se refuerza sobre el sillón oscuro. */
+    .svc-page .svc-includes,
+    .svc-page .svc-includes * { text-shadow: 0 0 2px rgba(250, 248, 243, .95), 0 0 6px rgba(250, 248, 243, .95), 0 0 16px rgba(250, 248, 243, .85); }
+}
+</style>
+@endpush
+
 @push('scripts')
 <script>
     (() => {

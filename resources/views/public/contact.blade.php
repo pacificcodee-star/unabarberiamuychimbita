@@ -128,6 +128,25 @@
     </div>
 @endsection
 
+@push('styles')
+<style>
+/* Foto de la barbería de fondo, fija detrás del contenido y sin velo: se ve a todo color. */
+.contact-page { position: relative; isolation: isolate; }
+.contact-page::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat, #efe8dc;
+}
+.contact-page .ct-hero {
+    /* Solo la zona del texto se aclara con un degradado suave: el resto de la foto queda a todo color. */
+    background: radial-gradient(85% 130% at 0% 40%, rgba(250, 248, 243, .94) 0%, rgba(250, 248, 243, .72) 36%, rgba(250, 248, 243, 0) 64%) !important;
+}
+</style>
+@endpush
+
 @if(config('services.google_maps.key'))
 @push('scripts')
 <script>
