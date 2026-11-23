@@ -64,12 +64,12 @@
                 </aside>
 
                 <div class="ct-info">
-                    {{-- Canales de contacto: correo, visita, llamada y WhatsApp, con íconos SVG oficiales (public/images/contacto). --}}
+                    {{-- Canales de contacto: correo, visita, llamada y WhatsApp, con íconos SVG (public/images/contacto): Gmail y WhatsApp oficiales; ubicación y teléfono de Material Symbols. --}}
                     <h2 class="ct-subtitle reveal">Escríbenos</h2>
                     <ul class="ct-channels">
                         <li class="reveal">
-                            <a class="ct-channel" href="mailto:{{ $siteSettings['email'] }}">
-                                <span class="ct-channel-icon">{!! file_get_contents(public_path('images/contacto/correo.svg')) !!}</span>
+                            <a class="ct-channel ct-channel--mail" href="mailto:{{ $siteSettings['email'] }}">
+                                <span class="ct-channel-icon"><img src="{{ asset('images/contacto/correo.svg') }}" alt="" width="26" height="21"></span>
                                 <span class="ct-channel-text"><small>Correo</small><strong>{{ $siteSettings['email'] }}</strong></span>
                                 <i class="bi bi-arrow-up-right ct-channel-arrow" aria-hidden="true"></i>
                             </a>

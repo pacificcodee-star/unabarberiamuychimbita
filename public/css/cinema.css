@@ -3216,7 +3216,8 @@ section.wg:not(:has(~ :not(section.wg, script))) {
     backdrop-filter: blur(10px);
 }
 
-/* Contacto: íconos SVG oficiales (correo, ubicación y teléfono de Material Symbols; WhatsApp oficial).
-   Toman el color de cada recuadro con currentColor. */
+/* Contacto: logos oficiales de Gmail y WhatsApp (a todo color, sobre recuadro claro) y
+   ubicación/teléfono de Material Symbols, que toman el color de su recuadro con currentColor. */
 .ct-channel-icon > svg { display: block; width: 1.4rem; height: 1.4rem; flex: none; }
-.ct-channel-icon > img { display: block; width: 1.6rem; height: 1.6rem; }
+.ct-channel-icon > img { display: block; width: 1.6rem; height: 1.6rem; object-fit: contain; }
+.contact-page .ct-channels > li > .ct-channel--mail .ct-channel-icon { background: #fff; border-color: var(--line); }
