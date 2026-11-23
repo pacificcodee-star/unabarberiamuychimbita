@@ -28,22 +28,30 @@
                 <h2 id="service-dialog-title"></h2>
                 <p id="service-context"></p>
                 <fieldset id="service-schedule" hidden disabled>
-                    <legend class="rs-label">Nueva fecha</legend>
-                    {{-- Mismo calendario de Reservar (cinema.css, secciones 50 y 51): tarjeta blanca y selección azul. --}}
-                    <div class="cal-picker rs-cal" data-reschedule-calendar data-closed="{{ $calClosed->toJson() }}">
-                        <div class="cal-card">
-                            <div class="cal-head">
-                                <button type="button" class="cal-nav" data-cal-prev aria-label="Mes anterior"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
-                                <p class="cal-title" data-cal-title aria-live="polite"></p>
-                                <button type="button" class="cal-nav" data-cal-next aria-label="Mes siguiente"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+                    <legend class="visually-hidden">Nueva fecha y hora</legend>
+                    {{-- En computador: calendario y horas lado a lado; en el celular, uno debajo del otro. --}}
+                    <div class="rs-grid">
+                        <div class="rs-col">
+                            <span class="rs-label" id="service-date-label">Nueva fecha</span>
+                            {{-- Mismo calendario de Reservar (cinema.css, secciones 50 y 51), sin tarjeta: va directo sobre el crema del diálogo. --}}
+                            <div class="cal-picker rs-cal" data-reschedule-calendar data-closed="{{ $calClosed->toJson() }}">
+                                <div class="cal-card">
+                                    <div class="cal-head">
+                                        <button type="button" class="cal-nav" data-cal-prev aria-label="Mes anterior"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+                                        <p class="cal-title" data-cal-title aria-live="polite"></p>
+                                        <button type="button" class="cal-nav" data-cal-next aria-label="Mes siguiente"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+                                    </div>
+                                    <div class="cal-week" aria-hidden="true"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+                                    <div class="cal-grid" data-cal-grid></div>
+                                </div>
+                                <input type="hidden" id="service-date" name="appointment_date" min="{{ today()->toDateString() }}" max="{{ $calMax }}" required>
                             </div>
-                            <div class="cal-week" aria-hidden="true"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
-                            <div class="cal-grid" data-cal-grid></div>
                         </div>
-                        <input type="hidden" id="service-date" name="appointment_date" min="{{ today()->toDateString() }}" max="{{ $calMax }}" required>
+                        <div class="rs-col">
+                            <span class="rs-label" id="service-time-label">Hora disponible</span>
+                            <div id="service-times" class="slot-grid slot-card rs-slots" role="radiogroup" aria-labelledby="service-time-label" aria-live="polite"></div>
+                        </div>
                     </div>
-                    <span class="rs-label" id="service-time-label">Hora disponible</span>
-                    <div id="service-times" class="slot-grid slot-card rs-slots" role="radiogroup" aria-labelledby="service-time-label" aria-live="polite"></div>
                     <small>Al guardar, confirmas tu asistencia en el nuevo horario.</small>
                 </fieldset>
                 <p id="service-dialog-message" role="status"></p>
@@ -185,45 +193,87 @@
     .service-actions .msv-btn-confirm, .service-actions .msv-btn-reschedule, .service-actions .msv-btn-cancel { flex: 1 1 auto; min-width: 0; padding-inline: .55rem; font-size: .76rem; gap: .25rem; }
 }
 @media (prefers-reduced-motion: reduce) { .msv-card { transition: none; } }
-#service-dialog { --dlg-pad: clamp(1rem, 4vw, 1.6rem); --text: #faf8f3; --text-rgb: 250, 248, 243; --line-strong: rgba(255, 255, 255, .24); --gold: #e1ba70; width: min(27rem, calc(100% - 1.5rem)); max-height: 90dvh; overflow: auto; overscroll-behavior: contain; padding: var(--dlg-pad); border: 1px solid #3a3d45; border-radius: 1.25rem; background: #141518; color: #faf8f3; }
-#service-dialog::backdrop { background: rgb(0 0 0 / .72); }
-#service-dialog h2 { margin: 0 0 .25rem; font-size: 1.4rem; }
-#service-context { margin: 0 0 .5rem; color: rgba(250, 248, 243, .7); font-size: .9rem; }
+/* Diálogo de reprogramar: superficie crema (la misma de la página), compacto y sin tarjetas blancas
+   adentro; en el celular sale como hoja desde abajo. Calendario y horas conservan la selección azul de Reservar. */
+#service-dialog {
+    --dlg-pad: 1.25rem;
+    --dlg-bg: #f7f2e9;
+    --text: #15120e; --text-rgb: 21, 18, 14;
+    --line: rgba(21, 18, 14, .1); --line-strong: rgba(21, 18, 14, .24);
+    --gold: #8a6a12;
+    width: min(24.5rem, calc(100% - 2rem)); max-width: none; max-height: min(88dvh, 46rem);
+    overflow: auto; overscroll-behavior: contain; padding: var(--dlg-pad);
+    border: 1px solid rgba(21, 18, 14, .08); border-radius: 1.25rem;
+    background: var(--dlg-bg); color: var(--text);
+    box-shadow: 0 24px 60px rgba(21, 18, 14, .22), 0 2px 8px rgba(21, 18, 14, .08);
+}
+#service-dialog::backdrop { background: rgb(21 18 14 / .3); }
+#service-dialog h2 { margin: 0 0 .15rem; font-size: 1.3rem; color: var(--text); }
+#service-context { margin: 0; color: rgba(21, 18, 14, .62); font-size: .86rem; }
 #service-schedule { margin: 0; padding: 0; border: 0; min-width: 0; }
-#service-schedule .rs-label { display: block; float: none; width: auto; margin: 1rem 0 .55rem; padding: 0; font-size: .78rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(250, 248, 243, .78); }
-#service-schedule small { display: block; margin-top: .8rem; color: rgba(250, 248, 243, .7); }
-#service-dialog-message { margin-block: .8rem; min-height: 1.2em; }
-#service-dialog-message:empty { margin-block: .4rem; }
-/* Calendario y horas con el azul de la página de Reservar. */
+#service-schedule .rs-label { display: block; float: none; width: auto; margin: 1rem 0 .5rem; padding: 0; font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(21, 18, 14, .6); }
+#service-schedule .rs-col { min-width: 0; }
+/* Computador: dos columnas; la lista de horas se desplaza dentro de su columna si es larga,
+   así la ventana queda baja y sin barra de desplazamiento propia. */
+@media (min-width: 768px) {
+    #service-dialog { width: min(44rem, calc(100% - 3rem)); --dlg-pad: 1.5rem; }
+    #service-schedule .rs-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 1.75rem; align-items: start; }
+    #service-dialog .slot-card { grid-template-columns: repeat(3, minmax(0, 1fr)); max-height: 19.5rem; overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 2px 2px; scrollbar-width: thin; scrollbar-color: rgba(21, 18, 14, .2) transparent; }
+}
+#service-schedule small { display: block; margin-top: .75rem; color: rgba(21, 18, 14, .6); font-size: .8rem; }
+#service-dialog-message { margin-block: .6rem; min-height: 1.2em; font-size: .88rem; }
+#service-dialog-message:empty { margin-block: .3rem; }
+/* Calendario directo sobre la superficie crema: sin tarjeta, sin sombra. */
 #service-dialog .rs-cal { width: 100%; }
-#service-dialog .cal-card { box-shadow: none; }
-#service-dialog .cal-week { color: var(--booking-blue, #1d4ed8); }
-#service-dialog .cal-dot { background: var(--booking-blue, #1d4ed8); }
+#service-dialog .cal-card { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--text); }
+#service-dialog .cal-head { grid-template-columns: 2.25rem minmax(0, 1fr) 2.25rem; }
+#service-dialog .cal-nav { width: 2.25rem; height: 2.25rem; border-radius: .7rem; background: rgba(21, 18, 14, .05); color: var(--text); font-size: .9rem; }
+#service-dialog .cal-nav:hover:not(:disabled) { background: rgba(21, 18, 14, .1); }
+#service-dialog .cal-title { font-size: 1rem; color: var(--text); }
+#service-dialog .cal-week { margin: .7rem 0 .2rem; color: var(--booking-blue, #1d4ed8); font-size: .68rem; }
+#service-dialog .cal-day { height: 2.4rem; border-radius: .7rem; color: #2a251e; font-size: .88rem; }
+#service-dialog .cal-day.is-off { color: rgba(21, 18, 14, .26); }
+#service-dialog .cal-day.is-outside { color: rgba(21, 18, 14, .14); }
+#service-dialog .cal-dot { bottom: 5px; background: var(--booking-blue, #1d4ed8); }
 #service-dialog .cal-day.is-selected .cal-dot { background: #fff; }
-#service-dialog .cal-day:hover:not(:disabled):not(.is-selected) { background: #e8eefc; }
+#service-dialog .cal-day:hover:not(:disabled):not(.is-selected) { background: rgba(29, 78, 216, .08); }
 #service-dialog .cal-day.is-selected { background: var(--booking-blue, #1d4ed8); color: #fff; }
 #service-dialog .cal-day.is-today:not(.is-selected) { color: var(--booking-blue, #1d4ed8); }
-#service-dialog .cal-day:focus-visible, #service-dialog .cal-nav:focus-visible { outline-color: var(--booking-blue, #1d4ed8); }
-#service-dialog .slot-card { padding: 12px; border-radius: 20px; background: #fff; border: 1px solid rgba(17, 22, 30, .06); gap: 8px; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
-#service-dialog .slot-card .slot label { min-height: 48px; padding: 0 6px; border: 1px solid #e4ecea; border-radius: 12px; background: #f4f8f7; color: #26303b; font-size: .9rem; white-space: nowrap; }
-#service-dialog .slot-card .slot input:hover + label { background: #eef3fc; border-color: #c7d5f8; }
+#service-dialog .cal-day:focus-visible, #service-dialog .cal-nav:focus-visible { outline: 2px solid var(--booking-blue, #1d4ed8); outline-offset: 1px; }
+/* Horas: rejilla pareja (4 columnas en computador y celulares normales, 3 en pantallas muy angostas);
+   cada hora cabe completa dentro de su píldora. */
+#service-dialog .slot-card { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; gap: .4rem; grid-template-columns: repeat(auto-fill, minmax(4.6rem, 1fr)); }
+#service-dialog .slot-card .slot { min-width: 0; }
+#service-dialog .slot-card .slot label { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 2.5rem; padding: 0 .25rem; border: 1px solid rgba(21, 18, 14, .1); border-radius: .7rem; background: rgba(255, 255, 255, .7); color: #2a251e; font-size: .8rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; }
+#service-dialog .slot-card .slot input:hover + label { background: #fff; border-color: rgba(29, 78, 216, .35); }
 #service-dialog .slot-card .slot input:focus-visible + label { outline: 2px solid var(--booking-blue, #1d4ed8); outline-offset: 2px; }
 #service-dialog .slot-card .slot input:checked + label { background: var(--booking-blue, #1d4ed8); border-color: var(--booking-blue, #1d4ed8); color: #fff; }
-#service-dialog .slot-card .slot-skeleton { min-height: 48px; border-radius: 12px; background: linear-gradient(90deg, #edf3f1 0%, #f8fbfa 50%, #edf3f1 100%); background-size: 200% 100%; }
-#service-dialog .slot-card .slot-status { grid-column: 1 / -1; border: 1px dashed #d9e4e1; border-radius: 12px; color: #59636f; font-size: .86rem; }
+#service-dialog .slot-card .slot-skeleton { min-height: 2.5rem; border-radius: .7rem; background: linear-gradient(90deg, rgba(21, 18, 14, .05) 0%, rgba(255, 255, 255, .7) 50%, rgba(21, 18, 14, .05) 100%); background-size: 200% 100%; }
+#service-dialog .slot-card .slot-status { grid-column: 1 / -1; border: 1px dashed rgba(21, 18, 14, .18); border-radius: .7rem; background: transparent; color: rgba(21, 18, 14, .66); font-size: .84rem; }
 #service-dialog .slot-card .slot-status i { color: var(--booking-blue, #1d4ed8); }
-/* Volver y Guardar quedan siempre a la vista al pie del diálogo, aunque la lista de horas sea larga. */
-.service-dialog-actions { position: sticky; bottom: calc(-1 * var(--dlg-pad)); z-index: 1; display: flex; justify-content: flex-end; gap: .6rem; margin: .25rem calc(-1 * var(--dlg-pad)) calc(-1 * var(--dlg-pad)); padding: .75rem var(--dlg-pad) var(--dlg-pad); border-top: 1px solid rgba(255, 255, 255, .08); background: #141518; }
-.service-dialog-actions .btn { min-height: 44px; border-radius: 999px; padding-inline: 1.15rem; font-size: .82rem; white-space: nowrap; }
+/* Volver y Guardar quedan siempre a la vista al pie del diálogo, sobre el mismo crema. */
+.service-dialog-actions { position: sticky; bottom: calc(-1 * var(--dlg-pad)); z-index: 1; display: flex; justify-content: flex-end; gap: .5rem; margin: .25rem calc(-1 * var(--dlg-pad)) calc(-1 * var(--dlg-pad)); padding: .75rem var(--dlg-pad) var(--dlg-pad); border-top: 1px solid var(--line); background: var(--dlg-bg); }
+.service-dialog-actions .btn { min-height: 2.6rem; border-radius: 999px; padding-inline: 1.1rem; font-size: .8rem; white-space: nowrap; }
+#service-back { background: transparent; border: 1px solid var(--line-strong); color: var(--text); }
+#service-back:hover, #service-back:focus-visible { background: rgba(21, 18, 14, .06); border-color: var(--text); color: var(--text); }
+#service-submit:disabled { opacity: .4; box-shadow: none; }
 @media (max-width: 575.98px) {
-    #service-dialog { --dlg-pad: .9rem; }
-    #service-dialog .cal-card { padding: 12px; }
-    #service-dialog .cal-day { height: 40px; }
+    /* Hoja inferior: ocupa el ancho y solo la altura que necesita, deja ver la página arriba. */
+    #service-dialog { --dlg-pad: 1rem; width: 100%; max-height: 88dvh; margin: auto 0 0; border-radius: 1.25rem 1.25rem 0 0; border-bottom: 0; padding-top: 1.35rem; }
+    #service-dialog::before { content: ""; position: absolute; top: .5rem; left: 50%; width: 2.25rem; height: 4px; border-radius: 4px; background: rgba(21, 18, 14, .16); transform: translateX(-50%); }
+    #service-dialog .cal-day { height: 2.3rem; }
+    .service-dialog-actions { padding-bottom: calc(var(--dlg-pad) + env(safe-area-inset-bottom, 0px)); }
     .service-dialog-actions .btn { flex: 1 1 0; }
 }
 @media (prefers-reduced-motion: no-preference) {
-    #service-dialog[open] { animation: service-enter .16s ease-out; }
-    @keyframes service-enter { from { opacity: 0; transform: translateY(5px); } }
+    #service-dialog[open] { animation: service-enter .2s cubic-bezier(.22, 1, .36, 1); }
+    #service-dialog[open]::backdrop { animation: service-fade .2s ease-out; }
+    @keyframes service-enter { from { opacity: 0; transform: translateY(8px) scale(.985); } }
+    @keyframes service-fade { from { opacity: 0; } }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 575.98px) {
+    #service-dialog[open] { animation-name: service-sheet; animation-duration: .24s; }
+    @keyframes service-sheet { from { transform: translateY(100%); } }
 }
 </style>
 @endpush
