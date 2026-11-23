@@ -165,6 +165,9 @@
     z-index: -1;
     pointer-events: none;
     background: url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat, #efe8dc;
+    /* Desenfoque suave: la foto se ve, pero no compite con el texto. El leve zoom evita los bordes difusos. */
+    transform: scale(1.04);
+    filter: blur(3px);
 }
 /* Sobre la foto, el filtro de categorías lleva su propia cápsula crema para leerse. */
 .svc-page .svc-filters { background: rgba(250, 248, 243, .92); border: 1px solid rgba(21, 18, 14, .12); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }

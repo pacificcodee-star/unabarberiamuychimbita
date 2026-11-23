@@ -139,8 +139,10 @@
     z-index: -1;
     pointer-events: none;
     background: url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat, #efe8dc;
-    /* Espejada: el marco y el poste quedan a la derecha, y el título descansa sobre la pared lisa. */
-    transform: scaleX(-1);
+    /* Espejada: el marco y el poste quedan a la derecha, y el título descansa sobre la pared lisa.
+       Un desenfoque suave la separa del texto sin ocultarla. */
+    transform: scaleX(-1) scale(1.04);
+    filter: blur(3px);
 }
 .contact-page .ct-hero { background: transparent !important; }
 /* Sin velo: la foto se ve completa; el halo claro solo separa el texto donde cruza zonas oscuras. */

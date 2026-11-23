@@ -76,6 +76,9 @@ html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 body {
     margin: 0;
     min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
     background: var(--bg);
     color: var(--text);
     font-family: var(--font-body);
@@ -113,6 +116,10 @@ p { text-wrap: pretty; }
 }
 .skip-link:focus { transform: none; color: var(--ink); }
 main:focus { outline: none; }
+/* El pie queda pegado al borde inferior también en páginas cortas:
+   así la foto de fondo no asoma por debajo del footer. */
+main#main-content { flex: 1 0 auto; }
+.site-footer { flex-shrink: 0; }
 
 /* ---------- 3. Tipografía de sección ---------- */
 .section { padding: var(--section-y) 0; position: relative; }

@@ -1453,8 +1453,10 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
     /* En móvil el cajón superior se sustituye por esta barra: un solo menú. */
     .menu-toggle { display: none; }
 
-    /* Reserva inferior para que la barra no cubra el final del contenido. */
-    body { padding-bottom: calc(var(--mnav-clear) + 16px); }
+    /* Reserva inferior para que la barra no cubra el final del contenido.
+       Va dentro del pie y no como relleno del body: así el footer llega al borde
+       de la pantalla y la foto de fondo no asoma por debajo. */
+    .site-footer { padding-bottom: calc(var(--mnav-clear) + 16px); }
     html { scroll-padding-bottom: calc(var(--mnav-clear) + 16px); }
 
     /* La portada y el carrusel de barberos ocupan toda la pantalla: su contenido

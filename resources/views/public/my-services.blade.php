@@ -71,6 +71,9 @@
     background:
         url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat,
         #efe8dc;
+    /* Desenfoque suave: la foto se ve, pero no compite con el texto. El leve zoom evita los bordes difusos. */
+    transform: scale(1.04);
+    filter: blur(3px);
 }
 .my-services-page .page-hero { background: transparent !important; }
 /* Sobre la foto: la ruta y las pestañas llevan su propia cápsula crema para leerse. */
