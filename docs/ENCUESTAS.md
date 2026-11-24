@@ -1,5 +1,11 @@
 # Encuestas de satisfacción y opiniones verificadas
 
+> **Modo actual: solo WhatsApp.** La invitación la envía el bot por WhatsApp cuando la cita o el turno
+> queda atendido, y la encuesta se responde dentro del chat (`SURVEY_WHATSAPP_ENABLED=true`). La encuesta
+> web está apagada (`SURVEY_WEB_ENABLED=false`): el enlace `/encuesta/...` muestra un aviso, no hay aviso
+> del navegador, y sin autorización de WhatsApp no se crea invitación. La página no tiene formulario de
+> opiniones: todas llegan por la encuesta.
+
 ## Cómo funciona
 
 1. **Servicio terminado.** Cuando una cita pasa a *atendida* o un turno a *atendido* (por la
@@ -112,7 +118,8 @@ Hasta completar esos pasos, **WhatsApp no está integrado de forma oficial**.
 | `SURVEYS_ENABLED` | true | Activa el sistema |
 | `SURVEY_SEND_DELAY_MINUTES` | 30 | Margen antes de invitar |
 | `SURVEY_EXPIRE_DAYS` | 14 | Días para responder |
-| `SURVEY_WHATSAPP_ENABLED` | false | Encuesta dentro del chat de WhatsApp |
+| `SURVEY_WHATSAPP_ENABLED` | true | Encuesta dentro del chat de WhatsApp |
+| `SURVEY_WEB_ENABLED` | false | Encuesta en la página web y aviso del navegador |
 | `SURVEY_AUTO_PUBLISH` | true | Publicar sola si pasa la moderación (false = todo pasa por el panel) |
 | `SURVEY_MIN_SAMPLE` | 5 | Mínimo para comparar barberos o servicios |
 | `SURVEY_RETENTION_INCOMPLETE_DAYS` | 180 | Encuestas sin terminar se borran pasado este plazo |

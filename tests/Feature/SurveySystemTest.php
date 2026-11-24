@@ -31,7 +31,41 @@ class SurveySystemTest extends TestCase
     {
         parent::setUp();
         $this->travelTo(Carbon::parse('2026-11-18 15:00:00'));
-        config(['encuestas.whatsapp' => true]);
+        // Estas pruebas recorren el motor de la encuesta también por la web. En producción la web está
+        // apagada (solo WhatsApp); ese modo se prueba aparte en los tests "only_whatsapp".
+        config(['encuestas.whatsapp' => true, 'encuestas.web' => true]);
+    }
+
+    public function test_only_whatsapp_the_invitation_goes_by_whatsapp_and_asks_inside_the_chat(): void
+    {
+        config(['encuestas.web' => false]);
+        $appointment = $this->appointment();
+        $appointment->update(['status' => 'atendida']);
+
+        $this->assertSame(1, SurveyInvitation::count());
+        $invite = ClientNotification::where('type', 'survey_invite')->get();
+        $this->assertSame(['whatsapp'], $invite->pluck('channel')->all(), 'Sin aviso del navegador: solo WhatsApp.');
+        $this->assertStringContainsString('del *1 al 5*', $invite->first()->body);
+        $this->assertStringNotContainsString('/encuesta/', $invite->first()->body, 'Sin enlace a la encuesta web.');
+    }
+
+    public function test_only_whatsapp_no_invitation_without_whatsapp_consent(): void
+    {
+        config(['encuestas.web' => false]);
+        $this->appointment(['whatsapp_consent' => false])->update(['status' => 'atendida']);
+
+        $this->assertSame(0, SurveyInvitation::count());
+        $this->assertSame(0, ClientNotification::where('type', 'survey_invite')->count());
+    }
+
+    public function test_only_whatsapp_the_web_survey_link_shows_a_whatsapp_notice(): void
+    {
+        $appointment = $this->finishedAndSent();
+        config(['encuestas.web' => false]);
+
+        $this->get($this->url($appointment))->assertNotFound()->assertSee('Cuéntanos tu experiencia por WhatsApp');
+        $this->postJson(route('survey.answer', ['type' => 'cita', 'token' => $appointment->public_token]), ['question' => 'experiencia', 'value' => 5])
+            ->assertNotFound();
     }
 
     private function appointment(array $extra = []): Appointment

@@ -16,7 +16,6 @@ use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MyServicesController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\PublicBookingController;
-use App\Http\Controllers\PublicReviewController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\ServiceController;
@@ -72,7 +71,6 @@ Route::get('/nosotros', [LandingController::class, 'about'])->middleware('public
 Route::get('/servicios', [LandingController::class, 'services'])->middleware('public-fresh')->name('public.services');
 Route::get('/barberos', [LandingController::class, 'barbers'])->middleware('public-fresh')->name('public.barbers');
 Route::get('/resenas', [LandingController::class, 'reviews'])->middleware('public-fresh')->name('public.reviews');
-Route::post('/resenas', [PublicReviewController::class, 'store'])->middleware('throttle:5,10,public.reviews.store')->name('public.reviews.store');
 Route::get('/contacto', [LandingController::class, 'contact'])->middleware('public-fresh')->name('public.contact');
 Route::get('/reservar', [PublicBookingController::class, 'index'])->middleware('public-fresh')->name('public.booking');
 // Huella del contenido: la página abierta la consulta para refrescarse sola tras un cambio en el panel.

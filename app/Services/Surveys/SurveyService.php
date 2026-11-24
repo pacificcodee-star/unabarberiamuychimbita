@@ -71,6 +71,10 @@ class SurveyService
         if (! config('encuestas.enabled') || ! $this->isDone($subject)) {
             return null;
         }
+        // Encuesta solo por WhatsApp: sin autorización de WhatsApp o sin celular no hay cómo enviarla.
+        if (! config('encuestas.web') && (! $subject->whatsapp_consent || blank($subject->client_phone))) {
+            return null;
+        }
 
         $existing = SurveyInvitation::where('subject_type', $subject->getMorphClass())->where('subject_id', $subject->getKey())->first();
         if ($existing) {
@@ -133,14 +137,18 @@ class SurveyService
     private function queueInvitation(Appointment|Turn $subject, SurveyInvitation $invitation): void
     {
         $name = Str::of((string) $subject->client_name)->trim()->explode(' ')->first();
-        $url = $this->surveyUrl($subject);
         $brand = config('sitio.brand_name', config('app.name'));
         $count = SurveyQuestion::active()->count();
+        $web = (bool) config('encuestas.web');
 
-        $body = '¡Hola'.($name ? ', '.$name : '').'! ¿Cómo te fue hoy en '.$brand.'? 💈'."\n\n"
-            .'Cuéntanos en '.$count.' preguntas rápidas (menos de un minuto): '.$url;
+        $body = '¡Hola'.($name ? ', '.$name : '').'! ¿Cómo te fue hoy en '.$brand.'? 💈'."\n\n";
         if (config('encuestas.whatsapp')) {
-            $body .= "\n\n".'O responde aquí mismo: del *1 al 5*, ¿cómo calificarías tu experiencia?';
+            // La encuesta se responde aquí mismo, en el chat: una pregunta por mensaje.
+            $body .= 'Cuéntanos tu experiencia en '.$count.' preguntas rápidas, aquí mismo por este chat.'."\n\n"
+                .'Para empezar: del *1 al 5*, ¿cómo calificarías tu experiencia?';
+        }
+        if ($web) {
+            $body .= "\n\n".'También puedes responder aquí: '.$this->surveyUrl($subject);
         }
         $body .= "\n\n".'Tu opinión solo se publica si tú lo autorizas.';
 
@@ -151,7 +159,9 @@ class SurveyService
             $body,
             $invitation->send_after,
             ttlMinutes: 24 * 60,
-            url: route('survey.show', $this->routeParams($subject), false),
+            url: $web ? route('survey.show', $this->routeParams($subject), false) : null,
+            // Solo por WhatsApp: el aviso del navegador llevaría a la encuesta web, que está apagada.
+            only: $web ? null : ['whatsapp'],
         );
     }
 

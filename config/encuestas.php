@@ -14,9 +14,13 @@ return [
     // Días que la invitación se puede responder.
     'expire_days' => (int) env('SURVEY_EXPIRE_DAYS', 14),
 
-    // Responder por WhatsApp dentro del chat (pregunta por pregunta).
+    // Responder por WhatsApp dentro del chat (pregunta por pregunta). Es el único canal de la encuesta:
+    // el bot la envía cuando la cita o el turno queda atendido.
     // Ojo: con WHATSAPP_DRIVER=evolution el canal es WhatsApp Web (no oficial); ver docs/ENCUESTAS.md.
-    'whatsapp' => (bool) env('SURVEY_WHATSAPP_ENABLED', false),
+    'whatsapp' => (bool) env('SURVEY_WHATSAPP_ENABLED', true),
+
+    // Encuesta en la página web (/encuesta/...). Apagada: la experiencia se cuenta solo por WhatsApp.
+    'web' => (bool) env('SURVEY_WEB_ENABLED', false),
 
     // Si el cliente autoriza, el comentario se publica solo cuando pasa la moderación objetiva.
     'auto_publish' => (bool) env('SURVEY_AUTO_PUBLISH', true),

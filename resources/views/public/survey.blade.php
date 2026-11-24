@@ -10,8 +10,13 @@
     <section class="sv" aria-labelledby="sv-title">
         <div class="container sv-wrap">
             <header class="sv-head"><div class="section-kicker">Tu opinión</div></header>
-            <h1 class="sv-title" id="sv-title">Esta encuesta no está disponible</h1>
-            <p class="sv-help">Puede que el servicio no se haya completado o que el enlace esté incompleto. Si quieres contarnos cómo te fue, escríbenos por WhatsApp; con gusto te leemos.</p>
+            @if(config('encuestas.web'))
+                <h1 class="sv-title" id="sv-title">Esta encuesta no está disponible</h1>
+                <p class="sv-help">Puede que el servicio no se haya completado o que el enlace esté incompleto. Si quieres contarnos cómo te fue, escríbenos por WhatsApp; con gusto te leemos.</p>
+            @else
+                <h1 class="sv-title" id="sv-title">Cuéntanos tu experiencia por WhatsApp</h1>
+                <p class="sv-help">La encuesta se responde en el chat de WhatsApp: cuando tu cita o turno queda atendido, te escribimos para que nos cuentes cómo te fue.</p>
+            @endif
             <div class="sv-actions">
                 <a class="xbtn btn-booking-blue" href="{{ route('public.booking') }}"><span>Reservar</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                 <a class="xlink" href="{{ route('landing') }}">Ir al inicio</a>

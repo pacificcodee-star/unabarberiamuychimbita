@@ -16,19 +16,20 @@ class PublicReviewsTest extends TestCase
         Review::create(['client_name' => 'Pendiente', 'rating' => 5, 'comment' => 'Todavía no aprobada.', 'approved' => false]);
 
         $this->get('/')->assertOk()->assertDontSee('cx-proof', false)->assertDontSee('Todavía no aprobada.');
-        $this->get('/resenas')->assertOk()->assertDontSee('class="rv-score"', false)->assertSee('¿Cómo te fue');
+        $this->get('/resenas')->assertOk()->assertDontSee('class="rv-score"', false)->assertSee('¿Te atendimos');
     }
 
-    public function test_a_client_review_arrives_unpublished(): void
+    public function test_reviews_page_has_no_form_and_explains_the_whatsapp_survey(): void
     {
-        $this->post('/resenas', ['client_name' => 'Andrea', 'rating' => 4, 'comment' => 'Excelente corte y muy buena atención.'])
-            ->assertRedirect(route('public.reviews').'#opinar');
+        $this->get('/resenas')->assertOk()
+            ->assertDontSee('<form', false)
+            ->assertDontSee('Enviar mi opinión')
+            ->assertSee('te escribimos por WhatsApp');
+        $this->get('/')->assertDontSee('dejar la tuya');
 
-        $review = Review::firstOrFail();
-        $this->assertFalse($review->approved);
-        $this->assertSame(4, $review->rating);
-        $this->get('/')->assertDontSee('Excelente corte y muy buena atención.');
-        $this->get('/resenas')->assertDontSee('Excelente corte y muy buena atención.');
+        $this->post('/resenas', ['client_name' => 'Andrea', 'rating' => 4, 'comment' => 'Excelente corte y muy buena atención.'])
+            ->assertStatus(405);
+        $this->assertSame(0, Review::count());
     }
 
     public function test_only_4_and_5_star_cards_are_shown_but_the_average_counts_every_published_review(): void
@@ -61,16 +62,6 @@ class PublicReviewsTest extends TestCase
 
         $this->get('/')->assertOk()->assertSee('Excelente corte y muy buena atención.')->assertSee('Andrea');
         $this->get('/resenas')->assertOk()->assertSee('Excelente corte y muy buena atención.');
-    }
-
-    public function test_the_review_form_validates_and_ignores_bots(): void
-    {
-        $this->post('/resenas', ['client_name' => '', 'rating' => 9, 'comment' => 'corto'])
-            ->assertSessionHasErrors(['client_name', 'rating', 'comment']);
-
-        $this->post('/resenas', ['client_name' => 'Robot', 'rating' => 5, 'comment' => 'Mensaje automático de spam.', 'website' => 'http://spam.test'])
-            ->assertRedirect();
-        $this->assertSame(0, Review::count());
     }
 
     public function test_review_management_is_unavailable_to_administrators(): void
