@@ -33,8 +33,9 @@
                             <code>EVOLUTION_URL</code> y <code>EVOLUTION_APIKEY</code>.
                         </div>
                     @else
-                        <div id="wa-qr-box" class="text-center" @if(($state ?? '') !== 'open') style="display:none" @endif>
-                            <img id="wa-qr" alt="Código QR de WhatsApp" class="img-fluid rounded border p-2" style="max-width: 260px; background:#fff">
+                        {{-- El recuadro del QR solo aparece cuando llega un código para escanear (lo muestra el script). --}}
+                        <div id="wa-qr-box" class="text-center" style="display:none">
+                            <img id="wa-qr" alt="" class="img-fluid rounded border p-2" style="max-width: 260px; background:#fff">
                             <div id="wa-pairing" class="mt-2 fw-semibold"></div>
                         </div>
 
@@ -158,6 +159,7 @@
 
                 function showQr(data) {
                     qrImg.src = data.qr.startsWith('data:') ? data.qr : 'data:image/png;base64,' + data.qr;
+                    qrImg.alt = 'Código QR de WhatsApp';
                     qrBox.style.display = '';
                     if (connected) connected.style.display = 'none';
                     pairing.textContent = data.pairing_code ? 'Código de emparejamiento: ' + data.pairing_code : '';
