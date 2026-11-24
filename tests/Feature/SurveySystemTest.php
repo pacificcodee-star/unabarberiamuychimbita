@@ -293,6 +293,28 @@ class SurveySystemTest extends TestCase
         $this->get(route('public.reviews'))->assertDontSee('class="rv-score"', false);
     }
 
+    public function test_marking_attended_from_the_panel_sends_thanks_and_keeps_the_survey_after_it(): void
+    {
+        $this->whatsappConfig();
+        config(['encuestas.web' => false]);
+        $appointment = $this->appointment(['status' => 'confirmada']);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+
+        $this->actingAs($admin)->patch(route('appointments.status', $appointment), ['status' => 'atendida', 'payment_method' => 'efectivo']);
+
+        $this->assertSame('atendida', $appointment->fresh()->status);
+        $thanks = ClientNotification::where('type', 'service_thanks')->where('channel', 'whatsapp')->firstOrFail();
+        $survey = ClientNotification::where('type', 'survey_invite')->where('channel', 'whatsapp')->firstOrFail();
+        // El "Gracias por tu visita" no cancela la encuesta, y la encuesta sale después.
+        $this->assertNotSame(ClientNotification::CANCELLED, $survey->status);
+        $this->assertTrue($survey->scheduled_for->gt($thanks->scheduled_for));
+
+        $this->travel(3)->minutes();
+        app(\App\Services\ClientNotifier::class)->processDue();
+        $this->assertSame(ClientNotification::SENT, $survey->fresh()->status);
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'del *1 al 5*'));
+    }
+
     public function test_deleting_the_appointment_removes_its_survey_from_results(): void
     {
         $appointment = $this->finishedAndSent();
