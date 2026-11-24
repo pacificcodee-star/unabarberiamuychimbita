@@ -16,7 +16,7 @@ final class WhatsAppLid
 
     public static function isLid(?string $jid): bool
     {
-        return is_string($jid) && str_ends_with($jid, '@lid');
+        return is_string($jid) && preg_match('/\A[0-9]+@lid\z/', $jid) === 1;
     }
 
     public static function remember(?string $lidJid, ?string $phone): void

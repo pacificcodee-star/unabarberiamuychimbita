@@ -294,16 +294,22 @@ class WhatsAppBotTest extends TestCase
         // El número llega en remoteJidAlt y el remitente principal es un @lid.
         $this->escribir('sí', '1234567890123@lid', ['remoteJidAlt' => '573001234567@s.whatsapp.net'])->assertOk();
         $this->assertSame('confirmada', $cita->fresh()->status);
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/message/sendText/')
+            && $request['number'] === '1234567890123@lid');
 
         // Al revés: remoteJidAlt trae el @lid y el número va en remoteJid.
         $otra = $this->cita(['status' => 'pendiente', 'client_phone' => '3002223344']);
         $this->escribir('sí', '573002223344@s.whatsapp.net', ['remoteJidAlt' => '9876543210987@lid'])->assertOk();
         $this->assertSame('confirmada', $otra->fresh()->status);
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/message/sendText/')
+            && $request['number'] === '573002223344');
 
         // Solo con senderPn.
         $tercera = $this->cita(['status' => 'pendiente', 'client_phone' => '3005556677']);
         $this->escribir('sí', '5555555555555@lid', ['senderPn' => '573005556677@s.whatsapp.net'])->assertOk();
         $this->assertSame('confirmada', $tercera->fresh()->status);
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/message/sendText/')
+            && $request['number'] === '5555555555555@lid');
     }
 
     public function test_con_el_bot_en_pausa_el_si_igual_confirma_la_cita_pendiente(): void
@@ -339,6 +345,8 @@ class WhatsAppBotTest extends TestCase
         $this->escribir('sí', '210987654321098@lid')->assertOk();
 
         $this->assertSame('confirmada', $cita->fresh()->status);
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/message/sendText/')
+            && $request['number'] === '210987654321098@lid');
     }
 
     public function test_un_mensaje_con_solo_un_lid_desconocido_queda_en_el_registro(): void

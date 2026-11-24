@@ -129,7 +129,7 @@ services:
       start_period: 30s
 
   evolution:
-    image: evoapicloud/evolution-api:v2.3.1
+    image: evoapicloud/evolution-api:v2.3.8
     restart: unless-stopped
     environment:
       SERVER_URL: https://${WA_HOST}
