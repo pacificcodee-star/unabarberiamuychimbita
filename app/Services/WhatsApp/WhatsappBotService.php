@@ -440,11 +440,16 @@ class WhatsappBotService
         $offHours = ! $this->businessOpenNow();
 
         if ($offHours) {
+            // Fuera de horario no hay turnos (son del día, por orden de llegada) ni asesor en línea,
+            // pero el cliente sí puede consultar, modificar o cancelar lo que ya reservó.
             return match ($n) {
                 1 => $this->startBooking($conversation),
                 2 => $this->showServices($conversation),
                 3 => $this->showBarbers($conversation),
-                4 => $this->farewell($conversation),
+                4 => $this->showConsult($conversation),
+                5 => $this->startModify($conversation),
+                6 => $this->startCancelMenu($conversation),
+                7 => $this->farewell($conversation),
                 default => $this->invalidOption($conversation, ['step' => 'menu', 'data' => [], 'history' => []]),
             };
         }
@@ -2358,7 +2363,12 @@ class WhatsappBotService
                 .'1. 📅 Agendar una cita.'."\n"
                 .'2. ✂️ Consultar servicios y precios.'."\n"
                 .'3. 💈 Conocer nuestros barberos.'."\n"
-                .'4. 👋 Finalizar conversación.';
+                .'4. 🔎 Consultar mi cita o turno.'."\n"
+                .'5. ✏️ Modificar una reserva.'."\n"
+                .'6. ❌ Cancelar una reserva.'."\n"
+                .'7. 👋 Finalizar conversación.'."\n\n"
+                .'🎟️ Los turnos por orden de llegada y la atención de un asesor están disponibles en nuestro horario de atención.'."\n\n"
+                .'Responde únicamente con el *número* de la opción que deseas.';
         }
 
         return '¡Hola! 👋 Bienvenido a *'.$this->brand().'*.'."\n\n"

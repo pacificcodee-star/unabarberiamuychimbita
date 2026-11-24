@@ -72,6 +72,27 @@ class WhatsAppBotTest extends TestCase
         $this->assertSame('hola', $message->body);
     }
 
+    public function test_fuera_de_horario_el_menu_permite_consultar_modificar_y_cancelar(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-18 23:30:00')); // miércoles, ya cerrado
+
+        $this->escribir('hola')->assertOk();
+        Http::assertSent(function ($request) {
+            $text = (string) $request['text'];
+
+            return str_contains($text, 'fuera de nuestro horario de atención')
+                && str_contains($text, '4. 🔎 Consultar mi cita o turno.')
+                && str_contains($text, '5. ✏️ Modificar una reserva.')
+                && str_contains($text, '6. ❌ Cancelar una reserva.')
+                && str_contains($text, '7. 👋 Finalizar conversación.')
+                && ! str_contains($text, 'Tomar un turno');
+        });
+
+        // La opción 6 lleva a cancelar (no a despedirse).
+        $this->escribir('6')->assertOk();
+        Http::assertSent(fn ($request) => str_contains(mb_strtolower((string) $request['text']), 'cancel'));
+    }
+
     public function test_el_bot_confirma_una_cita_pendiente(): void
     {
         $cita = $this->cita(['status' => 'pendiente']);
