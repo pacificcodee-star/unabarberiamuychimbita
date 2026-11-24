@@ -43,8 +43,11 @@
             box-shadow: 0 24px 60px rgba(22, 19, 14, .18), 0 2px 8px rgba(22, 19, 14, .06) !important;
         }
         /* Velo con desenfoque: el panel queda por encima, nítido, en computadora, tablet y teléfono. */
-        .staff-bell-backdrop { position: fixed; inset: 0; z-index: 1305; background: rgba(8, 7, 5, .42); -webkit-backdrop-filter: blur(8px) saturate(.85); backdrop-filter: blur(8px) saturate(.85); touch-action: none; overscroll-behavior: contain; }
+        /* Sin velo de fondo: el panel de avisos se abre sobre la página tal cual. */
+        .staff-bell-backdrop { display: none !important; }
         .staff-bell-backdrop[hidden] { display: none; }
+        /* Con el panel de avisos abierto, la barra superior queda por encima de todo (incluido el aviso de activar). */
+        .topbar:has(.staff-bell-menu.show) { z-index: 1320; }
 
         .nt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 14px 12px 18px; border-bottom: 1px solid var(--bs-border-color); }
         .nt-head h2 { margin: 0; font-size: 1rem; font-weight: 800; letter-spacing: -.01em; }
@@ -76,7 +79,10 @@
         .nt-confirm span { flex: 1 1 180px; font-weight: 600; }
         .nt-confirm .btn { min-height: 32px; padding: .25rem .7rem; font-size: .78rem; }
 
-        .staff-bell-list { max-height: min(62vh, 480px); overflow-y: auto; overscroll-behavior: contain; }
+        /* El panel nunca se sale de la pantalla: la lista ocupa el alto disponible y se desplaza por dentro. */
+        .staff-bell-menu.show { display: flex; flex-direction: column; max-height: calc(100vh - 100px); max-height: calc(100dvh - 100px); }
+        .staff-bell-menu > :not(.staff-bell-list) { flex: none; }
+        .staff-bell-list { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
         .nt-day {
             position: sticky; top: 0; z-index: 1; padding: 9px 18px 6px;
             background: var(--bs-body-bg); color: var(--bs-secondary-color);
@@ -356,7 +362,9 @@
         if (live && latest !== revision) window.dispatchEvent(new Event('booking:changed'));
         // Aviso nuevo con el panel abierto: timbre (si el push está activo, ya suena la notificación del sistema).
         if (revision !== null && latest > revision && data.items[0]?.unread) {
-            window.ubmcChime?.();
+            // Un timbre por cada aviso nuevo (hasta 5 seguidos), no uno solo por tanda.
+            const fresh = data.items.filter((item) => item.id > revision && item.unread).length;
+            window.ubmcChime?.(Math.max(1, fresh));
             // Modo local (sin servicio push, p. ej. Brave): la notificación del sistema la muestra el panel.
             if (window.staffPush?.state.name === 'local') {
                 data.items.filter((item) => item.id > revision && item.unread).reverse()
