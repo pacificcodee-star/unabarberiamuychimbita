@@ -344,6 +344,8 @@
     }
     window.addEventListener('storage', event => { if (event.key === 'ubmc-service-change') sync(); });
     window.addEventListener('pageshow', event => { if (event.persisted) sync(); });
+    window.addEventListener('focus', sync);
+    window.addEventListener('online', sync);
     navigator.serviceWorker?.addEventListener('message', event => { if (event.data === 'booking-change') sync(); });
     setInterval(sync, 5000);
     setInterval(() => { if (!document.hidden) updateTimelines(); }, 1000);

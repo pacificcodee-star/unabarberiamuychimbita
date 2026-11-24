@@ -362,6 +362,7 @@
                     </span>
                 </a>
                 <p>{{ $siteSettings['footer_description'] }}</p>
+                <a href="{{ route('my-services.index') }}#historial-whatsapp">Historial de WhatsApp</a>
                 @include('public.partials.social-links', ['class' => 'social-links'])
             </div>
             <div>

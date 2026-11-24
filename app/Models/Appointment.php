@@ -34,6 +34,7 @@ class Appointment extends Model
         'client_name',
         'client_phone',
         'client_phone_normalized',
+        'history_whatsapp_phone',
         'service_price',
         'payment_method',
         'appointment_date',
@@ -168,6 +169,7 @@ class Appointment extends Model
             'service_price' => 'decimal:2',
             'appointment_date' => 'date',
             'whatsapp_consent' => 'boolean',
+            'attendance_confirmed_at' => 'datetime',
             'reminder_sent_at' => 'datetime',
         ];
     }

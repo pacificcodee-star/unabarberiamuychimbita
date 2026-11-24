@@ -59,7 +59,7 @@ class MyServicesTest extends TestCase
         $action = "/mis-servicios/cita/{$appointment->id}/";
         $this->get('/mis-servicios')->assertSee('data-action="confirmar"', false)->assertSee('Volver');
         $this->postJson($action.'confirmar')->assertOk();
-        $this->assertTrue(AttendanceConfirmation::confirmed($appointment));
+        $this->assertTrue(AttendanceConfirmation::confirmed($appointment->refresh()));
         $this->assertSame('confirmada', $appointment->fresh()->status);
         $this->postJson($action.'confirmar')->assertUnprocessable();
         $this->assertSame(1, StaffNotification::where('type', 'client_confirmed')->count());

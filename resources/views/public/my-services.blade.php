@@ -18,6 +18,28 @@
             <p class="service-alert" role="status">{{ session('status') }}</p>
         @endif
         <p id="service-feedback" role="status" tabindex="-1"></p>
+        @if($whatsAppLinked || $whatsAppLinkAvailable)
+            <section class="msv-whatsapp" id="historial-whatsapp" aria-label="Historial de WhatsApp">
+                @if($whatsAppLinked)
+                    <p><i class="bi bi-check2-circle" aria-hidden="true"></i> Historial de WhatsApp vinculado</p>
+                @elseif($whatsAppChat)
+                    <p>Envía el mensaje preparado en WhatsApp. Después vuelve aquí y pulsa <strong>Actualizar mi historial</strong>.</p>
+                    <div class="msv-whatsapp-actions">
+                        <a href="{{ $whatsAppChat }}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost-light">Abrir WhatsApp</a>
+                        <form method="POST" action="{{ route('my-services.whatsapp.finish') }}">
+                            @csrf
+                            <button class="btn btn-gold" type="submit">Actualizar mi historial</button>
+                        </form>
+                    </div>
+                @else
+                    <form method="POST" action="{{ route('my-services.whatsapp.start') }}">
+                        @csrf
+                        <button class="btn btn-ghost-light" type="submit"><i class="bi bi-whatsapp" aria-hidden="true"></i> Vincular historial de WhatsApp</button>
+                    </form>
+                @endif
+                @error('historial')<p role="alert">{{ $message }}</p>@enderror
+            </section>
+        @endif
         <div class="service-tabs" role="tablist" aria-label="Servicios activos e historial">
             <button type="button" role="tab" id="tab-activos" data-service-tab="activos" aria-selected="{{ $defaultTab === 'activos' ? 'true' : 'false' }}" tabindex="{{ $defaultTab === 'activos' ? 0 : -1 }}">Activos</button>
             <button type="button" role="tab" id="tab-historial" data-service-tab="historial" aria-selected="{{ $defaultTab === 'historial' ? 'true' : 'false' }}" tabindex="{{ $defaultTab === 'historial' ? 0 : -1 }}">Historial</button>
@@ -67,6 +89,9 @@
 
 @push('styles')
 <style>
+.msv-whatsapp { display: grid; justify-items: center; gap: .6rem; margin: 0 auto 1.25rem; text-align: center; scroll-margin-top: 6rem; }
+.msv-whatsapp p { margin: 0; color: var(--text-muted); }
+.msv-whatsapp-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; }
 /* Fondo crema y textos oscuros: mismo diseño que Servicios, Reservar y Contacto. */
 .my-services-page {
     --bg: #efe8dc;

@@ -17,6 +17,7 @@ use App\Support\AppointmentMessages;
 use App\Support\AttendanceConfirmation;
 use App\Support\ClientServiceAccess;
 use App\Support\TurnSchedule;
+use App\Support\WhatsAppHistoryLink;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -44,6 +45,7 @@ class WhatsappBotService
         private readonly ClientNotifier $notifier,
         private readonly TurnQueueService $queue,
         private readonly TurnService $turns,
+        private readonly WhatsAppHistoryLink $historyLink,
     ) {
     }
 
@@ -62,7 +64,10 @@ class WhatsappBotService
         $text = trim((string) ($message->body ?? ''));
 
         try {
-            if (! $conversation->bot_active) {
+            $linkReply = $this->historyLink->acknowledge($text, $conversation->phone);
+            if ($linkReply !== null) {
+                $reply = $linkReply;
+            } elseif (! $conversation->bot_active) {
                 // Bot en pausa (el cliente pidió un asesor o el equipo lo pausó): el asesor atiende la charla,
                 // pero el "SÍ" a la confirmación de una cita y la baja de avisos se siguen procesando.
                 // Antes se ignoraban y la cita quedaba pendiente sin que nadie lo notara.
@@ -817,11 +822,13 @@ class WhatsappBotService
             'service_id' => $service->id,
             'client_name' => $name,
             'client_phone' => $conversation->phone,
+            'history_whatsapp_phone' => $conversation->phone,
             'whatsapp_consent' => true,
         ], notify: false, advanceQueue: false);
 
         $done = ['kind' => 'turn', 'turn_id' => $turn->id];
         $this->saveFlow($conversation->phone, ['step' => 'done', 'data' => $done, 'history' => []]);
+        AttendanceConfirmation::mark($turn);
 
         \App\Models\ConsentRecord::grant($turn, 'tratamiento_reserva', 'whatsapp_bot');
         \App\Models\ConsentRecord::grant($turn, 'avisos_whatsapp', 'whatsapp_bot');
@@ -1014,6 +1021,7 @@ class WhatsappBotService
                 'service_id' => $data['service_id'] ?? null,
                 'client_name' => Str::limit($name, 120, ''),
                 'client_phone' => $conversation->phone,
+                'history_whatsapp_phone' => $conversation->phone,
                 'whatsapp_consent' => true,
                 'appointment_date' => $date,
                 'appointment_time' => $time,
@@ -1031,6 +1039,7 @@ class WhatsappBotService
         \App\Models\ConsentRecord::grant($appointment, 'avisos_whatsapp', 'whatsapp_bot');
         // Faltando 15 minutos o menos queda confirmada sola (sin pedir confirmación con el recordatorio).
         $this->notifier->autoConfirmIfSoon($appointment);
+        AttendanceConfirmation::mark($appointment);
         // Acaba de confirmar en el chat: si ya pasó la hora del recordatorio de 30 minutos no se le manda
         // (eran dos mensajes a la vez: esta respuesta y "¿Deseas mantener tu reserva?").
         $this->notifier->scheduleAppointmentReminders($appointment, justConfirmed: true);

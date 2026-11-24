@@ -8,25 +8,28 @@ use Illuminate\Support\Facades\Cache;
 /**
  * Marca "el cliente confirmó su asistencia" para una cita o un turno.
  *
- * Se guarda en la caché (tabla cache, persistente) para no tocar el esquema de la base de datos.
- * Para citas futuras se conserva hasta tres días después del servicio.
+ * Las confirmaciones se guardan con la reserva. Se siguen leyendo las entradas anteriores de caché.
  */
 class AttendanceConfirmation
 {
     public static function mark(Model $subject): void
     {
-        $until = $subject instanceof \App\Models\Appointment ? $subject->startsAt()->addDays(3) : now()->addDays(3);
-        Cache::put(self::key($subject), now()->toIso8601String(), $until);
+        if ($subject->attendance_confirmed_at === null) {
+            $subject->forceFill(['attendance_confirmed_at' => now()])->saveQuietly();
+        }
     }
 
     public static function confirmed(Model $subject): bool
     {
-        return Cache::has(self::key($subject));
+        return $subject->attendance_confirmed_at !== null || Cache::has(self::key($subject));
     }
 
     public static function forget(Model $subject): void
     {
         Cache::forget(self::key($subject));
+        if ($subject->attendance_confirmed_at !== null) {
+            $subject->forceFill(['attendance_confirmed_at' => null])->saveQuietly();
+        }
     }
 
     private static function key(Model $subject): string

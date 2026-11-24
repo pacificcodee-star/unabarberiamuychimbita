@@ -64,6 +64,7 @@ class TurnService
                 'service_id' => $data['service_id'] ?? null,
                 'client_name' => $data['client_name'],
                 'client_phone' => $data['client_phone'] ?? null,
+                'history_whatsapp_phone' => $data['history_whatsapp_phone'] ?? null,
                 'client_email' => $data['client_email'] ?? null,
                 'whatsapp_consent' => (bool) ($data['whatsapp_consent'] ?? false),
                 'payment_method' => $data['payment_method'] ?? null,

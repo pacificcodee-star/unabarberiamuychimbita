@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Appointment;
 use App\Models\ClientNotification;
+use App\Models\ConsentRecord;
 use App\Models\Service;
 use App\Models\SiteSetting;
 use App\Models\StaffNotification;
@@ -69,6 +70,87 @@ class BotCitaTurnoTest extends TestCase
 
         $this->assertStringContainsString('1. 📅 Agendar una cita', $menu);
         $this->assertStringContainsString('2. 🎟️ Tomar un turno', $menu);
+    }
+
+    public function test_confirmar_en_whatsapp_actualiza_la_cita_de_la_pwa_y_la_pasa_al_historial(): void
+    {
+        $booking = $this->post(route('public.booking.appointment'), [
+            'barber_id' => $this->deCita->id,
+            'service_id' => Service::firstOrFail()->id,
+            'client_name' => 'Ana desde la PWA',
+            'client_phone' => '300 123 4567',
+            'payment_method' => 'efectivo',
+            'whatsapp_consent' => 1,
+            'appointment_date' => '2026-11-19',
+            'appointment_time' => '10:00',
+        ])->assertRedirect(route('my-services.index'));
+        $this->withCookie('mis_servicios', $booking->getCookie('mis_servicios')->getValue());
+        $this->get('/mis-servicios')->assertSee('Pendiente')->assertSee('data-action="confirmar"', false);
+
+        $this->assertStringContainsString('quedó *confirmada*', $this->escribir('sí'));
+        $this->assertNotNull(Appointment::firstOrFail()->attendance_confirmed_at);
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()
+            ->assertSee('Confirmada')->assertDontSee('data-action="confirmar"', false);
+
+        $this->flushSession();
+        $this->get('/?source=pwa')->assertSee('Mis servicios');
+        $this->get('/mis-servicios')->assertSee('Ana desde la PWA')->assertSee('Confirmada');
+
+        $this->travelTo(Carbon::parse('2026-11-19 10:31:00'));
+        $this->assertSame(1, app(\App\Services\AttendanceAutomation::class)->finishConfirmedAppointments());
+        $this->get('/mis-servicios')->assertSeeInOrder(['Historial', 'Citas anteriores', 'Atendida', 'Ana desde la PWA']);
+    }
+
+    public function test_historial_de_whatsapp_disponible_solo_en_dispositivos_vinculados(): void
+    {
+        $service = Service::firstOrFail();
+        $web = $this->post(route('public.booking.appointment'), [
+            'barber_id' => $this->deCita->id, 'service_id' => $service->id,
+            'client_name' => 'Reserva de la PWA', 'client_phone' => '300 123 4567',
+            'payment_method' => 'efectivo', 'appointment_date' => '2026-11-19', 'appointment_time' => '10:00',
+        ])->assertRedirect(route('my-services.index'));
+        $original = $web->getCookie('mis_servicios')->getValue();
+        $this->withCookie('mis_servicios', $original);
+
+        $past = ['barber_id' => $this->deCita->id, 'service_id' => $service->id,
+            'client_phone' => '573001234567', 'appointment_date' => '2026-11-17', 'status' => 'atendida'];
+        $legacy = Appointment::create($past + ['client_name' => 'Cita antigua del bot', 'appointment_time' => '10:00']);
+        ConsentRecord::grant($legacy, 'tratamiento_reserva', 'whatsapp_bot');
+        Appointment::create($past + ['client_name' => 'Cita ajena sin vincular', 'appointment_time' => '11:00']);
+        $this->get('/mis-servicios')->assertDontSee('Cita antigua del bot')->assertSee('Reserva de la PWA');
+
+        $finish = route('my-services.whatsapp.finish');
+        $this->post(route('my-services.whatsapp.start'))->assertRedirect();
+        $command = 'Vincular historial '.session('whatsapp_history_challenge');
+        $this->get('/mis-servicios')->assertSee(rawurlencode($command));
+        $this->post($finish)->assertSessionHasErrors('historial');
+        $this->assertStringContainsString('Confirmamos tu WhatsApp', $this->escribir($command));
+        $linked = $this->post($finish)->assertRedirect(route('my-services.index'));
+        $this->withCookie('mis_servicios', $linked->getCookie('mis_servicios')->getValue());
+        $this->get('/mis-servicios')->assertSee('Cita antigua del bot')->assertDontSee('Cita ajena sin vincular');
+
+        $this->escribir(WhatsappBotService::TURN_REQUEST);
+        $this->escribir('Ana turno WhatsApp');
+        $this->escribir('1');
+        $this->escribir('1');
+        $this->escribir('sí');
+        $turn = Turn::firstOrFail();
+        $this->assertSame('573001234567', $turn->history_whatsapp_phone);
+        $turn->update(['status' => 'atendido']);
+        $this->flushSession();
+        $this->get('/mis-servicios')->assertSee('Cita antigua del bot')->assertSee('Ana turno WhatsApp')->assertSee('Turnos anteriores');
+
+        $this->withCookie('mis_servicios', $original);
+        $this->get('/mis-servicios')->assertDontSee('Cita antigua del bot')->assertSee('Reserva de la PWA');
+        $this->withCookie('mis_servicios', '');
+        $this->get('/mis-servicios')->assertDontSee('Cita antigua del bot')->assertDontSee('Reserva de la PWA');
+
+        $this->post(route('my-services.whatsapp.start'))->assertRedirect();
+        $this->escribir('Vincular historial '.session('whatsapp_history_challenge'));
+        $other = $this->post($finish)->assertRedirect(route('my-services.index'));
+        $this->withCookie('mis_servicios', $other->getCookie('mis_servicios')->getValue());
+        $this->get('/mis-servicios')->assertSee('Cita antigua del bot')->assertSee('Reserva de la PWA')
+            ->assertSee('Ana turno WhatsApp')->assertDontSee('Cita ajena sin vincular');
     }
 
     public function test_agendar_cita_solo_muestra_barberos_de_cita(): void
@@ -143,6 +225,8 @@ class BotCitaTurnoTest extends TestCase
         $cita = Appointment::firstOrFail();
 
         $this->assertGreaterThan(30, now()->diffInMinutes($cita->startsAt(), false));
+        $this->assertSame('573001234567', $cita->history_whatsapp_phone);
+        $this->assertNotNull($cita->attendance_confirmed_at);
         $this->assertStringContainsString('30 minutos antes', $listo);
         $this->assertStringContainsString('👤 *Cliente:* Miguel Torres', $listo);
     }

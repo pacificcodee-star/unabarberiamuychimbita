@@ -57,6 +57,7 @@ class Turn extends Model
         'client_name',
         'client_phone',
         'client_phone_normalized',
+        'history_whatsapp_phone',
         'service_price',
         'payment_method',
         'turn_date',
@@ -81,6 +82,7 @@ class Turn extends Model
             'called_at' => 'datetime',
             'started_at' => 'datetime',
             'whatsapp_consent' => 'boolean',
+            'attendance_confirmed_at' => 'datetime',
             'finished_at' => 'datetime',
             'reminder_sent_at' => 'datetime',
         ];
