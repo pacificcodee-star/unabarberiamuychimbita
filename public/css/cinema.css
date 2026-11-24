@@ -976,8 +976,6 @@ body::before { mix-blend-mode: normal; opacity: .03; transform: translateZ(0); }
 .wg.is-carousel .wg-card:not(.is-current):not(.is-far) .wg-frame { opacity: calc(1 - var(--abs) * .08); }
 .wg-blur { filter: blur(18px) saturate(1.15) brightness(.62); }
 .wg.is-carousel .wg-card.is-far .wg-blur { display: none; }
-/* Secciones fuera de pantalla: el navegador no las dibuja hasta que se acercan (las que se fijan con el scroll no llevan esto). */
-.site-footer { content-visibility: auto; contain-intrinsic-size: auto 280px; }
 
 /* ---------- 22.1 Animaciones decorativas en bucle: corren unas veces y se detienen ----------
    El punto rojo que late y la línea de "Desliza para explorar" repintaban la portada completa en cada
@@ -1741,7 +1739,6 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
     --fs-price: clamp(1.6rem, 1.2rem + 1.2vw, 2.2rem);
     --measure: 62ch;
 }
-html, body { background-color: var(--bg); }
 
 /* ---------- Jerarquía ---------- */
 /* H1 de páginas internas */

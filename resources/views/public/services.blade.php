@@ -11,7 +11,7 @@
         $total = $services->count();
     @endphp
 
-    <section class="svc-page" aria-labelledby="svc-title">
+    <section class="svc-page page-photo-background" aria-labelledby="svc-title">
         <h1 id="svc-title" class="visually-hidden">{{ $siteSettings['services_hero_title'] }}</h1>
 
         {{-- El espacio de la cabecera fija; el fondo de toda la página es el mismo negro del escenario. --}}
@@ -153,23 +153,6 @@
 
 @push('styles')
 <style>
-/* Foto de la barbería de fondo, fija detrás del contenido y sin velo: se ve a todo color. */
-.svc-page { position: relative; isolation: isolate; }
-.svc-page::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100vh;
-    height: 100lvh;
-    z-index: -1;
-    pointer-events: none;
-    background: url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat, #efe8dc;
-    /* Desenfoque suave: la foto se ve, pero no compite con el texto. El leve zoom evita los bordes difusos. */
-    transform: scale(1.04);
-    filter: blur(3px);
-}
 /* Sobre la foto, el filtro de categorías lleva su propia cápsula crema para leerse. */
 .svc-page .svc-filters { background: rgba(250, 248, 243, .92); border: 1px solid rgba(21, 18, 14, .12); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 /* La foto se ve completa: un halo claro separa el texto que cruza zonas oscuras de la foto. */
