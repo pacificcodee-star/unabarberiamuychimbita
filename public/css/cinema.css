@@ -703,11 +703,6 @@ h1 em, h2 em, .section-title em, .is-split .sw-em, .cx-hero-title em, .purpose-t
 .social-brand a, .ct-social.social-brand a { display: grid; place-items: center; width: 46px; height: 46px; border: 0; border-radius: 50%; background: #fff; color: var(--ink); transition: transform var(--dur-ui) var(--ease-out), box-shadow var(--dur-ui) ease; }
 .social-brand a:hover, .ct-social.social-brand a:hover { background: #fff; color: var(--ink); transform: translateY(-3px); box-shadow: 0 12px 24px rgba(0, 0, 0, .3); }
 .social-brand img { width: 24px; height: 24px; object-fit: contain; }
-.social-brand .is-mail { background: var(--surface-3); color: var(--text); }
-.social-brand .is-mail:hover { background: var(--brand-red); color: #fff; }
-/* En el pie rojo el correo también va en blanco, para que no quede rojo sobre rojo. */
-.site-footer .social-brand .is-mail,
-.site-footer .social-brand .is-mail:hover { background: #fff; color: var(--footer-bg); }
 /* Botón flotante de WhatsApp: círculo con brillo, anillo de atención y estados claros. */
 .whatsapp-float,
 .whatsapp-float:hover,

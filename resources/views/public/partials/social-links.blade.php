@@ -16,8 +16,8 @@
         </a>
     @endforeach
     @if(!empty($siteSettings['email']))
-        <a href="mailto:{{ $siteSettings['email'] }}" aria-label="Correo" title="Correo" class="is-mail">
-            <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6.5L20.500 7"/></svg>
+        <a href="mailto:{{ $siteSettings['email'] }}" aria-label="Correo" title="Correo">
+            <img src="{{ asset('images/redes/gmail.svg') }}" alt="" width="24" height="24" loading="lazy" decoding="async">
         </a>
     @endif
 </div>
