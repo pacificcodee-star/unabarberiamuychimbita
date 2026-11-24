@@ -4,8 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Appointment;
 use App\Models\Service;
+use App\Models\SiteSetting;
 use App\Models\Turn;
 use App\Models\User;
+use App\Services\WhatsApp\WhatsappBotService;
+use App\Support\ClientServiceAccess;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -155,6 +158,64 @@ class BotCitaTurnoTest extends TestCase
 
         $this->assertSame(1, Turn::where('barber_id', $this->deTurno->id)->count());
         $this->assertSame(0, Appointment::count());
+    }
+
+    public function test_turnos_de_la_web_y_whatsapp_comparten_cola_y_el_enlace_vincula_el_turno(): void
+    {
+        $this->post(route('public.booking.turn'), [
+            'barber_id' => $this->deTurno->id,
+            'service_id' => Service::firstOrFail()->id,
+            'client_name' => 'Cliente de la web',
+            'client_phone' => '310 123 4567',
+            'payment_method' => 'efectivo',
+        ])->assertRedirect(route('my-services.index'));
+
+        $this->assertStringContainsString('tomar tu turno', $this->escribir(WhatsappBotService::TURN_REQUEST));
+        $this->escribir('Ana Gomez');
+        $this->escribir('1');
+        $reply = $this->escribir('1');
+
+        $turn = Turn::where('client_name', 'Ana Gomez')->firstOrFail();
+        $this->assertSame(2, $turn->turn_number);
+        $this->assertSame('esperando', $turn->status);
+        $this->assertStringContainsString(ClientServiceAccess::recoveryUrl($turn), $reply);
+
+        $this->postJson(route('my-services.update', ['type' => 'turno', 'id' => $turn->id, 'action' => 'cancelar']))->assertNotFound();
+        $access = $this->get(ClientServiceAccess::recoveryUrl($turn))->assertRedirect(route('my-services.index'));
+        $this->withCredentials()->withCookie('mis_servicios', $access->getCookie('mis_servicios')->getValue());
+        $this->postJson(route('my-services.update', ['type' => 'turno', 'id' => $turn->id, 'action' => 'cancelar']))->assertOk();
+        $this->assertSame('cancelado', $turn->fresh()->status);
+        $this->assertDatabaseCount('turns', 2);
+    }
+
+    public function test_el_bot_puede_consultar_en_el_mismo_numero_un_turno_hecho_en_la_web(): void
+    {
+        $this->post(route('public.booking.turn'), [
+            'barber_id' => $this->deTurno->id,
+            'service_id' => Service::firstOrFail()->id,
+            'client_name' => 'Ana Gomez',
+            'client_phone' => '300 123 4567',
+            'payment_method' => 'efectivo',
+        ])->assertRedirect(route('my-services.index'));
+
+        $turn = Turn::firstOrFail();
+        $reply = $this->escribir('mi turno');
+
+        $this->assertStringContainsString('Estado: *Llamado*', $reply);
+        $this->assertStringContainsString(ClientServiceAccess::recoveryUrl($turn), $reply);
+        $this->assertDatabaseCount('turns', 1);
+    }
+
+    public function test_la_web_abre_whatsapp_con_los_comandos_para_turno_y_asesor(): void
+    {
+        SiteSetting::create(['data' => ['whatsapp' => '573006789012']]);
+        $url = 'https://wa.me/573006789012?text=';
+        $advisor = $url.rawurlencode(WhatsappBotService::ADVISOR_REQUEST);
+
+        $this->get(route('public.booking', ['tipo' => 'turno']))->assertOk()
+            ->assertSee($url.rawurlencode(WhatsappBotService::TURN_REQUEST))
+            ->assertSee($advisor);
+        $this->get(route('public.contact'))->assertOk()->assertSee($advisor);
     }
 
     public function test_turno_llamado_de_una_vez_no_promete_aviso_de_15_minutos(): void

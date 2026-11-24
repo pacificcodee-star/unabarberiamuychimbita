@@ -15,6 +15,7 @@ use App\Services\TurnQueueService;
 use App\Services\TurnService;
 use App\Support\AppointmentMessages;
 use App\Support\AttendanceConfirmation;
+use App\Support\ClientServiceAccess;
 use App\Support\TurnSchedule;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -32,6 +33,10 @@ use Throwable;
  */
 class WhatsappBotService
 {
+    public const TURN_REQUEST = 'Quiero sacar turno';
+
+    public const ADVISOR_REQUEST = 'Quiero hablar con un asesor';
+
     private const CONFIRM_WORDS = ['si', 'sipi', 'claro', 'ok', 'okay', 'dale', 'listo', 'confirmo', 'confirmar', 'confirmada', 'confirmado', 'asisto', 'yes', 'perfecto'];
 
     public function __construct(
@@ -115,22 +120,34 @@ class WhatsappBotService
 
     private function respond(WhatsAppConversation $conversation, string $text): ?string
     {
+        $normalized = $this->normalize($text);
+
         // Revocación (Ley 1581): "BAJA" o "STOP" en cualquier momento corta los avisos por WhatsApp.
-        if (in_array(trim($this->normalize($text), " .,!¡?¿"), self::OPT_OUT_WORDS, true)) {
+        if (in_array(trim($normalized, " .,!¡?¿"), self::OPT_OUT_WORDS, true)) {
             return $this->optOut($conversation);
         }
 
-        // Encuesta de satisfacción en curso: solo toma el mensaje si es una respuesta válida.
-        if (($surveyReply = app(\App\Services\Surveys\SurveyConversation::class)->handle($conversation->phone, $text)) !== null) {
-            return $surveyReply;
+        // Los mensajes preparados por la web inician su flujo aunque haya una encuesta pendiente.
+        if ($normalized === $this->normalize(self::TURN_REQUEST)) {
+            return $this->startBooking($conversation, 'turno');
+        }
+        if ($normalized === $this->normalize(self::ADVISOR_REQUEST)) {
+            return $this->advisorPrompt($conversation);
+        }
+
+        $flow = $this->flow($conversation->phone);
+        $step = (string) ($flow['step'] ?? '');
+
+        if ($step !== 'advisor' && (! str_starts_with($step, 'book_') || $step === 'book_done')) {
+            $surveyReply = app(\App\Services\Surveys\SurveyConversation::class)->handle($conversation->phone, $text);
+            if ($surveyReply !== null) {
+                return $surveyReply;
+            }
         }
 
         // "SÍ" confirma la cita pendiente aunque quede un menú abierto de una conversación anterior:
         // el mensaje de la reserva se responde a veces después de haber usado el bot. Solo se exceptúan
         // los pasos que esperan texto (nombre, últimos dígitos del teléfono), donde la respuesta es otra cosa.
-        $flow = $this->flow($conversation->phone);
-        $normalized = $this->normalize($text);
-        $step = (string) ($flow['step'] ?? '');
         $saysYes = $this->isAffirmative($normalized) || $this->isApprovalEmoji($text) || $this->asksToConfirm($normalized);
 
         if ($saysYes && ! in_array($step, ['book_name', 'cancel_name', 'cancel_verify'], true)) {
@@ -212,7 +229,7 @@ class WhatsappBotService
 
         if ($this->has($t, ['como voy', 'cuanto falta', 'mi turno', 'estado de mi turno', 'en que puesto', 'cuantos faltan'])) {
             if ($turn = $this->activeTurn($conversation->phone)) {
-                return $this->turnActionsText($conversation, $turn);
+                return $this->turnDetails($conversation, $turn);
             }
 
             return $this->showConsult($conversation);
@@ -440,8 +457,7 @@ class WhatsappBotService
         $offHours = ! $this->businessOpenNow();
 
         if ($offHours) {
-            // Fuera de horario no hay turnos (son del día, por orden de llegada) ni asesor en línea,
-            // pero el cliente sí puede consultar, modificar o cancelar lo que ya reservó.
+            // El asesor recibe las solicitudes fuera de horario para responder en la próxima jornada.
             return match ($n) {
                 1 => $this->startBooking($conversation),
                 2 => $this->showServices($conversation),
@@ -450,6 +466,7 @@ class WhatsappBotService
                 5 => $this->startModify($conversation),
                 6 => $this->startCancelMenu($conversation),
                 7 => $this->farewell($conversation),
+                8 => $this->advisorPrompt($conversation),
                 default => $this->invalidOption($conversation, ['step' => 'menu', 'data' => [], 'history' => []]),
             };
         }
@@ -479,7 +496,7 @@ class WhatsappBotService
         if ($mode === 'turno') {
             $turnState = TurnSchedule::forNow();
             if (! $turnState['open']) {
-                return '🌙 '.$turnState['message']."\n\n".$this->menuText();
+                return $this->turnUnavailable($conversation, $turnState['message']);
             }
         }
 
@@ -749,7 +766,7 @@ class WhatsappBotService
     {
         $turnState = TurnSchedule::forNow();
         if (! $turnState['open']) {
-            return '🌙 '.$turnState['message']."\n\n".$this->menuText();
+            return $this->turnUnavailable($conversation, $turnState['message']);
         }
 
         $name = trim((string) $clientName) ?: (trim((string) $conversation->client_name) ?: 'Cliente WhatsApp');
@@ -780,6 +797,13 @@ class WhatsappBotService
         ]);
 
         return $this->doneText(['kind' => 'turn', 'turn_id' => $turn->id]);
+    }
+
+    private function turnUnavailable(WhatsAppConversation $conversation, string $message): string
+    {
+        return '🌙 '.$message."\n\n"
+            .'🌐 Consulta el horario de turnos en la página: '.route('public.booking', ['tipo' => 'turno'])."\n\n"
+            .$this->mainMenu($conversation);
     }
 
     private function bookingDateText(array $data): string
@@ -988,6 +1012,7 @@ class WhatsappBotService
                 .(trim((string) $turn->client_name) !== '' ? '👤 Cliente: *'.$turn->client_name."*\n\n" : '')
                 // Si el barbero estaba libre, el turno ya fue llamado ("¡Llegó tu turno!"): no se promete otro aviso.
                 .($turn->status === 'esperando' ? '⏰ Te avisaremos por aquí *15 minutos antes* de tu atención.'."\n\n" : '')
+                .'🌐 Abre tu turno en *Mis servicios*: '.ClientServiceAccess::recoveryUrl($turn)."\n\n"
                 .'1. 🏠 Volver al menú principal.'."\n"
                 .'2. 👋 Finalizar conversación.';
         }
@@ -1244,6 +1269,12 @@ class WhatsappBotService
         }
 
         $lines[] = '📌 Estado: *'.$turn->statusLabel().'*';
+
+        // El enlace también permite gestionar el turno. Solo se envía al número registrado.
+        $colombianPhone = fn (?string $number) => preg_replace('/^57(?=\d{10}$)/', '', preg_replace('/\D/', '', (string) $number));
+        if ($colombianPhone($turn->client_phone) === $colombianPhone($conversation->phone)) {
+            $lines[] = '🌐 Abre tu turno en *Mis servicios*: '.ClientServiceAccess::recoveryUrl($turn);
+        }
 
         $text = '🎟️ *Tu turno*'."\n\n".implode("\n", $lines);
 
@@ -2108,8 +2139,13 @@ class WhatsappBotService
 
     private function advisorText(): string
     {
+        $availability = $this->businessOpenNow()
+            ? ''
+            : 'Estamos fuera del horario de atención. Puedes dejar la solicitud ahora y el equipo te responderá cuando vuelva a atender.'."\n\n";
+
         return '¡Por supuesto! 👋'."\n\n"
             .'Vamos a poner tu conversación en manos de un asesor de *'.$this->brand().'* para brindarte una atención personalizada.'."\n\n"
+            .$availability
             .'Selecciona una opción:'."\n\n"
             .'1. 💬 Solicitar atención de un asesor.'."\n"
             .'2. 🏠 Regresar al menú principal.';
@@ -2135,8 +2171,12 @@ class WhatsappBotService
             route('whatsapp.chat.show', $conversation, false),
         );
 
-        return 'Un asesor de *'.$this->brand().'* continuará la conversación contigo en un momento. 💬'."\n\n"
-            .'¡Gracias por escribirnos! 💈';
+        $response = $this->businessOpenNow()
+            ? 'El equipo recibió tu solicitud y te responderá por este chat. 💬'
+            : 'El equipo recibió tu solicitud. Te responderá por este chat en el próximo horario de atención. 💬';
+
+        return $response."\n\n"
+            .'🎟️ Si necesitas un turno mientras esperas, puedes revisar la disponibilidad en '.route('public.booking', ['tipo' => 'turno']);
     }
 
     private function noBookings(WhatsAppConversation $conversation): string
@@ -2367,7 +2407,8 @@ class WhatsappBotService
                 .'5. ✏️ Modificar una reserva.'."\n"
                 .'6. ❌ Cancelar una reserva.'."\n"
                 .'7. 👋 Finalizar conversación.'."\n\n"
-                .'🎟️ Los turnos por orden de llegada y la atención de un asesor están disponibles en nuestro horario de atención.'."\n\n"
+                .'8. 💬 Dejar una solicitud para un asesor.'."\n\n"
+                .'🎟️ Los turnos por orden de llegada se reciben hasta 30 minutos antes del cierre, durante el horario de atención.'."\n\n"
                 .'Responde únicamente con el *número* de la opción que deseas.';
         }
 
@@ -2575,21 +2616,15 @@ class WhatsappBotService
         return $estimate !== null && $estimate['start_at']->lte(now()->addMinutes(20));
     }
 
-    /** Horarios libres (cada 30 min) de un barbero en un día, igual que la página de reservas. */
     private function businessOpenNow(): bool
     {
         $settings = SiteSetting::currentData();
         $now = now();
 
-        if (SiteSetting::isClosedOn($now, $settings)) {
-            return false;
-        }
+        $opening = TurnSchedule::openingTime($now, $settings);
+        $closing = TurnSchedule::closingAt($now, $settings);
 
-        $start = $settings['booking_start'] ?? '00:00';
-        $end = $settings['booking_end'] ?? '23:59';
-        $current = $now->format('H:i');
-
-        return $current >= $start && $current <= $end;
+        return $opening !== null && $closing !== null && $now->format('H:i') >= $opening && $now->lt($closing);
     }
 
     private function appointmentWhen(Appointment $appointment): string

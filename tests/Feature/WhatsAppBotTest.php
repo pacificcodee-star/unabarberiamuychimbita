@@ -4,11 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\Appointment;
 use App\Models\Service;
+use App\Models\SiteSetting;
 use App\Models\User;
 use App\Models\WhatsAppConversation;
 use App\Models\WhatsAppMessage;
 use App\Services\TurnService;
 use App\Services\WhatsApp\WhatsAppInbox;
+use App\Services\WhatsApp\WhatsappBotService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -85,12 +87,30 @@ class WhatsAppBotTest extends TestCase
                 && str_contains($text, '5. ✏️ Modificar una reserva.')
                 && str_contains($text, '6. ❌ Cancelar una reserva.')
                 && str_contains($text, '7. 👋 Finalizar conversación.')
+                && str_contains($text, '8. 💬 Dejar una solicitud para un asesor.')
                 && ! str_contains($text, 'Tomar un turno');
         });
 
         // La opción 6 lleva a cancelar (no a despedirse).
         $this->escribir('6')->assertOk();
         Http::assertSent(fn ($request) => str_contains(mb_strtolower((string) $request['text']), 'cancel'));
+    }
+
+    public function test_una_solicitud_de_asesor_desde_la_web_fuera_del_horario_llega_al_panel(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-18 17:15:00'));
+        SiteSetting::create(['data' => ['hours_wed' => '09:00 - 17:00', 'booking_end' => '20:00']]);
+
+        $this->escribir(WhatsappBotService::ADVISOR_REQUEST)->assertOk();
+        $this->escribir('1')->assertOk();
+
+        $conversation = WhatsAppConversation::firstOrFail();
+        $this->assertFalse($conversation->bot_active);
+        $this->assertDatabaseHas('staff_notifications', [
+            'type' => 'client_advisor',
+            'url' => route('whatsapp.chat.show', $conversation, false),
+        ]);
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'próximo horario de atención'));
     }
 
     public function test_el_bot_confirma_una_cita_pendiente(): void

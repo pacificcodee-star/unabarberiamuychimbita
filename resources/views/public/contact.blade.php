@@ -89,13 +89,15 @@
                                 <i class="bi bi-arrow-up-right ct-channel-arrow" aria-hidden="true"></i>
                             </a>
                         </li>
-                        <li class="reveal">
-                            <a class="ct-channel ct-channel--wa" href="https://wa.me/{{ $siteSettings['whatsapp'] }}?text={{ rawurlencode('Hola, quiero información para un corte') }}" target="_blank" rel="noopener">
-                                <span class="ct-channel-icon"><img src="{{ asset('images/contacto/whatsapp.svg') }}" alt="" width="26" height="26"></span>
-                                <span class="ct-channel-text"><small>WhatsApp</small><strong>Escríbenos ahora</strong></span>
-                                <i class="bi bi-arrow-up-right ct-channel-arrow" aria-hidden="true"></i>
-                            </a>
-                        </li>
+                        @if(!empty($siteSettings['whatsapp']))
+                            <li class="reveal">
+                                <a class="ct-channel ct-channel--wa" href="https://wa.me/{{ $siteSettings['whatsapp'] }}?text={{ rawurlencode(\App\Services\WhatsApp\WhatsappBotService::ADVISOR_REQUEST) }}" target="_blank" rel="noopener">
+                                    <span class="ct-channel-icon"><img src="{{ asset('images/contacto/whatsapp.svg') }}" alt="" width="26" height="26"></span>
+                                    <span class="ct-channel-text"><small>WhatsApp</small><strong>Hablar con un asesor</strong></span>
+                                    <i class="bi bi-arrow-up-right ct-channel-arrow" aria-hidden="true"></i>
+                                </a>
+                            </li>
+                        @endif
                     </ul>
                 </div>
             </div>

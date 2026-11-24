@@ -20,6 +20,7 @@ class StaffNotification extends Model
         'client_confirmed' => 'bi-check2-circle',
         'turn_called' => 'bi-megaphone',
         'turn_finished' => 'bi-check2-circle',
+        'client_advisor' => 'bi-chat-dots',
         'survey_attention' => 'bi-chat-square-heart',
         'survey_review' => 'bi-shield-exclamation',
     ];
@@ -40,6 +41,7 @@ class StaffNotification extends Model
         'client_confirmed' => 'green',
         'turn_called' => 'brand',
         'turn_finished' => 'green',
+        'client_advisor' => 'blue',
         'survey_attention' => 'amber',
         'survey_review' => 'red',
     ];
