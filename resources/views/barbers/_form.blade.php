@@ -39,7 +39,7 @@
                 <div class="col-12 barber-only">
                     <label class="form-label fw-semibold">Foto del barbero</label>
                     @if($editing && $barber->photo_path)
-                        <div class="mb-2"><img src="{{ asset('storage/'.$barber->photo_path) }}" alt="Foto actual de {{ $barber->name }}" width="96" height="96" style="width:96px; height:96px; border-radius:50%; object-fit:cover; object-position:center top; background:#211f1a; border:3px solid #e3c27a"></div>
+                        <div class="mb-2"><img src="{{ asset('storage/'.$barber->photo_path) }}" alt="Foto actual de {{ $barber->name }}" width="96" height="96" style="width:96px; height:96px; border-radius:50%; object-fit:cover; object-position:center top; background:var(--ui-surface-3); border:3px solid var(--ui-border)"></div>
                     @endif
                     <input type="file" name="photo" id="barberPhotoInput" class="form-control" accept="image/*">
                     <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
@@ -82,7 +82,7 @@
             <input type="hidden" name="offered_services_present" value="1">
             <div class="row g-4 mt-1">
                 <div class="col-lg-6">
-                    <h3 class="h6 fw-bold mb-1"><i class="bi bi-scissors text-warning me-1"></i> Servicios que ofrece</h3>
+                    <h3 class="form-section-title"><i class="bi bi-scissors text-warning me-1"></i> Servicios que ofrece</h3>
                     <p class="small text-muted mb-2">Marca los servicios que este barbero puede realizar. Se usan en la página de reservas y en el bot de WhatsApp. Si no marcas ninguno, se entenderá que ofrece todo el catálogo.</p>
                     @if(($services ?? collect())->isEmpty())
                         <div class="small text-muted border rounded p-3">Primero crea servicios en el módulo <a href="{{ route('services.index') }}">Servicios</a>.</div>
@@ -107,7 +107,7 @@
                     @endif
                 </div>
                 <div class="col-lg-6">
-                    <h3 class="h6 fw-bold mb-1"><i class="bi bi-cash-coin text-warning me-1"></i> Comisión por servicio</h3>
+                    <h3 class="form-section-title"><i class="bi bi-cash-coin text-warning me-1"></i> Comisión por servicio</h3>
                     <p class="small text-muted mb-2">Cuánto gana el barbero (en %) en cada servicio.</p>
                     @if(($services ?? collect())->isEmpty())
                         <div class="small text-muted border rounded p-3">Primero crea servicios en el módulo <a href="{{ route('services.index') }}">Servicios</a>.</div>
@@ -136,7 +136,7 @@
             </div>
             <div class="row g-4 mt-1">
                 <div class="col-12">
-                    <h3 class="h6 fw-bold mb-1"><i class="bi bi-box-seam text-warning me-1"></i> Lo que gana por insumos</h3>
+                    <h3 class="form-section-title"><i class="bi bi-box-seam text-warning me-1"></i> Lo que gana por insumos</h3>
                     <p class="small text-muted mb-2">Qué % del valor de cada insumo gana el barbero. Vacío = el % general del insumo.</p>
                     @if(($supplies ?? collect())->isEmpty())
                         <div class="small text-muted border rounded p-3">Primero registra los insumos en el módulo <a href="{{ route('supplies.index') }}">Insumos</a>.</div>
@@ -167,7 +167,7 @@
             {{-- Cortes realizados: fotos de los trabajos del barbero. Salen en su perfil público y en "Nuestros trabajos" del inicio. --}}
             @php $barberCuts = $editing ? \App\Support\BarberCuts::for($barber) : collect(); @endphp
             <div class="border-top mt-4 pt-4">
-                <h3 class="h6 fw-bold mb-1"><i class="bi bi-images text-warning me-1"></i> Cortes realizados</h3>
+                <h3 class="form-section-title"><i class="bi bi-images text-warning me-1"></i> Cortes realizados</h3>
                 <p class="small text-muted mb-3">Sube fotos de los cortes que ha hecho. Aparecen debajo de su perfil en la página de barberos y en la galería «Nuestros trabajos» del inicio. Se muestran completas, sin recortarlas ni deformarlas.</p>
                 <label class="form-label" for="barberCutsInput">Agregar fotos <span class="text-muted">(puedes elegir varias; JPG, PNG o WebP, máx. 20 MB cada una)</span></label>
                 <input type="file" name="cuts[]" id="barberCutsInput" class="form-control @error('cuts') is-invalid @enderror @error('cuts.*') is-invalid @enderror" accept="image/*" multiple>

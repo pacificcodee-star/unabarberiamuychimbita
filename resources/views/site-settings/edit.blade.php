@@ -26,25 +26,19 @@
             ],
         ];
         $optional = ['map_coords', 'instagram_url', 'facebook_url', 'tiktok_url'];
+        $groupIcons = ['Ubicación y contacto' => 'bi-geo-alt', 'Horario de atención' => 'bi-clock', 'Redes sociales' => 'bi-share'];
         $icons = ['whatsapp' => 'bi-whatsapp', 'instagram_url' => 'bi-instagram', 'facebook_url' => 'bi-facebook', 'tiktok_url' => 'bi-tiktok'];
     @endphp
 
-    <div class="mb-4">
-        <h1 class="h3 mb-1">Configuración del negocio</h1>
-        <p class="text-muted mb-0">Datos de contacto, horarios, redes, medios de pago y logo. Los textos de la página se cambian en el código.</p>
-    </div>
-
-    @if($errors->any())
-        <div class="alert alert-danger"><strong>Revisa estos campos:</strong><ul class="mb-0 mt-2">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
-    @endif
+    <p class="page-intro">Datos de contacto, horarios, redes, medios de pago y logo. Los textos de la página se cambian en el código.</p>
 
     <form method="POST" action="{{ route('site-settings.update') }}" enctype="multipart/form-data">
         @csrf
         @method('PUT')
 
         @foreach($groups as $group => $fields)
-            <section class="card mb-4 content-settings-card">
-                <div class="card-header"><h2 class="h6 mb-0">{{ $group }}</h2></div>
+            <section class="card content-settings-card">
+                <div class="card-header"><h2 class="h6 mb-0"><i class="bi {{ $groupIcons[$group] ?? 'bi-sliders' }}" aria-hidden="true"></i> {{ $group }}</h2></div>
                 <div class="card-body">
                     @if($group === 'Horario de atención')
                         <div class="hours-week mb-4" role="group" aria-label="Horario de cada día">
@@ -80,13 +74,13 @@
                         </div>
                     @endforeach
                 </div></div>
-                @if($group === 'Horario de atención')<div class="card-footer bg-transparent small text-muted">Elige a qué hora abre y cierra cada día. Marca <strong>Cerrado</strong> en los días que no abren: ese día no se podrán reservar citas ni pedir turnos.</div>@endif
-                @if($group === 'Redes sociales')<div class="card-footer bg-transparent small text-muted">Deja vacía una red para que no aparezca en la página.</div>@endif
+                @if($group === 'Horario de atención')<div class="card-footer small text-muted">Elige a qué hora abre y cierra cada día. Marca <strong>Cerrado</strong> en los días que no abren: ese día no se podrán reservar citas ni pedir turnos.</div>@endif
+                @if($group === 'Redes sociales')<div class="card-footer small text-muted">Deja vacía una red para que no aparezca en la página.</div>@endif
             </section>
         @endforeach
 
-        <section class="card mb-4 content-settings-card">
-            <div class="card-header"><h2 class="h6 mb-0">Medios de pago que se muestran en la página</h2></div>
+        <section class="card content-settings-card">
+            <div class="card-header"><h2 class="h6 mb-0"><i class="bi bi-credit-card" aria-hidden="true"></i> Medios de pago que se muestran en la página</h2></div>
             <div class="card-body">
                 <p class="text-muted small mb-3">Activa los medios de pago disponibles. Para los medios virtuales, indica el número/cuenta a consignar: se enviará por WhatsApp al cliente cuando los seleccione al reservar o tomar turno.</p>
                 <div class="row g-3">
@@ -119,8 +113,8 @@
             </div>
         </section>
 
-        <section class="card mb-4 content-settings-card">
-            <div class="card-header"><h2 class="h6 mb-0">Logo</h2></div>
+        <section class="card content-settings-card">
+            <div class="card-header"><h2 class="h6 mb-0"><i class="bi bi-image" aria-hidden="true"></i> Logo</h2></div>
             <div class="card-body"><div class="row g-3 align-items-center">
                 <div class="col-md-4">
                     <div class="settings-image-preview"><img src="{{ !empty($settings['logo_path']) ? asset('storage/'.$settings['logo_path']) : asset('images/logo-una-barberia-512.webp') }}" alt="Logo actual" decoding="async"></div>
@@ -136,7 +130,7 @@
             </div></div>
         </section>
 
-        <div class="d-flex justify-content-end mb-4"><button class="btn btn-gold"><i class="bi bi-check2-circle me-1"></i> Guardar configuración</button></div>
+        <div class="form-actions"><button class="btn btn-gold"><i class="bi bi-check2-circle me-1"></i> Guardar configuración</button></div>
     </form>
 
     {{-- Cuenta del administrador: formulario aparte, con su propio botón, para no reenviar todo lo del negocio. --}}
@@ -149,8 +143,8 @@
             'password_confirmation' => ['Repite la contraseña nueva', 'new-password', ''],
         ];
     @endphp
-    <section class="card mb-4 content-settings-card" id="cuenta-admin" aria-labelledby="cuenta-admin-title">
-        <div class="card-header"><h2 class="h6 mb-0" id="cuenta-admin-title"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i> Cuenta del administrador</h2></div>
+    <section class="card content-settings-card" id="cuenta-admin" aria-labelledby="cuenta-admin-title">
+        <div class="card-header"><h2 class="h6 mb-0" id="cuenta-admin-title"><i class="bi bi-shield-lock" aria-hidden="true"></i> Cuenta del administrador</h2></div>
         <div class="card-body">
             <p class="text-muted small mb-3">Con este correo y esta contraseña entras al panel. Solo el administrador puede iniciar sesión.</p>
 
@@ -171,7 +165,7 @@
                             <label for="account-{{ $field }}" class="form-label fw-semibold">{{ $label }}</label>
                             <div class="input-group">
                                 <input id="account-{{ $field }}" type="password" name="{{ $field }}" class="form-control @if($accountErrors->has($field === 'password_confirmation' ? 'password' : $field)) is-invalid @endif" autocomplete="{{ $autocomplete }}" @if($field === 'current_password') required @endif @if($help) aria-describedby="account-{{ $field }}-help" @endif>
-                                <button type="button" class="btn btn-outline-secondary" data-password-toggle="account-{{ $field }}" aria-controls="account-{{ $field }}" aria-pressed="false" aria-label="Mostrar {{ Str::lower($label) }}" title="Mostrar"><i class="bi bi-eye" aria-hidden="true"></i></button>
+                                <button type="button" class="btn btn-outline-secondary btn-icon" data-password-toggle="account-{{ $field }}" aria-controls="account-{{ $field }}" aria-pressed="false" aria-label="Mostrar {{ Str::lower($label) }}" title="Mostrar"><i class="bi bi-eye" aria-hidden="true"></i></button>
                             </div>
                             @if($help)<div class="form-text" id="account-{{ $field }}-help">{{ $help }}</div>@endif
                         </div>
@@ -219,24 +213,23 @@
 
 @push('styles')
 <style>
-    .content-settings-card { border: 1px solid rgba(24,34,36,.09); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 24px rgba(16,24,24,.045); }
-    .content-settings-card .card-header { padding: 15px 20px; background: linear-gradient(100deg,rgba(160,46,37,.12),rgba(160,46,37,.025)); }
+    .content-settings-card { overflow: hidden; }
     .content-settings-card .card-body { padding: 20px; }
     /* El logo completo cabe en el recuadro, sin recortarse ni salirse (el % de alto no funciona dentro de grid). */
-    .settings-image-preview { height: 180px; padding: 12px; border-radius: 12px; background: #182224; overflow: hidden; }
+    .settings-image-preview { height: 180px; padding: 12px; border-radius: var(--ui-radius); background: #182224; overflow: hidden; }
     .settings-image-preview img { display: block; width: 100%; height: 100%; max-width: none; object-fit: contain; }
     @media(max-width:575px) { .content-settings-card .card-body { padding: 15px; } }
     /* Horario: una fila por día con interruptor de cerrado y rango de horas. */
     .hours-week { display: grid; gap: 8px; }
-    .hours-day { display: grid; grid-template-columns: 110px auto minmax(0, 1fr); align-items: center; gap: 8px 16px; padding: 10px 14px; border: 1px solid rgba(24,34,36,.1); border-radius: 12px; }
+    .hours-day { display: grid; grid-template-columns: 110px auto minmax(0, 1fr); align-items: center; gap: 8px 16px; padding: 10px 14px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-surface-2); }
     .hours-day-name { font-weight: 600; }
     .hours-day-switch { margin: 0; min-width: 110px; }
     .hours-day-range { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .hours-day-range .form-control { flex: 1 1 0; min-width: 0; max-width: 150px; }
     .hours-day-sep { color: var(--bs-secondary-color, #6c757d); }
     .hours-day.is-closed .hours-day-range { opacity: .4; }
-    .hours-day.is-invalid { border-color: var(--bs-danger, #dc3545); }
-    .hours-day-error { grid-column: 1 / -1; color: var(--bs-danger, #dc3545); font-size: .85rem; }
+    .hours-day.is-invalid { border-color: var(--ui-danger); }
+    .hours-day-error { grid-column: 1 / -1; color: var(--ui-danger); font-size: .85rem; }
     @media(max-width:575px) {
         .hours-day { grid-template-columns: 1fr auto; }
         .hours-day-range { grid-column: 1 / -1; }

@@ -3,7 +3,7 @@
    - CSS, JS, imágenes y fuentes: se sirven del caché y se actualizan en segundo plano.
    - El panel de administración y los formularios (POST) nunca se guardan en caché.
    - Notificaciones push: muestra los avisos de turnos y citas aunque la página o el navegador estén cerrados. */
-const VERSION = 'v7'; // v4: páginas públicas siempre revalidadas; v5: contenido del panel al día; v6: aviso al instante a todas las pestañas; v7: estilos del pie al día
+const VERSION = 'v8'; // v8: el panel instalado muestra la página sin conexión; v4: páginas públicas siempre revalidadas; v5: contenido del panel al día; v6: aviso al instante a todas las pestañas; v7: estilos del pie al día
 const PAGES = `pages-${VERSION}`;
 const ASSETS = `assets-${VERSION}`;
 const OFFLINE_URL = '/offline.html';
@@ -24,7 +24,7 @@ self.addEventListener('activate', (event) => {
 });
 
 const isPublicPage = (url) => PUBLIC_PAGES.includes(url.pathname.replace(/\/+$/, '') || '/');
-const isAsset = (url) => /^\/(css|js|images|icons|storage)\//.test(url.pathname) || url.pathname === '/manifest.webmanifest' || url.hostname.includes('fonts.g') || url.hostname.includes('cdn.jsdelivr.net');
+const isAsset = (url) => /^\/(css|js|images|icons|storage)\//.test(url.pathname) || ['/manifest.webmanifest', '/panel.webmanifest'].includes(url.pathname) || url.hostname.includes('fonts.g') || url.hostname.includes('cdn.jsdelivr.net');
 
 self.addEventListener('fetch', (event) => {
     const request = event.request;
@@ -32,7 +32,12 @@ self.addEventListener('fetch', (event) => {
     const url = new URL(request.url);
 
     if (request.mode === 'navigate') {
-        if (url.origin !== self.location.origin || !isPublicPage(url)) return; // admin, login, etc.: siempre en vivo
+        if (url.origin !== self.location.origin) return;
+        if (!isPublicPage(url)) {
+            // Panel, login, etc.: siempre en vivo y sin caché; sin internet, la página "sin conexión".
+            event.respondWith(fetch(request).catch(async () => (await caches.match(OFFLINE_URL)) || Response.error()));
+            return;
+        }
         event.respondWith(
             fetch(request)
                 .then((response) => {

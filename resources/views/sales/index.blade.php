@@ -43,13 +43,23 @@
                 <div class="col-lg-auto">
                     <button class="btn btn-dark w-100"><i class="bi bi-funnel me-1"></i> Filtrar</button>
                 </div>
-                <div class="col-12 d-flex flex-wrap gap-2">
-                    @php $q = request()->only(['barber_id', 'payment_method']); @endphp
-                    <a href="{{ route('sales.index', $q) }}" class="btn btn-sm {{ !request()->filled('from') && !request()->filled('to') ? 'btn-gold' : 'btn-outline-dark' }}">Todo</a>
-                    <a href="{{ route('sales.index', $q + ['from' => now()->toDateString(), 'to' => now()->toDateString()]) }}" class="btn btn-sm btn-outline-dark">Hoy</a>
-                    <a href="{{ route('sales.index', $q + ['from' => now()->startOfWeek()->toDateString(), 'to' => now()->endOfWeek()->toDateString()]) }}" class="btn btn-sm btn-outline-dark">Semana</a>
-                    <a href="{{ route('sales.index', $q + ['from' => now()->startOfMonth()->toDateString(), 'to' => now()->toDateString()]) }}" class="btn btn-sm btn-outline-dark">Mes</a>
-                    <a href="{{ route('sales.index', $q + ['from' => now()->subMonthNoOverflow()->startOfMonth()->toDateString(), 'to' => now()->subMonthNoOverflow()->endOfMonth()->toDateString()]) }}" class="btn btn-sm btn-outline-dark">Mes pasado</a>
+                <div class="col-12">
+                    @php
+                        $q = request()->only(['barber_id', 'payment_method']);
+                        $ranges = [
+                            'Todo' => [],
+                            'Hoy' => ['from' => now()->toDateString(), 'to' => now()->toDateString()],
+                            'Semana' => ['from' => now()->startOfWeek()->toDateString(), 'to' => now()->endOfWeek()->toDateString()],
+                            'Mes' => ['from' => now()->startOfMonth()->toDateString(), 'to' => now()->toDateString()],
+                            'Mes pasado' => ['from' => now()->subMonthNoOverflow()->startOfMonth()->toDateString(), 'to' => now()->subMonthNoOverflow()->endOfMonth()->toDateString()],
+                        ];
+                    @endphp
+                    <nav class="segmented" aria-label="Rangos rápidos">
+                        @foreach($ranges as $rangeLabel => $range)
+                            @php $isCurrent = (string) request('from') === ($range['from'] ?? '') && (string) request('to') === ($range['to'] ?? ''); @endphp
+                            <a href="{{ route('sales.index', $q + $range) }}" class="{{ $isCurrent ? 'is-active' : '' }}" @if($isCurrent) aria-current="true" @endif>{{ $rangeLabel }}</a>
+                        @endforeach
+                    </nav>
                 </div>
                 @if(request()->hasAny(['from', 'to', 'barber_id', 'payment_method']))
                     <div class="col-lg-auto">
@@ -65,35 +75,39 @@
             ? (request('from') ? \Carbon\Carbon::parse(request('from'))->format('d/m/Y') : 'el inicio').' — '.(request('to') ? \Carbon\Carbon::parse(request('to'))->format('d/m/Y') : 'hoy')
             : 'Todo (desde el primer servicio)';
     @endphp
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <div class="small text-muted">Período: <strong>{{ $periodLabel }}</strong></div>
-        <a class="small" href="{{ route('reports.index', array_filter(['start' => request('from'), 'end' => request('to')])) }}"><i class="bi bi-graph-up-arrow me-1"></i>Ver este período en Informes</a>
+    <div class="period-bar">
+        <span><i class="bi bi-calendar3" aria-hidden="true"></i> Período: <strong>{{ $periodLabel }}</strong></span>
+        <a href="{{ route('reports.index', array_filter(['start' => request('from'), 'end' => request('to')])) }}"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i> Ver este período en Informes</a>
     </div>
     <div class="row g-3 mb-3">
         <div class="col-6 col-xl-3">
-            <div class="card stat-card py-3">
+            <div class="card stat-card" data-tone="emerald">
+                <div class="icon"><i class="bi bi-cash-coin"></i></div>
                 <div class="label">Ingresos</div>
-                <div class="value fs-3">{{ format_money($totals['total']) }}</div>
+                <div class="value">{{ format_money($totals['total']) }}</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card py-3">
+            <div class="card stat-card" data-tone="blue">
+                <div class="icon"><i class="bi bi-scissors"></i></div>
                 <div class="label">Servicios realizados</div>
-                <div class="value fs-3">{{ $totals['services'] }}</div>
+                <div class="value">{{ $totals['services'] }}</div>
                 <div class="hint">en {{ $totals['count'] }} cobros</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card py-3">
+            <div class="card stat-card" data-tone="violet">
+                <div class="icon"><i class="bi bi-person-badge"></i></div>
                 <div class="label">Nómina por servicios</div>
-                <div class="value fs-3">{{ format_money($totals['commission']) }}</div>
+                <div class="value">{{ format_money($totals['commission']) }}</div>
                 <div class="hint">Lo que ganan los barberos</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card py-3">
+            <div class="card stat-card" data-tone="teal">
+                <div class="icon"><i class="bi bi-piggy-bank"></i></div>
                 <div class="label">Queda para el negocio</div>
-                <div class="value fs-3">{{ format_money($totals['total'] - $totals['commission']) }}</div>
+                <div class="value">{{ format_money($totals['total'] - $totals['commission']) }}</div>
                 <div class="hint">Antes de gastos</div>
             </div>
         </div>
@@ -134,17 +148,17 @@
                             <div class="small text-muted">{{ number_format((float) $sale->commission_percentage, 0) }}%</div>
                         </td>
                         <td class="text-end text-nowrap">
-                            <a href="{{ route('sales.show', $sale) }}" class="btn btn-sm btn-outline-dark" title="Ver detalle">
+                            <a href="{{ route('sales.show', $sale) }}" class="btn btn-sm btn-outline-dark btn-icon" title="Ver detalle" aria-label="Ver detalle">
                                 <i class="bi bi-eye"></i>
                             </a>
-                            <a href="{{ route('sales.receipt', $sale) }}" class="btn btn-sm btn-outline-dark" title="Comprobante">
+                            <a href="{{ route('sales.receipt', $sale) }}" class="btn btn-sm btn-outline-dark btn-icon" title="Comprobante" aria-label="Imprimir">
                                 <i class="bi bi-printer"></i>
                             </a>
                             @if(auth()->user()->isAdmin())
                                 <form method="POST" action="{{ route('sales.destroy', $sale) }}" class="d-inline" onsubmit="return confirm('¿Eliminar esta venta? Esta acción no se puede deshacer.');">
                                     @csrf
                                     @method('DELETE')
-                                    <button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button>
+                                    <button class="btn btn-sm btn-outline-danger btn-icon" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash"></i></button>
                                 </form>
                             @endif
                         </td>

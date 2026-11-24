@@ -9,19 +9,19 @@
 @section('content')
     <div class="row g-3 mb-3">
         <div class="col-6 col-md-4">
-            <div class="card stat-card py-3"><div class="label">Productos</div><div class="value fs-3">{{ $stats['count'] }}</div></div>
+            <div class="card stat-card" data-tone="blue"><div class="icon"><i class="bi bi-box-seam"></i></div><div class="label">Productos</div><div class="value">{{ $stats['count'] }}</div></div>
         </div>
         <div class="col-6 col-md-4">
-            <div class="card stat-card py-3"><div class="label">Unidades en stock</div><div class="value fs-3">{{ $stats['stock'] }}</div></div>
+            <div class="card stat-card" data-tone="teal"><div class="icon"><i class="bi bi-stack"></i></div><div class="label">Unidades en stock</div><div class="value">{{ $stats['stock'] }}</div></div>
         </div>
-        <div class="col-12 col-md-4">
-            <div class="card stat-card py-3"><div class="label">Stock bajo</div><div class="value fs-3 {{ $stats['low'] > 0 ? 'text-danger' : '' }}">{{ $stats['low'] }}</div></div>
+        <div class="col-6 col-md-4">
+            <div class="card stat-card" data-tone="red"><div class="icon"><i class="bi bi-exclamation-triangle"></i></div><div class="label">Stock bajo</div><div class="value {{ $stats['low'] > 0 ? 'text-danger' : '' }}">{{ $stats['low'] }}</div></div>
         </div>
     </div>
 
     <div class="row g-3">
         <div class="col-lg-4">
-            <div class="card position-sticky" style="top: 20px;">
+            <div class="card sticky-panel">
                 <div class="card-header"><i class="bi bi-plus-circle me-1 text-warning"></i> Nuevo producto</div>
                 <div class="card-body">
                     <form method="POST" action="{{ route('pos.products.store') }}">
@@ -123,12 +123,12 @@
                                         <form method="POST" action="{{ route('pos.products.stock', $product) }}" class="d-inline-flex gap-1">
                                             @csrf
                                             <input type="number" name="adjustment" class="form-control form-control-sm" style="width:80px;" placeholder="± Cant" required>
-                                            <button class="btn btn-sm btn-outline-dark" title="Ajustar stock"><i class="bi bi-plus-slash-minus"></i></button>
+                                            <button class="btn btn-sm btn-outline-dark btn-icon" title="Ajustar stock"><i class="bi bi-plus-slash-minus"></i></button>
                                         </form>
                                         <form method="POST" action="{{ route('pos.products.destroy', $product) }}" onsubmit="return confirm('¿Eliminar este producto del inventario?');">
                                             @csrf
                                             @method('DELETE')
-                                            <button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button>
+                                            <button class="btn btn-sm btn-outline-danger btn-icon" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash"></i></button>
                                         </form>
                                     </div>
                                 </td>

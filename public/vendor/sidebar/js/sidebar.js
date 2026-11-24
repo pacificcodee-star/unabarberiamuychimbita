@@ -123,7 +123,7 @@
 
         // Al elegir una opción en móvil se cierra el menú.
         sidebar.addEventListener('click', function (e) {
-            var link = e.target.closest('a.menu-link, a.sidebar-footer-link');
+            var link = e.target.closest('a.menu-link, a.sidebar-icon-btn');
             if (link && !isDesktop()) setMobileOpen(false, false);
         });
 
@@ -183,8 +183,9 @@
             var text = themeBtn.querySelector('.theme-text');
             var icon = themeBtn.querySelector('.icon-theme i');
             if (text) text.textContent = dark ? 'Modo claro' : 'Modo oscuro';
-            if (icon) icon.className = dark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            if (icon) icon.className = dark ? 'bi bi-sun' : 'bi bi-moon-stars';
             themeBtn.setAttribute('title', dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+            themeBtn.setAttribute('aria-label', dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
         }
         if (themeBtn) {
             themeBtn.addEventListener('click', function () {

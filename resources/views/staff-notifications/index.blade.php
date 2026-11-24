@@ -4,11 +4,8 @@
 
 @push('styles')
 <style>
-    .nt-page-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-    .nt-tabs { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--bs-border-color); border-radius: 12px; background: var(--bs-body-bg); }
-    .nt-tabs a { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 14px; border-radius: 9px; color: var(--bs-secondary-color); font-size: .84rem; font-weight: 700; text-decoration: none; transition: background-color .15s ease, color .15s ease; }
-    .nt-tabs a:hover { color: var(--bs-body-color); background: rgba(127, 127, 127, .08); }
-    .nt-tabs a.is-active { background: var(--gold); color: #fff; }
+    .nt-page-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .nt-card .nt-head { border-bottom: 1px solid var(--ui-border); }
     .nt-card { overflow: hidden; }
     .nt-card .nt-head { padding: 18px 22px 14px; }
     .nt-card .nt-head h2 { font-size: 1.05rem; }
@@ -31,7 +28,7 @@
     @endphp
 
     <div class="nt-page-bar">
-        <nav class="nt-tabs" aria-label="Tipo de avisos">
+        <nav class="segmented nt-tabs" aria-label="Tipo de avisos">
             <a class="{{ $tab === 'equipo' ? 'is-active' : '' }}" href="{{ route('staff-notifications.index') }}" @if($tab === 'equipo') aria-current="page" @endif><i class="bi bi-bell" aria-hidden="true"></i> Para el equipo</a>
             <a class="{{ $tab === 'clientes' ? 'is-active' : '' }}" href="{{ route('staff-notifications.index', ['tab' => 'clientes']) }}" @if($tab === 'clientes') aria-current="page" @endif><i class="bi bi-send" aria-hidden="true"></i> Enviados a clientes</a>
         </nav>

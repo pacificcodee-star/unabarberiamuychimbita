@@ -10,12 +10,12 @@
         Una opinión solo se publica con autorización del cliente. Se puede ocultar únicamente por motivos objetivos (spam, datos personales, insultos o amenazas, o si no corresponde a la barbería), nunca por ser negativa.
     </div>
 
-    <div class="d-flex flex-wrap gap-2 mb-3" role="list" aria-label="Filtrar por estado">
-        <a role="listitem" href="{{ route('surveys.reviews') }}" class="btn btn-sm {{ $status ? 'btn-outline-dark' : 'btn-dark' }}">Todas</a>
+    <nav class="segmented" aria-label="Filtrar por estado">
+        <a href="{{ route('surveys.reviews') }}" class="{{ $status ? '' : 'is-active' }}" @if(! $status) aria-current="true" @endif>Todas</a>
         @foreach(\App\Models\Review::MODERATION as $key => $label)
-            <a role="listitem" href="{{ route('surveys.reviews', ['estado' => $key]) }}" class="btn btn-sm {{ $status === $key ? 'btn-dark' : 'btn-outline-dark' }}">{{ $label }} ({{ $counts[$key] ?? 0 }})</a>
+            <a href="{{ route('surveys.reviews', ['estado' => $key]) }}" class="{{ $status === $key ? 'is-active' : '' }}" @if($status === $key) aria-current="true" @endif>{{ $label }} <span class="segmented-count">{{ $counts[$key] ?? 0 }}</span></a>
         @endforeach
-    </div>
+    </nav>
 
     <div class="row g-3">
         @forelse($reviews as $review)

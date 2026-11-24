@@ -49,16 +49,18 @@
     </div>
 
     <div class="row g-3 mb-3">
-        <div class="col-6 col-md-4">
-            <div class="card stat-card py-3">
+        <div class="col-6 col-xl-3">
+            <div class="card stat-card" data-tone="blue">
+                <div class="icon"><i class="bi bi-file-earmark-text"></i></div>
                 <div class="label">Comprobantes</div>
-                <div class="value fs-3">{{ $totals['count'] }}</div>
+                <div class="value">{{ $totals['count'] }}</div>
             </div>
         </div>
-        <div class="col-6 col-md-4">
-            <div class="card stat-card py-3">
+        <div class="col-6 col-xl-3">
+            <div class="card stat-card" data-tone="emerald">
+                <div class="icon"><i class="bi bi-cash-stack"></i></div>
                 <div class="label">Total</div>
-                <div class="value fs-3">{{ format_money($totals['total']) }}</div>
+                <div class="value">{{ format_money($totals['total']) }}</div>
             </div>
         </div>
     </div>
@@ -95,10 +97,10 @@
                         <td><span class="badge-soft">{{ $invoice->paymentLabel() }}</span></td>
                         <td class="text-end fw-semibold">{{ format_money($invoice->total) }}</td>
                         <td class="text-end text-nowrap">
-                            <a href="{{ route('invoices.show', $invoice) }}" class="btn btn-sm btn-outline-dark" title="Ver comprobante">
+                            <a href="{{ route('invoices.show', $invoice) }}" class="btn btn-sm btn-outline-dark btn-icon" title="Ver comprobante" aria-label="Ver detalle">
                                 <i class="bi bi-eye"></i>
                             </a>
-                            <a href="{{ route('invoices.show', $invoice) }}?print=1" class="btn btn-sm btn-gold" title="Imprimir comprobante" target="_blank">
+                            <a href="{{ route('invoices.show', $invoice) }}?print=1" class="btn btn-sm btn-gold btn-icon" title="Imprimir comprobante" target="_blank" aria-label="Imprimir">
                                 <i class="bi bi-printer"></i>
                             </a>
                         </td>

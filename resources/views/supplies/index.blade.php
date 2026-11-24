@@ -7,8 +7,8 @@
 @endsection
 
 @section('content')
-    <div class="alert alert-light border small mb-4">
-        <i class="bi bi-info-circle text-warning me-1"></i>
+    <div class="alert alert-light">
+        <i class="bi bi-info-circle"></i>
         Registra aquí los <strong>insumos</strong> del negocio con su valor. Cada vez que un barbero use o entregue uno, regístralo:
         el barbero <strong>gana el % de su valor</strong> que le pusiste en <a href="{{ route('barbers.index') }}">Barberos</a> (o el % general del insumo) y se <strong>suma a su nómina</strong>.
     </div>
@@ -39,11 +39,11 @@
                                 <td class="text-end">{{ rtrim(rtrim(number_format((float) $supply->default_percentage, 2, ',', '.'), '0'), ',') }}%</td>
                                 <td><span class="badge-soft {{ $supply->active ? 'green' : 'red' }}">{{ $supply->active ? 'Activo' : 'Inactivo' }}</span></td>
                                 <td class="text-end text-nowrap">
-                                    <a href="{{ route('supplies.edit', $supply) }}" class="btn btn-sm btn-outline-dark"><i class="bi bi-pencil"></i></a>
+                                    <a href="{{ route('supplies.edit', $supply) }}" class="btn btn-sm btn-outline-dark btn-icon" aria-label="Editar" title="Editar"><i class="bi bi-pencil"></i></a>
                                     <form method="POST" action="{{ route('supplies.destroy', $supply) }}" class="d-inline" onsubmit="return confirm('¿Eliminar este insumo?');">
                                         @csrf
                                         @method('DELETE')
-                                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger btn-icon" aria-label="Eliminar" title="Eliminar"><i class="bi bi-trash"></i></button>
                                     </form>
                                 </td>
                             </tr>
@@ -94,7 +94,7 @@
                                     <form method="POST" action="{{ route('supplies.deliveries.destroy', $delivery) }}" onsubmit="return confirm('¿Eliminar este registro? Ya no se sumará a la nómina.');">
                                         @csrf
                                         @method('DELETE')
-                                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger btn-icon" aria-label="Eliminar" title="Eliminar"><i class="bi bi-trash"></i></button>
                                     </form>
                                 </td>
                             </tr>
@@ -111,12 +111,12 @@
         </div>
 
         <div class="col-lg-5">
-            <div class="card position-sticky" style="top: 20px;">
+            <div class="card sticky-panel">
                 <div class="card-header"><i class="bi bi-box-arrow-right me-1 text-warning"></i> Registrar insumo de un barbero</div>
                 <div class="card-body">
                     @php($activeSupplies = $supplies->where('active', true))
                     @if($activeSupplies->isEmpty() || $barbers->isEmpty())
-                        <p class="text-muted small mb-0">Necesitas al menos un insumo activo y un barbero activo.</p>
+                        <div class="empty-state py-4"><i class="bi bi-box-seam"></i>Necesitas al menos un insumo activo y un barbero activo.</div>
                     @else
                         <form method="POST" action="{{ route('supplies.deliveries.store') }}" id="deliveryForm">
                             @csrf
@@ -152,10 +152,10 @@
                                 <label class="form-label fw-semibold" for="deliveryNotes">Notas</label>
                                 <input type="text" name="notes" id="deliveryNotes" value="{{ old('notes') }}" class="form-control" maxlength="300" placeholder="Opcional">
                             </div>
-                            <div class="p-3 rounded-4 mb-3" style="background: rgba(31,138,91,.07);">
-                                <div class="small text-muted">El barbero gana (se suma a su nómina)</div>
-                                <div class="fs-4 fw-bold text-success" id="deliveryPreview">$0</div>
-                                <div class="small text-muted" id="deliveryDetail">Elige barbero e insumo.</div>
+                            <div class="mini-stat mb-3">
+                                <span class="mini-stat-label">El barbero gana (se suma a su nómina)</span>
+                                <div class="mini-stat-value text-success" id="deliveryPreview">$0</div>
+                                <div class="form-text mt-1" id="deliveryDetail">Elige barbero e insumo.</div>
                             </div>
                             <button class="btn btn-gold w-100"><i class="bi bi-check2-circle me-1"></i> Registrar</button>
                         </form>

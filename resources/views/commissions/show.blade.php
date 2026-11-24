@@ -7,11 +7,11 @@
     {{-- Filtro de fechas --}}
     <div class="card mb-3 no-print">
         <div class="card-body">
-            <div class="d-flex flex-wrap gap-2 mb-3" role="group" aria-label="Rangos rápidos">
+            <nav class="segmented mb-3" aria-label="Rangos rápidos">
                 @foreach(['todo' => 'Todo', 'hoy' => 'Hoy', 'semana' => 'Esta semana', 'quincena' => 'Esta quincena', 'mes' => 'Este mes', 'mes-pasado' => 'Mes pasado'] as $key => $label)
-                    <a href="{{ route('commissions.show', [$barber, 'rango' => $key, 'embed' => request()->boolean('embed') ? 1 : null]) }}" class="btn btn-sm {{ $preset === $key ? 'btn-gold' : 'btn-outline-dark' }}">{{ $label }}</a>
+                    <a href="{{ route('commissions.show', [$barber, 'rango' => $key, 'embed' => request()->boolean('embed') ? 1 : null]) }}" class="{{ $preset === $key ? 'is-active' : '' }}" @if($preset === $key) aria-current="true" @endif>{{ $label }}</a>
                 @endforeach
-            </div>
+            </nav>
             <form method="GET" action="{{ route('commissions.show', $barber) }}" class="row g-2 align-items-end">
                 @if(request()->boolean('embed'))<input type="hidden" name="embed" value="1">@endif
                 <div class="col-sm-4 col-md-3">
@@ -47,30 +47,34 @@
     {{-- Resumen del período --}}
     <div class="row g-3 mb-4">
         <div class="col-6 col-xl-3">
-            <div class="card stat-card py-3 h-100">
+            <div class="card stat-card" data-tone="blue">
+                <div class="icon"><i class="bi bi-scissors"></i></div>
                 <div class="label">Producción por servicios</div>
-                <div class="value fs-3">{{ format_money($earnedServices) }}</div>
+                <div class="value">{{ format_money($earnedServices) }}</div>
                 <div class="hint">{{ $items->sum('quantity') }} servicios realizados</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card py-3 h-100">
+            <div class="card stat-card" data-tone="amber">
+                <div class="icon"><i class="bi bi-box-seam"></i></div>
                 <div class="label">+ Producción por insumos</div>
-                <div class="value fs-3">{{ format_money($earnedSupplies) }}</div>
+                <div class="value">{{ format_money($earnedSupplies) }}</div>
                 <div class="hint">{{ $supplies->sum('quantity') }} insumos</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card py-3 h-100" style="border-color: rgba(160,46,37,.45);">
+            <div class="card stat-card" data-tone="violet">
+                <div class="icon"><i class="bi bi-calculator"></i></div>
                 <div class="label">= Total acumulado en el período</div>
-                <div class="value fs-3">{{ format_money($totalEarned) }}</div>
+                <div class="value">{{ format_money($totalEarned) }}</div>
                 <div class="hint">Abonado en el período: {{ format_money($paidInRange) }}</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card py-3 h-100">
+            <div class="card stat-card" data-tone="rose">
+                <div class="icon"><i class="bi bi-hourglass-split"></i></div>
                 <div class="label">Saldo pendiente total</div>
-                <div class="value fs-3 {{ $pendingAll > 0 ? 'text-danger' : 'text-success' }}">{{ format_money($pendingAll) }}</div>
+                <div class="value {{ $pendingAll > 0 ? 'text-danger' : 'text-success' }}">{{ format_money($pendingAll) }}</div>
                 <div class="hint">Todo lo pendiente, sin importar las fechas</div>
             </div>
         </div>
