@@ -102,8 +102,10 @@ Route::redirect('/mis-servicios/recuperar/{rest?}', '/mis-servicios')->where('re
 
 Route::prefix('mis-servicios')->name('my-services.')->controller(MyServicesController::class)->group(function () {
     Route::get('/', 'index')->middleware('throttle:90,1,my-services.index')->name('index');
-    Route::post('/whatsapp/iniciar', 'beginWhatsAppLink')->middleware('throttle:5,10,my-services.whatsapp.start')->name('whatsapp.start');
-    Route::post('/whatsapp/confirmar', 'finishWhatsAppLink')->middleware('throttle:15,10,my-services.whatsapp.finish')->name('whatsapp.finish');
+    Route::get('/whatsapp/conectar/{token}', 'openWhatsAppLink')->where('token', '[A-Za-z0-9]{48}')
+        ->middleware('throttle:20,10,my-services.whatsapp.open')->name('whatsapp.open');
+    Route::get('/whatsapp/conectar', 'confirmWhatsAppLink')->middleware('throttle:20,10,my-services.whatsapp.confirm')->name('whatsapp.confirm');
+    Route::post('/whatsapp/conectar', 'finishWhatsAppLink')->middleware('throttle:15,10,my-services.whatsapp.finish')->name('whatsapp.finish');
     Route::get('/acceso/{type}/{token}', 'access')->whereIn('type', ['cita', 'turno'])
         ->middleware(['signed', 'throttle:20,1,my-services.access'])->name('access');
     Route::post('/{type}/{id}/{action}', 'update')->whereNumber('id')->whereIn('type', ['cita', 'turno'])

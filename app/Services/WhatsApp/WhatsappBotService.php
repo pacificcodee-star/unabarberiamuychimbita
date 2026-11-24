@@ -65,7 +65,7 @@ class WhatsappBotService
 
         try {
             $conversation->resumeIfAdvisorAbsent();
-            $linkReply = $this->historyLink->acknowledge($text, $conversation->phone);
+            $linkReply = $this->historyLink->respondToCommand($text, $conversation->phone);
             if ($linkReply !== null) {
                 $reply = $linkReply;
             } elseif (! $conversation->bot_active) {
@@ -1271,7 +1271,8 @@ class WhatsappBotService
             .'1. 📅 Consultar mi próxima cita.'."\n"
             .'2. 🎟️ Consultar mi turno actual.'."\n"
             .'3. 🧾 Consultar mis reservas anteriores.'."\n"
-            .'4. 🏠 Volver al menú principal.';
+            .'4. 🏠 Volver al menú principal.'."\n\n"
+            .'Para ver tus reservas en la web o en la app, escribe *Vincular historial*.';
     }
 
     private function handleConsult(WhatsAppConversation $conversation, int $n): string
