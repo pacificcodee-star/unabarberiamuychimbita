@@ -22,8 +22,7 @@ class SiteLaunchTest extends TestCase
         $this->get('/')->assertOk()
             ->assertSee(route('legal.notice'), false)
             ->assertSee(route('legal.privacy'), false)
-            ->assertSee(route('legal.cookies'), false)
-            ->assertSee('id="cookieBanner"', false);
+            ->assertSee(route('legal.cookies'), false);
     }
 
     public function test_public_pages_do_not_link_to_the_staff_login(): void
@@ -46,10 +45,13 @@ class SiteLaunchTest extends TestCase
 
     public function test_analytics_only_loads_when_configured(): void
     {
-        $this->get('/')->assertDontSee('Aceptar</button>', false)->assertSee('const GA4 = null', false);
+        // Sin analítica no hay nada que aceptar: el aviso flotante de cookies no aparece.
+        $this->get('/')->assertDontSee('id="cookieBanner"', false)->assertSee('const GA4 = null', false);
 
         config(['web.ga4_id' => 'G-TEST123']);
-        $this->get('/')->assertSee('const GA4 = "G-TEST123"', false)->assertSee('data-cookie-choice="accepted"', false);
+        $this->get('/')->assertSee('const GA4 = "G-TEST123"', false)
+            ->assertSee('id="cookieBanner"', false)
+            ->assertSee('data-cookie-choice="accepted"', false);
         // El script de Google no va en el HTML: se inserta solo tras aceptar.
         $this->get('/')->assertDontSee('<script async src="https://www.googletagmanager.com', false);
     }

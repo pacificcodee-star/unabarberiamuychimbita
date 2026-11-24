@@ -413,18 +413,17 @@
     </a>
 @endif
 
-{{-- Aviso de cookies: las necesarias siempre; la analítica solo si el visitante acepta. --}}
+{{-- Aviso de cookies: solo aparece si hay analítica, que es lo único que necesita permiso.
+     Las cookies necesarias no lo piden; están explicadas en /cookies, enlazado en el pie. --}}
+@if($ga4Id)
 <div class="cookie-banner" id="cookieBanner" role="region" aria-label="Aviso de cookies" hidden>
-    <p>Usamos cookies necesarias para que el sitio funcione{{ $ga4Id ? ' y, si aceptas, cookies de analítica para saber qué páginas se usan más' : '' }}. <a href="{{ route('legal.cookies') }}">Más información</a></p>
+    <p>Usamos cookies necesarias para que el sitio funcione y, si aceptas, cookies de analítica para saber qué páginas se usan más. <a href="{{ route('legal.cookies') }}">Más información</a></p>
     <div class="cookie-banner-actions">
-        @if($ga4Id)
-            <button type="button" class="cookie-btn cookie-btn--ghost" data-cookie-choice="rejected">Solo necesarias</button>
-            <button type="button" class="cookie-btn" data-cookie-choice="accepted">Aceptar</button>
-        @else
-            <button type="button" class="cookie-btn" data-cookie-choice="rejected">Entendido</button>
-        @endif
+        <button type="button" class="cookie-btn cookie-btn--ghost" data-cookie-choice="rejected">Solo necesarias</button>
+        <button type="button" class="cookie-btn" data-cookie-choice="accepted">Aceptar</button>
     </div>
 </div>
+@endif
 <script>
 (() => {
     const KEY = 'cookie-consent';
@@ -461,12 +460,12 @@
         const wait = () => document.documentElement.classList.contains('is-loading') ? setTimeout(wait, 300) : (banner.hidden = false);
         wait();
     };
-    const choice = read();
+    const choice = banner ? read() : null;
     if (choice) save(choice); // completa el lugar que falte y renueva el año
     if (choice === 'accepted') loadAnalytics();
-    else if (!choice) show();
+    else if (banner && !choice) show();
 
-    banner.querySelectorAll('[data-cookie-choice]').forEach((btn) => btn.addEventListener('click', () => {
+    banner?.querySelectorAll('[data-cookie-choice]').forEach((btn) => btn.addEventListener('click', () => {
         const value = btn.dataset.cookieChoice;
         save(value);
         banner.hidden = true;
@@ -487,7 +486,7 @@
         else if (href.startsWith('tel:')) window.trackEvent('phone_click', { link_url: location.pathname });
     });
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('[data-cookie-settings]')) return;
+        if (!banner || !e.target.closest('[data-cookie-settings]')) return;
         banner.hidden = false;
         banner.querySelector('[data-cookie-choice]')?.focus();
     });
