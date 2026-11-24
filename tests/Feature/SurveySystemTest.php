@@ -467,6 +467,9 @@ class SurveySystemTest extends TestCase
         $this->assertSame('atencion', $session->answerFor('lo_mejor')->value);
         $this->assertSame('encuesta_whatsapp', Review::firstOrFail()->source);
         $this->assertTrue(Review::first()->approved);
+        // La opinión respondida por WhatsApp sale en la página (inicio y /resenas) como servicio verificado.
+        $this->get(route('public.reviews'))->assertSee('Muy buen servicio, volveré.')->assertSee('Servicio verificado');
+        $this->get('/')->assertSee('Muy buen servicio, volveré.');
 
         // La web muestra la misma encuesta ya respondida.
         $this->getJson($this->url($appointment, 'survey.state'))->assertJson(['status' => 'completada']);
