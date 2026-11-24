@@ -110,17 +110,17 @@ class TurnController extends Controller
         $previousStatus = $turn->status;
         $attributes = ['status' => $data['status']];
 
-        if ($data['status'] === 'llamado') {
+        if ($data['status'] === 'llamado' && ($previousStatus !== 'llamado' || ! $turn->called_at)) {
             $attributes['called_at'] = now();
         }
 
-        if ($data['status'] === 'atendiendo') {
+        if ($data['status'] === 'atendiendo' && ($previousStatus !== 'atendiendo' || ! $turn->started_at)) {
             // Empieza a contar la duración del servicio; al cumplirse, el turno se cierra solo.
             $attributes['called_at'] = $turn->called_at ?: now();
             $attributes['started_at'] = now();
         }
 
-        if (in_array($data['status'], ['atendido', 'cancelado'], true)) {
+        if (in_array($data['status'], ['atendido', 'cancelado'], true) && ($previousStatus !== $data['status'] || ! $turn->finished_at)) {
             $attributes['finished_at'] = now();
         }
 

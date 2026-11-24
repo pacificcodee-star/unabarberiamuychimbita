@@ -13,7 +13,7 @@
     <div class="my-services-page">
         @include('public.partials.page-hero', ['crumb' => 'Mis servicios', 'title' => 'Mis servicios', 'ghost' => false,
             'description' => 'Consulta tus reservas, confirma tu asistencia o elige un nuevo horario.'])
-    <div class="container service-manager" data-services data-slots="{{ route('public.booking.slots') }}">
+    <div class="container service-manager" data-services data-clock="{{ $now->timestamp * 1000 }}" data-slots="{{ route('public.booking.slots') }}">
         @if(session('status'))
             <p class="service-alert" role="status">{{ session('status') }}</p>
         @endif
@@ -178,6 +178,27 @@
 .msv-queue span { color: var(--text-muted); font-size: .85rem; }
 .msv-queue.is-next-up { background: rgba(47, 138, 91, .10); border-color: rgba(47, 138, 91, .35); }
 .msv-queue.is-next-up > i { color: #2f8a5b; }
+.msv-timeline {
+    display: grid; grid-template-columns: 1fr minmax(0, 1.25fr) 1fr; align-items: center; gap: .3rem;
+    border-top: 1px solid var(--line); padding-top: .65rem; font-variant-numeric: tabular-nums;
+}
+.msv-timeline-time { display: grid; align-content: center; gap: .12rem; color: var(--text-muted); font-size: .75rem; }
+.msv-timeline-time:last-child { text-align: right; }
+.msv-timeline-time time { font-size: .94rem; font-weight: 750; color: var(--text); white-space: nowrap; }
+.msv-timeline-time small, .msv-timeline-caption small { font-size: .68rem; color: var(--text-muted); }
+.msv-timeline-progress { position: relative; width: min(100%, 9rem); min-height: 4rem; margin-inline: auto; text-align: center; }
+.msv-timeline-progress svg { display: block; width: 100%; }
+.msv-timeline-track { stroke: #bfaf97; }
+.msv-timeline-fill { transition: stroke-dashoffset .8s linear; }
+.msv-timeline-dot { stroke: #fdf5e3; stroke-width: 1.4; }
+.msv-timeline-caption { position: absolute; inset: 54% .15rem auto; display: grid; line-height: 1.2; font-size: .76rem; }
+.msv-timeline-caption small[hidden] { display: none; }
+@container msv (max-width: 19rem) {
+    .msv-timeline-time time { font-size: .83rem; }
+    .msv-timeline-time, .msv-timeline-caption { font-size: .72rem; }
+    .msv-timeline-time small, .msv-timeline-caption small { font-size: .63rem; }
+}
+@media (prefers-reduced-motion: reduce) { .msv-timeline-fill { transition: none; } }
 .service-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .service-actions .btn { min-height: 44px; display: inline-flex; align-items: center; gap: .4rem; }
 /* Confirmar (verde), reprogramar (gris) y cancelar (rojo): píldoras compactas en una fila al pie de la

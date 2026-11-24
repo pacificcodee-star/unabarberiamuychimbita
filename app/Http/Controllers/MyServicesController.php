@@ -6,7 +6,9 @@ use App\Models\Appointment;
 use App\Models\Turn;
 use App\Services\ClientBookingActions;
 use App\Services\TurnQueueService;
+use App\Support\AttendanceConfirmation;
 use App\Support\ClientServiceAccess;
+use App\Support\ServiceTimeline;
 use Illuminate\Http\Request;
 
 class MyServicesController extends Controller
@@ -21,21 +23,36 @@ class MyServicesController extends Controller
         return redirect()->route('my-services.index')->header('Referrer-Policy', 'no-referrer')->header('Cache-Control', 'private, no-store');
     }
 
-    public function index(Request $request, TurnQueueService $queue)
+    public function index(Request $request, TurnQueueService $queue, ServiceTimeline $timeline)
     {
-        $appointments = ClientServiceAccess::owned($request, 'cita')->with(['barber', 'service'])
+        $now = now();
+        $appointments = ClientServiceAccess::owned($request, 'cita')->with(['barber', 'service', 'completionEvent'])
             ->orderByDesc('appointment_date')->orderByDesc('appointment_time')->get();
         $turns = ClientServiceAccess::owned($request, 'turno')->with(['barber', 'service'])
             ->orderByDesc('turn_date')->orderByDesc('turn_number')->get();
 
-        [$activeAppointments, $historyAppointments] = $appointments->partition(fn ($a) =>
-            in_array($a->status, ['pendiente', 'confirmada'], true) && $a->startsAt()->copy()
-                ->addMinutes($a->service?->duration_minutes ?: config('notificaciones.default_service_minutes', 30))->isFuture());
+        [$activeAppointments, $historyAppointments] = $appointments->partition(function (Appointment $appointment) use ($now) {
+            if (! in_array($appointment->status, ['pendiente', 'confirmada'], true)) {
+                return false;
+            }
+
+            return $appointment->startsAt()->addMinutes($appointment->durationMinutes())->gt($now)
+                || ($appointment->status === 'confirmada' && $appointment->appointment_date->isToday()
+                    && AttendanceConfirmation::confirmed($appointment));
+        });
         [$activeTurns, $historyTurns] = $turns->partition(fn ($t) =>
             $t->turn_date->isToday() && in_array($t->status, TurnQueueService::OPEN, true));
         $estimates = [];
         foreach ($activeTurns->where('status', 'esperando')->pluck('barber_id')->unique() as $barberId) {
             $estimates += $queue->estimates($barberId);
+        }
+
+        $timelines = ['cita' => [], 'turno' => []];
+        foreach ($appointments as $appointment) {
+            $timelines['cita'][$appointment->id] = $timeline->for($appointment, null, $now);
+        }
+        foreach ($turns as $turn) {
+            $timelines['turno'][$turn->id] = $timeline->for($turn, $estimates[$turn->id] ?? null, $now);
         }
 
         $activeCitas = $activeAppointments->reverse();
@@ -45,7 +62,8 @@ class MyServicesController extends Controller
         $template = $request->header('X-Service-List') ? 'public.partials.my-services-list' : 'public.my-services';
 
         return response()->view($template, compact(
-            'activeCitas', 'activeTurns', 'historyAppointments', 'historyTurns', 'estimates', 'hasActive', 'hasHistory', 'defaultTab'
+            'activeCitas', 'activeTurns', 'historyAppointments', 'historyTurns', 'estimates', 'hasActive', 'hasHistory', 'defaultTab',
+            'timelines', 'now'
         ))
             ->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer')->header('X-Robots-Tag', 'noindex, nofollow');
     }
