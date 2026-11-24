@@ -7,7 +7,7 @@
 @if(($previousDay ?? null) !== $day && $day)
     <div class="ios-day" data-day="{{ $day }}"><span>{{ $message->created_at->isToday() ? 'Hoy' : ($message->created_at->isYesterday() ? 'Ayer' : $message->created_at->locale('es')->translatedFormat('j \d\e F')) }}</span></div>
 @endif
-<div class="ios-row {{ $incoming ? 'is-in' : 'is-out' }}">
+<div class="ios-row {{ $incoming ? 'is-in' : 'is-out' }}" data-chat-message="{{ $message->id }}">
     <div class="ios-bubble">
         @if($message->type === 'text' && filled($message->body))
             <span class="ios-text">{{ $message->body }}</span>

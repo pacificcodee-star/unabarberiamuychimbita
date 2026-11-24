@@ -77,7 +77,7 @@ case "${ROLE:-web}" in
     ;;
   queue)
     wait_for_db
-    exec php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+    exec php artisan queue:work --sleep=1 --tries=3 --max-time=3600
     ;;
   *)
     wait_for_db

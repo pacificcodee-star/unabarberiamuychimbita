@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Appointment;
 use App\Models\Service;
 use App\Models\SiteSetting;
@@ -13,7 +14,9 @@ use App\Services\WhatsApp\WhatsAppInbox;
 use App\Services\WhatsApp\WhatsappBotService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /**
@@ -57,6 +60,93 @@ class WhatsAppBotTest extends TestCase
             ->assertStatus(401);
 
         Http::assertNothingSent();
+    }
+
+    public function test_vps_encola_una_sola_respuesta_y_confirma_recepcion_sin_esperar_whatsapp(): void
+    {
+        config(['services.evolution.queue_incoming' => true]);
+        Queue::fake([ProcessWhatsAppMessage::class]);
+
+        $this->escribir('hola', '573001234567@s.whatsapp.net', ['id' => 'ENTRANTE-COLA'])->assertOk();
+        $this->escribir('hola', '573001234567@s.whatsapp.net', ['id' => 'ENTRANTE-COLA'])->assertOk();
+
+        Queue::assertPushed(ProcessWhatsAppMessage::class, 1);
+        Http::assertNothingSent();
+        $this->assertDatabaseHas('whatsapp_messages', ['evolution_id' => 'ENTRANTE-COLA', 'direction' => 'in']);
+    }
+
+    public function test_reanuda_a_los_30_minutos_sin_respuesta_y_no_envia_el_menu_dos_veces(): void
+    {
+        $this->escribir(WhatsappBotService::ADVISOR_REQUEST)->assertOk();
+        $this->escribir('1')->assertOk();
+        $conversation = WhatsAppConversation::firstOrFail();
+        $this->assertFalse($conversation->bot_active);
+        $this->assertTrue($conversation->advisor_wait_until->equalTo(now()->addMinutes(30)));
+
+        $this->travel(29)->minutes();
+        $this->escribir('¿Hay alguien?')->assertOk();
+        app(WhatsappBotService::class)->resumeUnansweredAdvisorChats();
+        $this->assertFalse($conversation->fresh()->bot_active);
+        Http::assertSentCount(2);
+
+        $this->travel(1)->minutes();
+        app(WhatsappBotService::class)->resumeUnansweredAdvisorChats();
+        app(WhatsappBotService::class)->resumeUnansweredAdvisorChats();
+        $this->assertTrue($conversation->fresh()->bot_active);
+        $this->assertNull($conversation->fresh()->advisor_wait_until);
+        Http::assertSentCount(3);
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'todavía no ha podido responder'));
+    }
+
+    public function test_respuesta_del_asesor_desde_panel_o_celular_conserva_la_pausa(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $panel = WhatsAppConversation::create(['phone' => '573001234567', 'jid' => '573001234567@s.whatsapp.net']);
+        $mobile = WhatsAppConversation::create(['phone' => '573001111222', 'jid' => '573001111222@s.whatsapp.net']);
+        $panel->waitForAdvisor();
+        $mobile->waitForAdvisor();
+
+        $this->travel(10)->minutes();
+        $this->actingAs($admin)->post(route('whatsapp.chat.send', $panel), ['body' => 'Te atiendo desde el panel.'])->assertRedirect();
+        $this->escribir('Eco de un envío automático', $mobile->jid, ['fromMe' => true, 'source' => 'web'])->assertOk();
+        $this->assertNotNull($mobile->fresh()->advisor_wait_until);
+        $this->escribir('Hola, te atiendo desde el celular.', $mobile->jid, ['fromMe' => true, 'source' => 'android', 'id' => 'SALIENTE-ANDROID'])->assertOk();
+        $this->escribir('Hola, te atiendo desde el celular.', $mobile->jid, ['fromMe' => true, 'source' => 'android', 'id' => 'SALIENTE-ANDROID'])->assertOk();
+
+        $this->travel(30)->minutes();
+        app(WhatsappBotService::class)->resumeUnansweredAdvisorChats();
+        foreach ([$panel, $mobile] as $conversation) {
+            $this->assertFalse($conversation->fresh()->bot_active);
+            $this->assertNull($conversation->fresh()->advisor_wait_until);
+        }
+        $this->assertSame(1, WhatsAppMessage::where('evolution_id', 'SALIENTE-ANDROID')->count());
+        Http::assertSentCount(1);
+    }
+
+    public function test_reintenta_un_429_y_vincula_los_acuses_al_id_de_whatsapp(): void
+    {
+        Http::swap(new Factory);
+        Http::fakeSequence('evolution.test/*')
+            ->pushStatus(429)
+            ->push(['key' => ['id' => 'ENVIADO-CON-ID', 'fromMe' => true]], 201);
+
+        $this->postJson('/webhook/evolution', [
+            'event' => 'messages.update', 'apikey' => self::APIKEY,
+            'data' => ['keyId' => 'ENVIADO-CON-ID', 'fromMe' => true, 'status' => 'DELIVERY_ACK'],
+        ])->assertOk();
+        $this->escribir('hola')->assertOk();
+        Http::assertSentCount(2);
+        $message = WhatsAppMessage::where('evolution_id', 'ENVIADO-CON-ID')->firstOrFail();
+        $this->assertSame('delivered', $message->status);
+
+        $this->postJson('/webhook/evolution', [
+            'event' => 'messages.update', 'apikey' => self::APIKEY,
+            'data' => [
+                ['keyId' => 'ENVIADO-CON-ID', 'fromMe' => true, 'status' => 'READ'],
+                ['keyId' => 'ENVIADO-CON-ID', 'fromMe' => true, 'status' => 'SERVER_ACK'],
+            ],
+        ])->assertOk();
+        $this->assertSame('read', $message->fresh()->status);
     }
 
     public function test_mensaje_entrante_se_guarda_en_la_bandeja(): void

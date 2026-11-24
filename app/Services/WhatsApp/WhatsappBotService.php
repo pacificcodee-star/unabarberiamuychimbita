@@ -64,6 +64,7 @@ class WhatsappBotService
         $text = trim((string) ($message->body ?? ''));
 
         try {
+            $conversation->resumeIfAdvisorAbsent();
             $linkReply = $this->historyLink->acknowledge($text, $conversation->phone);
             if ($linkReply !== null) {
                 $reply = $linkReply;
@@ -93,6 +94,20 @@ class WhatsappBotService
         $this->inbox->send($conversation, $reply);
 
         return $reply;
+    }
+
+    public function resumeUnansweredAdvisorChats(): void
+    {
+        if (! $this->enabled()) {
+            return;
+        }
+
+        WhatsAppConversation::query()->where('bot_active', false)->where('advisor_wait_until', '<=', now())
+            ->eachById(function (WhatsAppConversation $conversation) {
+                if ($conversation->resumeIfAdvisorAbsent()) {
+                    $this->inbox->send($conversation, 'El equipo todavía no ha podido responder. Soy el asistente automático y puedo ayudarte mientras tanto.'."\n\n".$this->mainMenu($conversation));
+                }
+            });
     }
 
     // ------------------------------------------------------------------------------------------
@@ -2227,7 +2242,7 @@ class WhatsappBotService
             return $this->invalidOption($conversation, ['step' => 'advisor', 'data' => [], 'history' => []]);
         }
 
-        $conversation->update(['bot_active' => false]);
+        $conversation->waitForAdvisor();
         $this->clearFlow($conversation->phone);
 
         StaffNotification::record(
@@ -2242,6 +2257,7 @@ class WhatsappBotService
             : 'El equipo recibió tu solicitud. Te responderá por este chat en el próximo horario de atención. 💬';
 
         return $response."\n\n"
+            .'Si nadie responde en 30 minutos, volverá el asistente automático.'."\n\n"
             .'🎟️ Si necesitas un turno mientras esperas, puedes revisar la disponibilidad en '.route('public.booking', ['tipo' => 'turno']);
     }
 
