@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProcessWhatsAppMessage;
 use App\Services\WhatsApp\WhatsAppInbox;
-use App\Services\WhatsApp\WhatsappBotService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -22,7 +23,6 @@ class EvolutionWebhookController extends Controller
     public function __invoke(
         Request $request,
         WhatsAppInbox $inbox,
-        WhatsappBotService $bot,
     ) {
         if (! $this->authorized($request)) {
             Log::warning('Webhook de Evolution rechazado: apikey inválida', ['ip' => $request->ip()]);
@@ -36,9 +36,17 @@ class EvolutionWebhookController extends Controller
 
         try {
             if ($event === 'messages.upsert') {
-                $this->incoming($data, $inbox, $bot);
+                foreach (array_is_list($data) ? $data : [$data] as $item) {
+                    if (is_array($item)) {
+                        $this->incoming($item, $inbox);
+                    }
+                }
             } elseif ($event === 'messages.update') {
-                $inbox->applyStatusUpdate($data);
+                foreach (array_is_list($data) ? $data : [$data] as $item) {
+                    if (is_array($item)) {
+                        $inbox->applyStatusUpdate($item);
+                    }
+                }
             } elseif ($event === 'connection.update') {
                 $this->connection($data);
             } elseif ($event === 'qrcode.updated') {
@@ -47,8 +55,10 @@ class EvolutionWebhookController extends Controller
                 Cache::put('evolution.connection_state', 'close', now()->addDay());
             }
         } catch (Throwable $e) {
-            // Siempre 200: un error aquí haría que Evolution reenvíe el mismo mensaje 10 veces.
             Log::error('Error procesando webhook de Evolution', ['event' => $event, 'error' => $e->getMessage()]);
+            if ($event === 'messages.upsert' && config('services.evolution.queue_incoming')) {
+                return response()->json(['ok' => false], 503);
+            }
         }
 
         return response()->json(['ok' => true]);
@@ -83,21 +93,36 @@ class EvolutionWebhookController extends Controller
         return false;
     }
 
-    protected function incoming(array $data, WhatsAppInbox $inbox, WhatsappBotService $bot): void
+    protected function incoming(array $data, WhatsAppInbox $inbox): void
     {
-        $stored = $inbox->recordIncoming($data);
+        if (! empty($data['key']['fromMe'])) {
+            $inbox->recordPhoneReply($data);
 
-        if (! $stored) {
-            return; // mensaje nuestro, de grupo o ya procesado (reintento del webhook)
-        }
-
-        // Mensaje viejo (reintento o historial): se guarda, pero el bot no contesta.
-        $timestamp = $data['messageTimestamp'] ?? null;
-        if (is_numeric($timestamp) && $timestamp < now()->subMinutes(5)->getTimestamp()) {
             return;
         }
 
-        $bot->handle($stored['conversation'], $stored['message']);
+        $queued = (bool) config('services.evolution.queue_incoming');
+        $receive = function () use ($data, $inbox, $queued) {
+            $stored = $inbox->recordIncoming($data);
+            $timestamp = $data['messageTimestamp'] ?? null;
+            if (! $stored || (is_numeric($timestamp) && $timestamp < now()->subMinutes(5)->getTimestamp())) {
+                return;
+            }
+
+            $id = $stored['message']->id;
+            if ($queued) {
+                // En el VPS el trabajo y el mensaje comparten la misma transacción de base de datos.
+                ProcessWhatsAppMessage::dispatch($id, $stored['notifyTeam'])->beforeCommit();
+            } else {
+                ProcessWhatsAppMessage::dispatchSync($id, $stored['notifyTeam']);
+            }
+        };
+
+        if ($queued) {
+            DB::transaction($receive);
+        } else {
+            $receive();
+        }
     }
 
     protected function connection(array $data): void

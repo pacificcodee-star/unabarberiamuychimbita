@@ -28,6 +28,7 @@ x-app-env: &app-env
   FILESYSTEM_DISK: local
   MAIL_MAILER: log
   WHATSAPP_DRIVER: evolution
+  EVOLUTION_QUEUE_INCOMING: "true"
   EVOLUTION_URL: http://evolution:8080
   EVOLUTION_APIKEY: ${EVOLUTION_APIKEY}
   EVOLUTION_INSTANCE: barberia

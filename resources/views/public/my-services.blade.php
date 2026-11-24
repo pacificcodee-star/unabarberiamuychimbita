@@ -13,14 +13,36 @@
     <div class="my-services-page">
         @include('public.partials.page-hero', ['crumb' => 'Mis servicios', 'title' => 'Mis servicios', 'ghost' => false,
             'description' => 'Consulta tus reservas, confirma tu asistencia o elige un nuevo horario.'])
-    <div class="container service-manager" data-services data-slots="{{ route('public.booking.slots') }}">
+    <div class="container service-manager" data-services data-clock="{{ $now->timestamp * 1000 }}" data-slots="{{ route('public.booking.slots') }}">
         @if(session('status'))
             <p class="service-alert" role="status">{{ session('status') }}</p>
         @endif
         <p id="service-feedback" role="status" tabindex="-1"></p>
+        @if($whatsAppLinked || $whatsAppLinkAvailable)
+            <section class="msv-whatsapp" id="historial-whatsapp" aria-label="Historial de WhatsApp">
+                @if($whatsAppLinked)
+                    <p><i class="bi bi-check2-circle" aria-hidden="true"></i> Historial de WhatsApp vinculado</p>
+                @elseif($whatsAppChat)
+                    <p>Envía el mensaje preparado en WhatsApp. Después vuelve aquí y pulsa <strong>Actualizar mi historial</strong>.</p>
+                    <div class="msv-whatsapp-actions">
+                        <a href="{{ $whatsAppChat }}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost-light">Abrir WhatsApp</a>
+                        <form method="POST" action="{{ route('my-services.whatsapp.finish') }}">
+                            @csrf
+                            <button class="btn btn-gold" type="submit">Actualizar mi historial</button>
+                        </form>
+                    </div>
+                @else
+                    <form method="POST" action="{{ route('my-services.whatsapp.start') }}">
+                        @csrf
+                        <button class="btn btn-ghost-light" type="submit"><i class="bi bi-whatsapp" aria-hidden="true"></i> Vincular historial de WhatsApp</button>
+                    </form>
+                @endif
+                @error('historial')<p role="alert">{{ $message }}</p>@enderror
+            </section>
+        @endif
         <div class="service-tabs" role="tablist" aria-label="Servicios activos e historial">
-            <button type="button" role="tab" id="tab-activos" data-service-tab="activos" aria-selected="true" tabindex="0">Activos</button>
-            <button type="button" role="tab" id="tab-historial" data-service-tab="historial" aria-selected="false" tabindex="-1">Historial</button>
+            <button type="button" role="tab" id="tab-activos" data-service-tab="activos" aria-selected="{{ $defaultTab === 'activos' ? 'true' : 'false' }}" tabindex="{{ $defaultTab === 'activos' ? 0 : -1 }}">Activos</button>
+            <button type="button" role="tab" id="tab-historial" data-service-tab="historial" aria-selected="{{ $defaultTab === 'historial' ? 'true' : 'false' }}" tabindex="{{ $defaultTab === 'historial' ? 0 : -1 }}">Historial</button>
         </div>
         <div id="service-list">@include('public.partials.my-services-list')</div>
         <dialog id="service-dialog" aria-labelledby="service-dialog-title">
@@ -67,6 +89,9 @@
 
 @push('styles')
 <style>
+.msv-whatsapp { display: grid; justify-items: center; gap: .6rem; margin: 0 auto 1.25rem; text-align: center; scroll-margin-top: 6rem; }
+.msv-whatsapp p { margin: 0; color: var(--text-muted); }
+.msv-whatsapp-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; }
 /* Fondo crema y textos oscuros: mismo diseño que Servicios, Reservar y Contacto. */
 .my-services-page {
     --bg: #efe8dc;
@@ -178,6 +203,27 @@
 .msv-queue span { color: var(--text-muted); font-size: .85rem; }
 .msv-queue.is-next-up { background: rgba(47, 138, 91, .10); border-color: rgba(47, 138, 91, .35); }
 .msv-queue.is-next-up > i { color: #2f8a5b; }
+.msv-timeline {
+    display: grid; grid-template-columns: 1fr minmax(0, 1.25fr) 1fr; align-items: center; gap: .3rem;
+    border-top: 1px solid var(--line); padding-top: .65rem; font-variant-numeric: tabular-nums;
+}
+.msv-timeline-time { display: grid; align-content: center; gap: .12rem; color: var(--text-muted); font-size: .75rem; }
+.msv-timeline-time:last-child { text-align: right; }
+.msv-timeline-time time { font-size: .94rem; font-weight: 750; color: var(--text); white-space: nowrap; }
+.msv-timeline-time small, .msv-timeline-caption small { font-size: .68rem; color: var(--text-muted); }
+.msv-timeline-progress { position: relative; width: min(100%, 9rem); min-height: 4rem; margin-inline: auto; text-align: center; }
+.msv-timeline-progress svg { display: block; width: 100%; }
+.msv-timeline-track { stroke: #bfaf97; }
+.msv-timeline-fill { transition: stroke-dashoffset .8s linear; }
+.msv-timeline-dot { stroke: #fdf5e3; stroke-width: 1.4; }
+.msv-timeline-caption { position: absolute; inset: 54% .15rem auto; display: grid; line-height: 1.2; font-size: .76rem; }
+.msv-timeline-caption small[hidden] { display: none; }
+@container msv (max-width: 19rem) {
+    .msv-timeline-time time { font-size: .83rem; }
+    .msv-timeline-time, .msv-timeline-caption { font-size: .72rem; }
+    .msv-timeline-time small, .msv-timeline-caption small { font-size: .63rem; }
+}
+@media (prefers-reduced-motion: reduce) { .msv-timeline-fill { transition: none; } }
 .service-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .service-actions .btn { min-height: 44px; display: inline-flex; align-items: center; gap: .4rem; }
 /* Confirmar (verde), reprogramar (gris) y cancelar (rojo): píldoras compactas en una fila al pie de la

@@ -264,6 +264,9 @@ class ClientNotifier
         $wasActive = in_array($from, ['pendiente', 'confirmada'], true);
         $start = $appointment->startsAt();
         $moved = isset($before['starts_at']) && ! $start->equalTo($before['starts_at']);
+        if (($by === 'staff' && $moved) || (in_array($to, ['pendiente', 'cancelada'], true) && $to !== $from)) {
+            AttendanceConfirmation::forget($appointment);
+        }
         $ttl = (int) config('notificaciones.ttl_minutes.change', 120);
         $only = $by === 'bot' ? ['push'] : null;
         $stamp = now()->format('YmdHis');

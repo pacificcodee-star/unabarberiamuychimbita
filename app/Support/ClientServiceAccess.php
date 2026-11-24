@@ -3,9 +3,11 @@
 namespace App\Support;
 
 use App\Models\Appointment;
+use App\Models\ConsentRecord;
 use App\Models\GuestCredential;
 use App\Models\GuestVisitor;
 use App\Models\Turn;
+use App\Services\WhatsAppService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
@@ -22,7 +24,7 @@ class ClientServiceAccess
 
     /**
      * Credencial vigente de este navegador. Devuelve null si no existe o si fue revocada/vencida:
-     * en ese caso el cliente debe usar "Recuperar mis servicios", nunca una vía menos segura.
+     * al perderla solo se recuperan los servicios compartidos después de vincular WhatsApp.
      */
     public static function visitor(Request $request): ?GuestVisitor
     {
@@ -42,6 +44,7 @@ class ClientServiceAccess
             }
 
             self::touch($request, $credential, $token, $credential->visitor);
+            $request->attributes->set('guest_credential', $credential);
 
             return self::bind($request, $credential->visitor, $token);
         }
@@ -74,17 +77,58 @@ class ClientServiceAccess
             $visitor->forceFill(['phone' => $subject->client_phone_normalized])->saveQuietly();
         }
 
+        $phone = self::whatsappPhone($request);
+        if ($phone !== null && $subject->guest_visitor_id === $visitor->id
+            && app(WhatsAppService::class)->normalizePhone((string) $subject->client_phone) === $phone
+            && $subject->history_whatsapp_phone !== $phone) {
+            $subject->forceFill(['history_whatsapp_phone' => $phone])->saveQuietly();
+        }
+
         self::bind($request, $visitor, $token);
     }
 
-    /**
-     * Entrega una credencial nueva a este navegador después de verificar el teléfono.
-     * No revoca las demás: el cliente puede usar varios dispositivos.
-     */
-    public static function issueCredential(Request $request, GuestVisitor $visitor): void
+    public static function whatsappPhone(Request $request): ?string
     {
+        self::visitor($request);
+
+        return $request->attributes->get('guest_credential')?->whatsapp_phone;
+    }
+
+    /** Solo se invoca después de comprobar el número con un mensaje entrante de WhatsApp. */
+    public static function connectWhatsApp(Request $request, string $phone): void
+    {
+        $known = self::visitor($request);
+        $oldToken = $known ? self::token($request) : null;
         $token = self::newToken();
-        self::rememberCredential($token, $visitor);
+        [$visitor, $credential] = DB::transaction(function () use ($known, $oldToken, $token, $phone) {
+            $visitor = $known ?? GuestVisitor::create(['last_seen_at' => now()]);
+            $whatsApp = app(WhatsAppService::class);
+            foreach ([$visitor->appointments(), $visitor->turns()] as $reservations) {
+                $reservations->whereNull('history_whatsapp_phone')
+                    ->where('client_phone_normalized', GuestVisitor::normalizePhone($phone))
+                    ->eachById(function (Appointment|Turn $subject) use ($whatsApp, $phone) {
+                        if ($whatsApp->normalizePhone((string) $subject->client_phone) === $phone) {
+                            $subject->forceFill(['history_whatsapp_phone' => $phone])->saveQuietly();
+                        }
+                    });
+            }
+
+            if ($oldToken !== null) {
+                $grants = DB::table('client_service_accesses')->where('device_hash', hash('sha256', $oldToken))
+                    ->get(['appointment_id', 'turn_id']);
+                foreach ($grants as $grant) {
+                    DB::table('client_service_accesses')->insertOrIgnore([
+                        'device_hash' => hash('sha256', $token),
+                        'appointment_id' => $grant->appointment_id,
+                        'turn_id' => $grant->turn_id,
+                    ]);
+                }
+            }
+
+            return [$visitor, self::rememberCredential($token, $visitor, $phone)];
+        });
+
+        $request->attributes->set('guest_credential', $credential);
         self::issueCookie($request, $token);
         self::bind($request, $visitor, $token);
     }
@@ -92,31 +136,38 @@ class ClientServiceAccess
     public static function hasServices(Request $request): bool
     {
         $visitor = self::visitor($request);
-        if ($visitor && ($visitor->appointments()->exists() || $visitor->turns()->exists())) {
-            return true;
-        }
-
-        return self::legacyGrantIds($request, 'appointment')->isNotEmpty()
-            || self::legacyGrantIds($request, 'turn')->isNotEmpty();
+        return $visitor !== null && (self::owned($request, 'cita')->exists() || self::owned($request, 'turno')->exists());
     }
 
     public static function owned(Request $request, string $type): Builder
     {
         $turn = $type === 'turno';
         $visitor = self::visitor($request);
-        $grantedIds = self::legacyGrantIds($request, $turn ? 'turn' : 'appointment');
-
         $query = $turn ? Turn::query() : Appointment::query();
-        if (! $visitor && $grantedIds->isEmpty()) {
+        if (! $visitor) {
             return $query->whereRaw('1 = 0');
         }
 
-        return $query->where(function ($query) use ($visitor, $grantedIds): void {
-            if ($visitor) {
-                $query->where('guest_visitor_id', $visitor->id);
-            }
+        $grantedIds = self::legacyGrantIds($request, $turn ? 'turn' : 'appointment');
+        $phone = self::whatsappPhone($request);
+        $subjectType = $query->getModel()->getMorphClass();
+
+        return $query->where(function (Builder $query) use ($visitor, $grantedIds, $phone, $subjectType): void {
+            $query->where('guest_visitor_id', $visitor->id);
             if ($grantedIds->isNotEmpty()) {
-                $visitor ? $query->orWhereIn('id', $grantedIds) : $query->whereIn('id', $grantedIds);
+                $query->orWhereIn('id', $grantedIds);
+            }
+            if ($phone !== null) {
+                $query->orWhere('history_whatsapp_phone', $phone)
+                    ->orWhere(function (Builder $legacy) use ($phone, $subjectType) {
+                        // Para reservas antiguas, el consentimiento del bot identifica las hechas en el chat.
+                        $legacy->whereNull('history_whatsapp_phone')
+                            ->where('client_phone', $phone)
+                            ->whereIn('id', ConsentRecord::query()->select('subject_id')
+                                ->where('subject_type', $subjectType)
+                                ->where('purpose', 'tratamiento_reserva')
+                                ->where('channel', 'whatsapp_bot'));
+                    });
             }
         });
     }
@@ -164,7 +215,7 @@ class ClientServiceAccess
         return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
     }
 
-    private static function rememberCredential(string $token, GuestVisitor $visitor): GuestCredential
+    private static function rememberCredential(string $token, GuestVisitor $visitor, ?string $whatsappPhone = null): GuestCredential
     {
         return GuestCredential::firstOrCreate(
             ['token_hash' => hash('sha256', $token)],
@@ -172,6 +223,7 @@ class ClientServiceAccess
                 'guest_visitor_id' => $visitor->id,
                 'expires_at' => now()->addDays(self::CREDENTIAL_DAYS),
                 'last_used_at' => now(),
+                'whatsapp_phone' => $whatsappPhone,
             ]
         );
     }

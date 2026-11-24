@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Monolog\Handler\TestHandler;
 use Tests\TestCase;
 
 /** Configuración → Cuenta del administrador: correo y contraseña de ingreso al panel. */
@@ -36,12 +38,21 @@ class AdminAccountTest extends TestCase
     public function test_admin_changes_email_and_password_and_can_log_in_with_them(): void
     {
         $admin = $this->admin();
+        $audit = new TestHandler(bubble: false);
+        Log::channel('audit')->getLogger()->pushHandler($audit);
 
         $this->actingAs($admin)->put(route('site-settings.account'), [
             'email' => 'Dueno@Ejemplo.com',
             'current_password' => 'password',
             'password' => 'NuevaClave2026', 'password_confirmation' => 'NuevaClave2026',
         ])->assertRedirect()->assertSessionHas('success', 'Cuenta actualizada y contraseña cambiada.');
+
+        $records = $audit->getRecords();
+        $this->assertSame(['auth.correo_cambiado', 'auth.contrasena_cambiada'], array_column($records, 'message'));
+        foreach ($records as $record) {
+            $this->assertSame($admin->id, $record->context['usuario_id']);
+            $this->assertSame([], array_diff(array_keys($record->context), ['usuario_id', 'rol', 'registro', 'ip', 'request_id']));
+        }
 
         $admin->refresh();
         $this->assertSame('dueno@ejemplo.com', $admin->email);

@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\Appointment;
 use App\Models\Turn;
+use App\Services\TurnQueueService;
 use App\Services\WhatsAppService;
-use Carbon\Carbon;
 use Illuminate\Console\Command;
 
 class SendServiceReminders extends Command
@@ -14,7 +14,7 @@ class SendServiceReminders extends Command
 
     protected $description = 'Envía recordatorios de WhatsApp antes de terminar citas y turnos';
 
-    public function handle(WhatsAppService $whatsApp): int
+    public function handle(WhatsAppService $whatsApp, TurnQueueService $queue): int
     {
         $now = now();
         $sent = 0;
@@ -29,9 +29,7 @@ class SendServiceReminders extends Command
             ->get();
 
         foreach ($appointments as $appointment) {
-            $duration = (int) ($appointment->service?->duration_minutes ?: 30);
-            $start = Carbon::parse($appointment->appointment_date->toDateString().' '.substr((string) $appointment->appointment_time, 0, 5));
-            $end = $start->copy()->addMinutes($duration);
+            $end = $appointment->startsAt()->addMinutes($appointment->durationMinutes());
             $triggerAt = $end->copy()->subMinutes(15);
 
             // Ventana: desde el disparo hasta el fin (o hasta 5 min después por si el cron se retrasa), sin enviar si ya terminó hace rato.
@@ -51,20 +49,19 @@ class SendServiceReminders extends Command
             }
         }
 
-        // Turnos: 10 minutos antes de terminar el servicio (en atención, fin estimado = called_at + duración).
+        // Turnos: 10 minutos antes de terminar, desde el inicio de la atención.
         $turns = Turn::query()
             ->with(['service', 'barber'])
             ->whereNull('reminder_sent_at')
             ->whereNotNull('client_phone')
             ->where('status', 'atendiendo')
-            ->whereNotNull('called_at')
+            ->where(fn ($query) => $query->whereNotNull('started_at')->orWhereNotNull('called_at'))
             ->whereDate('turn_date', $now->toDateString())
             ->get();
 
         foreach ($turns as $turn) {
-            $duration = (int) ($turn->service?->duration_minutes ?: 30);
-            $start = Carbon::parse($turn->called_at);
-            $end = $start->copy()->addMinutes($duration);
+            $start = $turn->started_at ?? $turn->called_at;
+            $end = $start->copy()->addMinutes($queue->durationMinutes($turn));
             $triggerAt = $end->copy()->subMinutes(10);
 
             if ($now->lt($triggerAt) || $now->gte($end->copy()->addMinutes(5))) {

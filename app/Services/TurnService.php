@@ -17,7 +17,7 @@ class TurnService
     }
 
     /** $notify = false cuando el bot ya responde en el chat (evita mensajes duplicados). */
-    public function createFor(User $barber, array $data, bool $notify = true): Turn
+    public function createFor(User $barber, array $data, bool $notify = true, bool $advanceQueue = true): Turn
     {
         abort_unless(
             $barber->role === 'barbero' && $barber->attention_mode === 'llegada' && $barber->active,
@@ -64,6 +64,7 @@ class TurnService
                 'service_id' => $data['service_id'] ?? null,
                 'client_name' => $data['client_name'],
                 'client_phone' => $data['client_phone'] ?? null,
+                'history_whatsapp_phone' => $data['history_whatsapp_phone'] ?? null,
                 'client_email' => $data['client_email'] ?? null,
                 'whatsapp_consent' => (bool) ($data['whatsapp_consent'] ?? false),
                 'payment_method' => $data['payment_method'] ?? null,
@@ -80,6 +81,10 @@ class TurnService
         if ($notify) {
             app(BookingMessenger::class)->announceTurn($turn);
             app(ClientNotifier::class)->turnConfirmed($turn);
+        }
+
+        if (! $advanceQueue) {
+            return $turn;
         }
 
         if ($turnDate->isToday()) {

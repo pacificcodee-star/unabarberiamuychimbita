@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Services\AttendanceAutomation;
 use App\Services\ClientNotifier;
 use App\Services\TurnQueueService;
+use App\Services\WhatsApp\WhatsappBotService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -15,7 +16,7 @@ class ProcessQueueAndNotifications extends Command
 
     protected $description = 'Avanza la fila automática de turnos y envía los avisos y recordatorios que ya deben salir';
 
-    public function handle(TurnQueueService $queue, ClientNotifier $notifier, AttendanceAutomation $attendance): int
+    public function handle(TurnQueueService $queue, ClientNotifier $notifier, AttendanceAutomation $attendance, WhatsappBotService $bot): int
     {
         // Cada paso va aislado: si uno falla, los demás (sobre todo los avisos) siguen saliendo.
         $failed = 0;
@@ -38,6 +39,7 @@ class ProcessQueueAndNotifications extends Command
             return $result;
         };
 
+        $step('pausas_whatsapp', fn () => $bot->resumeUnansweredAdvisorChats());
         $closedDays = $step('cierre_dias_anteriores', fn () => $queue->closePreviousDays(), 0);
         $step('fila', fn () => $queue->advanceAll());
         $step('recordatorios_turnos', fn () => $queue->remindUpcoming());

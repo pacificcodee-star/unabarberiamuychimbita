@@ -17,7 +17,8 @@ class RevalidatePublicContent
         $response = $next($request);
 
         if ($request->isMethod('GET')) {
-            $response->headers->set('Cache-Control', 'no-cache, must-revalidate, max-age=0');
+            $personal = $request->cookies->has('mis_servicios');
+            $response->headers->set('Cache-Control', $personal ? 'private, no-store' : 'no-cache, must-revalidate, max-age=0');
         }
 
         return $response;

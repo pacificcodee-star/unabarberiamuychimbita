@@ -135,12 +135,16 @@ class SiteSettingController extends Controller
         ]);
 
         $user->email = Str::lower(trim($data['email']));
+        $emailChanged = $user->isDirty('email');
         $passwordChanged = filled($data['password'] ?? null);
         if ($passwordChanged) {
             $user->password = $data['password'];
             $user->remember_token = Str::random(60);
         }
         $user->save();
+        if ($emailChanged) {
+            AuditLog::record('auth.correo_cambiado', $user);
+        }
 
         if ($passwordChanged) {
             // Se cierran las demás sesiones abiertas con esta cuenta; esta sigue abierta.

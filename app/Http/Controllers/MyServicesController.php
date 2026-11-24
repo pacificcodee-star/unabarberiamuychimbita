@@ -6,9 +6,11 @@ use App\Models\Appointment;
 use App\Models\Turn;
 use App\Services\ClientBookingActions;
 use App\Services\TurnQueueService;
+use App\Support\AttendanceConfirmation;
 use App\Support\ClientServiceAccess;
+use App\Support\ServiceTimeline;
+use App\Support\WhatsAppHistoryLink;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class MyServicesController extends Controller
 {
@@ -22,39 +24,23 @@ class MyServicesController extends Controller
         return redirect()->route('my-services.index')->header('Referrer-Policy', 'no-referrer')->header('Cache-Control', 'private, no-store');
     }
 
-    /**
-     * Vuelve a vincular este navegador con una reserva cuyo enlace secreto ya estaba guardado aquí
-     * (ver public/js/device-recovery.js). Sirve cuando la cookie de «Mis servicios» se perdió pero
-     * el navegador conserva el enlace: no entrega más de lo que ese mismo enlace ya permite ver.
-     */
-    public function link(Request $request)
+    public function index(Request $request, TurnQueueService $queue, ServiceTimeline $timeline, WhatsAppHistoryLink $historyLink)
     {
-        $data = $request->validate([
-            'type' => ['required', Rule::in(['cita', 'turno'])],
-            'token' => ['required', 'string', 'max:64'],
-        ]);
-        $subject = ($data['type'] === 'turno' ? Turn::query() : Appointment::query())
-            ->where('public_token', $data['token'])->first();
-        abort_if(! $subject, 404);
-
-        $date = $subject instanceof Turn ? $subject->turn_date : $subject->appointment_date;
-        abort_if($date && $date->copy()->addDays((int) config('notificaciones.track_link_days', 30))->endOfDay()->isPast(), 404);
-
-        ClientServiceAccess::remember($request, $subject);
-
-        return response()->json(['ok' => true])->header('Cache-Control', 'no-store');
-    }
-
-    public function index(Request $request, TurnQueueService $queue)
-    {
-        $appointments = ClientServiceAccess::owned($request, 'cita')->with(['barber', 'service'])
+        $now = now();
+        $appointments = ClientServiceAccess::owned($request, 'cita')->with(['barber', 'service', 'completionEvent'])
             ->orderByDesc('appointment_date')->orderByDesc('appointment_time')->get();
         $turns = ClientServiceAccess::owned($request, 'turno')->with(['barber', 'service'])
             ->orderByDesc('turn_date')->orderByDesc('turn_number')->get();
 
-        [$activeAppointments, $historyAppointments] = $appointments->partition(fn ($a) =>
-            in_array($a->status, ['pendiente', 'confirmada'], true) && $a->startsAt()->copy()
-                ->addMinutes($a->service?->duration_minutes ?: config('notificaciones.default_service_minutes', 30))->isFuture());
+        [$activeAppointments, $historyAppointments] = $appointments->partition(function (Appointment $appointment) use ($now) {
+            if (! in_array($appointment->status, ['pendiente', 'confirmada'], true)) {
+                return false;
+            }
+
+            return $appointment->startsAt()->addMinutes($appointment->durationMinutes())->gt($now)
+                || ($appointment->status === 'confirmada' && $appointment->appointment_date->isToday()
+                    && AttendanceConfirmation::confirmed($appointment));
+        });
         [$activeTurns, $historyTurns] = $turns->partition(fn ($t) =>
             $t->turn_date->isToday() && in_array($t->status, TurnQueueService::OPEN, true));
         $estimates = [];
@@ -62,13 +48,42 @@ class MyServicesController extends Controller
             $estimates += $queue->estimates($barberId);
         }
 
+        $timelines = ['cita' => [], 'turno' => []];
+        foreach ($appointments as $appointment) {
+            $timelines['cita'][$appointment->id] = $timeline->for($appointment, null, $now);
+        }
+        foreach ($turns as $turn) {
+            $timelines['turno'][$turn->id] = $timeline->for($turn, $estimates[$turn->id] ?? null, $now);
+        }
+
         $activeCitas = $activeAppointments->reverse();
+        $hasActive = $activeCitas->isNotEmpty() || $activeTurns->isNotEmpty();
+        $hasHistory = $historyAppointments->isNotEmpty() || $historyTurns->isNotEmpty();
+        $defaultTab = ! $hasActive && $hasHistory ? 'historial' : 'activos';
         $template = $request->header('X-Service-List') ? 'public.partials.my-services-list' : 'public.my-services';
+        $whatsAppLinked = ClientServiceAccess::whatsappPhone($request) !== null;
+        $whatsAppLinkAvailable = $template === 'public.my-services' && $historyLink->available();
+        $whatsAppChat = $whatsAppLinkAvailable && ! $whatsAppLinked ? $historyLink->chatUrl($request) : null;
 
         return response()->view($template, compact(
-            'activeCitas', 'activeTurns', 'historyAppointments', 'historyTurns', 'estimates'
+            'activeCitas', 'activeTurns', 'historyAppointments', 'historyTurns', 'estimates', 'hasActive', 'hasHistory', 'defaultTab',
+            'timelines', 'now', 'whatsAppLinked', 'whatsAppLinkAvailable', 'whatsAppChat'
         ))
             ->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer')->header('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    public function beginWhatsAppLink(Request $request, WhatsAppHistoryLink $historyLink)
+    {
+        $historyLink->begin($request);
+
+        return redirect(route('my-services.index').'#historial-whatsapp');
+    }
+
+    public function finishWhatsAppLink(Request $request, WhatsAppHistoryLink $historyLink)
+    {
+        $historyLink->finish($request);
+
+        return redirect()->route('my-services.index')->with('status', 'Tu historial de WhatsApp ya está vinculado en este dispositivo.');
     }
 
     public function update(Request $request, string $type, int $id, string $action, ClientBookingActions $actions)

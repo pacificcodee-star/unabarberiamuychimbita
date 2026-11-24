@@ -40,7 +40,7 @@
                     <span class="ios-avatar" aria-hidden="true">{{ $initial }}</span>
                     <span class="ios-contact">
                         <strong>{{ $contactName }}</strong>
-                        <small>{{ $conversation->bot_active ? 'Responde el bot automático' : 'Bot en pausa · responde el equipo' }}</small>
+                        <small data-chat-bot-subtitle>{{ $conversation->bot_active ? 'Responde el bot automático' : 'Bot en pausa · responde el equipo' }}</small>
                     </span>
                     <span class="ios-nav-icons" aria-hidden="true"><i class="bi bi-camera-video"></i><i class="bi bi-telephone"></i></span>
                 </header>
@@ -91,14 +91,15 @@
                 <div class="card-body">
                     <div class="data-row">
                         <span>Estado</span>
-                        <span class="badge-soft {{ $conversation->bot_active ? 'green' : 'red' }}">{{ $conversation->bot_active ? 'Activo' : 'En pausa' }}</span>
+                        <span data-chat-bot-badge class="badge-soft {{ $conversation->bot_active ? 'green' : 'red' }}">{{ $conversation->bot_active ? 'Activo' : 'En pausa' }}</span>
                     </div>
+                    <p data-chat-advisor-wait class="form-text mb-2" @unless($conversation->advisor_wait_until) hidden @endunless>El bot se reanudará si el equipo no responde en los primeros 30 minutos.</p>
                     <p class="form-text mb-3">Si el equipo responde, conviene pausar el bot en este chat para evitar respuestas dobles.</p>
                     <form method="POST" action="{{ route('whatsapp.chat.bot', $conversation) }}">
                         @csrf
-                        <button type="submit" class="btn {{ $conversation->bot_active ? 'btn-outline-dark' : 'btn-gold' }} w-100">
+                        <button data-chat-bot-button type="submit" class="btn {{ $conversation->bot_active ? 'btn-outline-dark' : 'btn-gold' }} w-100">
                             <i class="bi {{ $conversation->bot_active ? 'bi-pause-circle' : 'bi-play-circle' }}"></i>
-                            {{ $conversation->bot_active ? 'Pausar bot' : 'Reanudar bot' }}
+                            <span>{{ $conversation->bot_active ? 'Pausar bot' : 'Reanudar bot' }}</span>
                         </button>
                     </form>
                 </div>
@@ -332,6 +333,19 @@
             function toBottom() { thread.scrollTop = thread.scrollHeight; }
             toBottom();
 
+            function refreshBotState(data) {
+                const active = Boolean(data.bot_active);
+                const badge = document.querySelector('[data-chat-bot-badge]');
+                const button = document.querySelector('[data-chat-bot-button]');
+                badge.className = 'badge-soft ' + (active ? 'green' : 'red');
+                badge.textContent = active ? 'Activo' : 'En pausa';
+                button.className = 'btn w-100 ' + (active ? 'btn-outline-dark' : 'btn-gold');
+                button.querySelector('span').textContent = active ? 'Pausar bot' : 'Reanudar bot';
+                button.querySelector('i').className = 'bi ' + (active ? 'bi-pause-circle' : 'bi-play-circle');
+                document.querySelector('[data-chat-bot-subtitle]').textContent = active ? 'Responde el bot automático' : 'Bot en pausa · responde el equipo';
+                document.querySelector('[data-chat-advisor-wait]').hidden = !data.advisor_wait_until;
+            }
+
             async function refresh() {
                 if (busy) return;
                 busy = true;
@@ -339,6 +353,16 @@
                     const res = await fetch(url + '?after=' + last, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
                     if (!res.ok) return;
                     const data = await res.json();
+                    refreshBotState(data);
+                    data.receipts.forEach((m) => {
+                        const receipt = box.querySelector('[data-chat-message="' + Number(m.id) + '"] .ios-ticks');
+                        if (!receipt) return;
+                        const [tickClass, tickIcon] = ticks[m.status_key] || ticks.sent;
+                        receipt.className = 'ios-ticks ' + tickClass;
+                        receipt.title = m.status;
+                        receipt.setAttribute('aria-label', m.status);
+                        receipt.querySelector('i').className = 'bi ' + tickIcon;
+                    });
                     if (!data.messages.length) return;
                     box.querySelector('[data-ios-empty]')?.remove();
                     data.messages.forEach((m) => {
@@ -357,6 +381,7 @@
                             (out ? ' <span class="ios-ticks ' + tickClass + '" title="' + esc(m.status) + '" aria-label="' + esc(m.status) + '"><i class="bi ' + tickIcon + '"></i></span>' : '') + '</span>';
                         const row = document.createElement('div');
                         row.className = 'ios-row ' + (out ? 'is-out' : 'is-in');
+                        row.dataset.chatMessage = m.id;
                         row.innerHTML = '<div class="ios-bubble">' + text + meta + '</div>';
                         box.appendChild(row);
                     });
