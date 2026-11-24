@@ -123,7 +123,7 @@
             <div class="card-header"><h2 class="h6 mb-0">Logo</h2></div>
             <div class="card-body"><div class="row g-3 align-items-center">
                 <div class="col-md-4">
-                    <div class="settings-image-preview"><img src="{{ !empty($settings['logo_path']) ? asset('storage/'.$settings['logo_path']) : asset('images/logo-una-barberia-512.webp') }}" alt="Logo actual" loading="lazy" decoding="async"></div>
+                    <div class="settings-image-preview"><img src="{{ !empty($settings['logo_path']) ? asset('storage/'.$settings['logo_path']) : asset('images/logo-una-barberia-512.webp') }}" alt="Logo actual" decoding="async"></div>
                 </div>
                 <div class="col-md-8">
                     <label class="form-label fw-semibold" for="logo">Cambiar logo (opcional)</label>
@@ -222,8 +222,9 @@
     .content-settings-card { border: 1px solid rgba(24,34,36,.09); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 24px rgba(16,24,24,.045); }
     .content-settings-card .card-header { padding: 15px 20px; background: linear-gradient(100deg,rgba(160,46,37,.12),rgba(160,46,37,.025)); }
     .content-settings-card .card-body { padding: 20px; }
-    .settings-image-preview { display: grid; height: 140px; place-items: center; padding: 10px; border-radius: 12px; background: #182224; }
-    .settings-image-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    /* El logo completo cabe en el recuadro, sin recortarse ni salirse (el % de alto no funciona dentro de grid). */
+    .settings-image-preview { height: 180px; padding: 12px; border-radius: 12px; background: #182224; overflow: hidden; }
+    .settings-image-preview img { display: block; width: 100%; height: 100%; max-width: none; object-fit: contain; }
     @media(max-width:575px) { .content-settings-card .card-body { padding: 15px; } }
     /* Horario: una fila por día con interruptor de cerrado y rango de horas. */
     .hours-week { display: grid; gap: 8px; }
