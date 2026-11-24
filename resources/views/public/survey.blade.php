@@ -5,7 +5,7 @@
 @section('robots', 'noindex, nofollow')
 
 @section('content')
-    <div class="survey-page">
+    <div class="survey-page page-photo-background">
     @if(!empty($unavailable))
     <section class="sv" aria-labelledby="sv-title">
         <div class="container sv-wrap">
@@ -85,21 +85,8 @@
     --gold: #8a6a12;
     --gold-line: rgba(138, 106, 18, .45);
     --gold-soft: rgba(201, 162, 39, .16);
-    position: relative;
-    isolation: isolate;
     background: var(--bg);
     color: var(--text);
-}
-.survey-page::before {
-    content: '';
-    position: fixed;
-    inset: 0 0 auto;
-    height: 100lvh;
-    z-index: -1;
-    pointer-events: none;
-    background: url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat, var(--bg);
-    transform: scale(1.04);
-    filter: blur(3px);
 }
 .survey-page .sv { min-height: 100svh; padding: calc(var(--header-space) + clamp(20px, 4vw, 48px)) 0 clamp(40px, 7vw, 88px); }
 .survey-page .sv-wrap {

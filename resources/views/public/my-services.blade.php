@@ -10,7 +10,7 @@
             ->filter(fn ($day) => \App\Models\SiteSetting::isClosedOn($day, $siteSettings ?? []))
             ->map(fn ($day) => $day->toDateString())->values();
     @endphp
-    <div class="my-services-page">
+    <div class="my-services-page page-photo-background">
         @include('public.partials.page-hero', ['crumb' => 'Mis servicios', 'title' => 'Mis servicios', 'ghost' => false,
             'description' => 'Consulta tus reservas, confirma tu asistencia o elige un nuevo horario.'])
     <div class="container service-manager" data-services data-clock="{{ $now->timestamp * 1000 }}" data-slots="{{ route('public.booking.slots') }}">
@@ -79,28 +79,8 @@
     --gold: #8a6a12;
     --gold-line: rgba(138, 106, 18, .34);
     --brand-red-text: #a23b34;
-    position: relative;
-    isolation: isolate;
     background: #efe8dc;
     color: var(--text);
-}
-/* Foto de la barbería de fondo, fija detrás del contenido y sin velo: se ve a todo color. */
-.my-services-page::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100vh;
-    height: 100lvh;
-    z-index: -1;
-    pointer-events: none;
-    background:
-        url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat,
-        #efe8dc;
-    /* Desenfoque suave: la foto se ve, pero no compite con el texto. El leve zoom evita los bordes difusos. */
-    transform: scale(1.04);
-    filter: blur(3px);
 }
 .my-services-page .page-hero { background: transparent !important; }
 /* Sobre la foto: la ruta y las pestañas llevan su propia cápsula crema para leerse. */
