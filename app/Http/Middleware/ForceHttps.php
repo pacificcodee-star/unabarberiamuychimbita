@@ -9,8 +9,8 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Obliga a usar HTTPS (FORCE_HTTPS, activo por defecto en producción):
  * redirige http:// a https:// con un 301 y envía HSTS y cabeceras básicas de seguridad.
- * Render termina el TLS en su proxy; como confiamos en él (trustProxies),
- * $request->secure() refleja lo que vio el visitante.
+ * Cloudflare o Render termina el TLS; solo confiamos en los proxies configurados,
+ * así que $request->secure() refleja lo que vio el visitante sin aceptar cabeceras directas.
  */
 class ForceHttps
 {
