@@ -54,6 +54,15 @@ class WhatsappBotService
         return (bool) config('services.evolution.bot_enabled');
     }
 
+    /**
+     * Mientras el bot trabaja, los avisos (push y WhatsApp) se guardan pero NO se envían: primero
+     * sale la respuesta en el chat. Si el aviso saliera antes, el cliente recibía dos mensajes
+     * casi al mismo tiempo y WhatsApp mostraba "Esperando el mensaje. Esto puede tomar tiempo.".
+     */
+    private bool $deferFlush = false;
+
+    private bool $flushPending = false;
+
     /** Procesa un mensaje entrante y envía la respuesta si corresponde. */
     public function handle(WhatsAppConversation $conversation, WhatsAppMessage $message): ?string
     {
@@ -63,37 +72,60 @@ class WhatsappBotService
 
         $text = trim((string) ($message->body ?? ''));
 
+        $this->deferFlush = true;
+        $this->flushPending = false;
+
         try {
-            $conversation->resumeIfAdvisorAbsent();
-            $linkReply = $this->historyLink->respondToCommand($text, $conversation->phone);
-            if ($linkReply !== null) {
-                $reply = $linkReply;
-            } elseif (! $conversation->bot_active) {
-                // Bot en pausa (el cliente pidió un asesor o el equipo lo pausó): el asesor atiende la charla,
-                // pero el "SÍ" a la confirmación de una cita y la baja de avisos se siguen procesando.
-                // Antes se ignoraban y la cita quedaba pendiente sin que nadie lo notara.
-                $reply = $text === '' ? null : $this->pausedReply($conversation, $text);
-            } else {
-                $reply = $text === ''
-                    ? $this->mainMenu($conversation)
-                    : $this->respond($conversation, $text);
+            try {
+                $conversation->resumeIfAdvisorAbsent();
+                $linkReply = $this->historyLink->respondToCommand($text, $conversation->phone);
+                if ($linkReply !== null) {
+                    $reply = $linkReply;
+                } elseif (! $conversation->bot_active) {
+                    // Bot en pausa (el cliente pidió un asesor o el equipo lo pausó): el asesor atiende la charla,
+                    // pero el "SÍ" a la confirmación de una cita y la baja de avisos se siguen procesando.
+                    // Antes se ignoraban y la cita quedaba pendiente sin que nadie lo notara.
+                    $reply = $text === '' ? null : $this->pausedReply($conversation, $text);
+                } else {
+                    $reply = $text === ''
+                        ? $this->mainMenu($conversation)
+                        : $this->respond($conversation, $text);
+                }
+            } catch (Throwable $e) {
+                Log::error('WhatsApp bot: no se pudo procesar el mensaje', [
+                    'phone' => \App\Support\Pii::phone($conversation->phone),
+                    'error' => $e->getMessage(),
+                ]);
+                $this->saveFlow($conversation->phone, ['step' => 'error_options', 'data' => [], 'history' => []]);
+                $reply = $this->errorText();
             }
-        } catch (Throwable $e) {
-            Log::error('WhatsApp bot: no se pudo procesar el mensaje', [
-                'phone' => \App\Support\Pii::phone($conversation->phone),
-                'error' => $e->getMessage(),
-            ]);
-            $this->saveFlow($conversation->phone, ['step' => 'error_options', 'data' => [], 'history' => []]);
-            $reply = $this->errorText();
+
+            if ($reply !== null) {
+                $this->inbox->send($conversation, $reply);
+            }
+
+            return $reply;
+        } finally {
+            // La respuesta ya salió (o no hacía falta): ahora sí, los avisos pendientes.
+            $this->deferFlush = false;
+
+            if ($this->flushPending) {
+                $this->flushPending = false;
+                $this->notifier->flush();
+            }
+        }
+    }
+
+    /** flush() del notificador, pero al final de la respuesta cuando lo llama el bot. */
+    private function flushNotifier(): void
+    {
+        if ($this->deferFlush) {
+            $this->flushPending = true;
+
+            return;
         }
 
-        if ($reply === null) {
-            return null;
-        }
-
-        $this->inbox->send($conversation, $reply);
-
-        return $reply;
+        $this->notifier->flush();
     }
 
     public function resumeUnansweredAdvisorChats(): void
@@ -1058,7 +1090,7 @@ class WhatsappBotService
         // Acaba de confirmar en el chat: si ya pasó la hora del recordatorio de 30 minutos no se le manda
         // (eran dos mensajes a la vez: esta respuesta y "¿Deseas mantener tu reserva?").
         $this->notifier->scheduleAppointmentReminders($appointment, justConfirmed: true);
-        $this->notifier->flush();
+        $this->flushNotifier();
 
         StaffNotification::record(
             'appt_new',
@@ -1573,7 +1605,7 @@ class WhatsappBotService
         $appointment->load(['barber', 'service']);
 
         $this->notifier->appointmentChanged($appointment, $before);
-        $this->notifier->flush();
+        $this->flushNotifier();
 
         StaffNotification::record(
             'appt_rescheduled',
@@ -1629,7 +1661,7 @@ class WhatsappBotService
         $appointment->load(['barber', 'service']);
 
         $this->notifier->appointmentChanged($appointment, $before);
-        $this->notifier->flush();
+        $this->flushNotifier();
 
         StaffNotification::record(
             'appt_rescheduled',
@@ -2071,8 +2103,10 @@ class WhatsappBotService
             $done = '✅ Tu cita ha sido cancelada correctamente.';
             $before = ['status' => $subject->status, 'starts_at' => $subject->startsAt()];
             $subject->update(['status' => 'cancelada']);
+            // La cancelación se confirma al cliente por WhatsApp (con los datos de la página); el
+            // espacio entre ese aviso y la respuesta del bot lo pone WhatsAppInbox::pace().
             $this->notifier->appointmentChanged($subject, $before);
-            $this->notifier->flush();
+            $this->flushNotifier();
 
             StaffNotification::record(
                 'client_cancelled',
@@ -2153,7 +2187,7 @@ class WhatsappBotService
             $appointment->update(['status' => 'confirmada']);
             // El bot ya le responde en el chat: aquí solo sale el aviso al navegador (push).
             $this->notifier->appointmentChanged($appointment, $before, 'bot');
-            $this->notifier->flush();
+            $this->flushNotifier();
 
             StaffNotification::record(
                 'client_confirmed',

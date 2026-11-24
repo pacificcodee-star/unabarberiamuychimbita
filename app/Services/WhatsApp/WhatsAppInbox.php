@@ -363,14 +363,42 @@ class WhatsAppInbox
     /** Envía una respuesta y la guarda en la conversación. Devuelve true si Evolution la aceptó. */
     public function send(WhatsAppConversation $conversation, string $body): bool
     {
+        $phone = $this->whatsApp->normalizePhone($conversation->phone);
+        $this->pace($phone);
+
         $receipt = $this->whatsApp->usesTemplates()
-            ? ($this->whatsApp->sendText($conversation->phone, $body) ? [] : null)
-            : $this->evolution->sendTextReceipt($this->whatsApp->normalizePhone($conversation->phone), $body);
+            ? ($this->whatsApp->sendText($phone, $body) ? [] : null)
+            : $this->evolution->sendTextReceipt($phone, $body);
         $id = is_string($receipt['key']['id'] ?? null) ? Str::limit($receipt['key']['id'], 100, '') : null;
         $ok = $receipt !== null;
         $this->recordOutgoing($conversation, $body, $ok ? 'sent' : 'failed', $id);
 
         return $ok;
+    }
+
+    /**
+     * Deja un espacio mínimo entre dos mensajes seguidos al mismo número.
+     *
+     * Cuando salen dos mensajes en el mismo segundo (la respuesta del bot y un aviso, por
+     * ejemplo) WhatsApp le muestra al cliente el aviso "Esperando el mensaje. Esto puede tomar
+     * tiempo." en uno de los dos y ese mensaje llega tarde. Un segundo de separación lo evita.
+     */
+    private function pace(string $phone): void
+    {
+        $gap = (int) config('services.evolution.send_gap_ms', 1200);
+        if ($gap <= 0 || $phone === '') {
+            return;
+        }
+
+        $key = 'whatsapp:pace:'.$phone;
+        $last = (int) Cache::get($key, 0);
+        $now = (int) (microtime(true) * 1000);
+
+        if ($last > 0 && ($wait = $gap - ($now - $last)) > 0) {
+            usleep(min($wait, $gap) * 1000);
+        }
+
+        Cache::put($key, (int) (microtime(true) * 1000), now()->addMinutes(5));
     }
 
     /** Escribe a un número aunque todavía no exista conversación (avisos de agenda, sin que el cliente escriba primero). */

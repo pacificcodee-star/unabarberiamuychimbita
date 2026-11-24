@@ -113,8 +113,17 @@ class EvolutionWebhookController extends Controller
             if ($queued) {
                 // En el VPS el trabajo y el mensaje comparten la misma transacción de base de datos.
                 ProcessWhatsAppMessage::dispatch($id, $stored['notifyTeam'])->beforeCommit();
-            } else {
+            } elseif (app()->runningUnitTests()) {
+                // En las pruebas no hay una respuesta HTTP que esperar (la app se reutiliza entre
+                // peticiones), así que se procesa en línea como siempre.
                 ProcessWhatsAppMessage::dispatchSync($id, $stored['notifyTeam']);
+            } else {
+                // Sin cola: se contesta a Evolution ENSEGUIDA y el bot trabaja después (Laravel
+                // cierra la petición HTTP y luego ejecuta el trabajo). Antes se hacía dispatchSync:
+                // con varios clientes escribiendo a la vez el webhook tardaba más de lo que
+                // Evolution espera, Evolution reintentaba el mismo evento y el cliente recibía
+                // la respuesta repetida o minutos después.
+                ProcessWhatsAppMessage::dispatchAfterResponse($id, $stored['notifyTeam']);
             }
         };
 

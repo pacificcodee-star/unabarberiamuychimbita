@@ -139,8 +139,12 @@ Route::post('/push/renovar', [TrackController::class, 'renew'])->middleware('thr
 
 // Webhook de Evolution API: entra todo lo que escriben los clientes (sin sesión y sin CSRF,
 // protegido con la apikey que Evolution envía en cada evento).
+// El límite es alto a propósito: Evolution manda un evento por mensaje Y otro por cada cambio de
+// estado de lo que enviamos. Con 120/min, una ráfaga de clientes (o el simple ajetreo de la
+// barbería) agotaba el cupo, la app respondía 429 y Evolution reintentaba el aviso más tarde:
+// por eso los mensajes "se demoraban en cargar" al número del cliente.
 Route::post('/webhook/evolution', EvolutionWebhookController::class)
-    ->middleware('throttle:120,1,webhook.evolution')
+    ->middleware('throttle:600,1,webhook.evolution')
     ->name('webhook.evolution');
 
 Route::middleware('panel-desktop')->group(function () {

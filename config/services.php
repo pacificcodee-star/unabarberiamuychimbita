@@ -77,6 +77,9 @@ return [
         'instance' => env('EVOLUTION_INSTANCE', 'barberia'),
         'timeout' => (int) env('EVOLUTION_TIMEOUT', 20),
         'chat_timeout' => (int) env('EVOLUTION_CHAT_TIMEOUT', 8),
+        // Espacio mínimo entre dos mensajes al mismo número. Dos mensajes en el mismo segundo
+        // hacen que WhatsApp muestre "Esperando el mensaje" y que el segundo llegue tarde.
+        'send_gap_ms' => (int) env('EVOLUTION_SEND_GAP_MS', 1200),
         'queue_incoming' => (bool) env('EVOLUTION_QUEUE_INCOMING', false),
         // Secreto que se exige en cada webhook entrante (campo "apikey" del cuerpo).
         'webhook_secret' => env('EVOLUTION_WEBHOOK_SECRET'),
