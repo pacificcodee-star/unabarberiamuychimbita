@@ -148,9 +148,6 @@
                 </div>
             </div>
             @include('public.partials.reviews-row', ['reviews' => $proofReviews])
-            <div class="container">
-                <a href="{{ route('public.reviews') }}" class="xlink cx-proof-more">Ver todas las opiniones</a>
-            </div>
         </section>
     @endif
 

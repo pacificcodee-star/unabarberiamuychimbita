@@ -52,6 +52,7 @@
                         @if($review->moderation_status !== 'retirada')
                             <form method="POST" action="{{ route('surveys.reviews.moderate', $review) }}" onsubmit="return confirm('¿El cliente pidió retirar su opinión? Se revoca su autorización y no se podrá volver a publicar.');">@csrf<input type="hidden" name="action" value="retirar"><button class="btn btn-sm btn-outline-danger">Retirar (pedido del cliente)</button></form>
                         @endif
+                        <form method="POST" action="{{ route('surveys.reviews.destroy', $review) }}" class="ms-auto" onsubmit="return confirm('¿Eliminar esta opinión para siempre? Sale de la página y del promedio, y no se puede deshacer.');">@csrf @method('DELETE')<button class="btn btn-sm btn-danger"><i class="bi bi-trash me-1" aria-hidden="true"></i> Eliminar</button></form>
                     </div>
                 </div></div>
             </div>

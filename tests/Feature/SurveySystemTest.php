@@ -274,6 +274,35 @@ class SurveySystemTest extends TestCase
         $this->actingAs($admin)->post(route('surveys.reviews.moderate', $review), ['action' => 'publicar'])->assertSessionHas('error');
     }
 
+    public function test_admin_can_delete_a_published_review(): void
+    {
+        $appointment = $this->finishedAndSent();
+        $this->fullHappyPath($appointment);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $review = Review::firstOrFail();
+        $this->assertTrue($review->approved);
+
+        $this->actingAs($admin)->get(route('surveys.reviews'))->assertOk()->assertSee(route('surveys.reviews.destroy', $review), false);
+        $this->actingAs($admin)->delete(route('surveys.reviews.destroy', $review))
+            ->assertRedirect(route('surveys.reviews'))->assertSessionHas('success', 'Opinión eliminada.');
+
+        $this->assertNull(Review::find($review->id));
+        // Las respuestas de la encuesta se conservan; la autorización queda como revocada.
+        $this->assertSame(1, \App\Models\SurveySession::count());
+        $this->assertNotNull(ConsentRecord::where('subject_type', 'review')->where('subject_id', $review->id)->first()->revoked_at);
+        $this->get(route('public.reviews'))->assertDontSee('class="rv-score"', false);
+    }
+
+    public function test_barbers_cannot_delete_reviews(): void
+    {
+        $appointment = $this->finishedAndSent();
+        $this->fullHappyPath($appointment);
+        $barber = User::factory()->create(['role' => 'barbero', 'active' => true]);
+
+        $this->actingAs($barber)->delete(route('surveys.reviews.destroy', Review::firstOrFail()))->assertForbidden();
+        $this->assertSame(1, Review::count());
+    }
+
     // 6 y 15. Interrupción → conserva el progreso; lo confirmado no se pierde.
     public function test_progress_survives_interruptions(): void
     {

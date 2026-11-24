@@ -206,6 +206,7 @@ Route::middleware(['panel-desktop', 'auth'])->group(function () {
         Route::post('/encuestas/preguntas/{question}/mover', [SurveyAdminController::class, 'moveQuestion'])->name('surveys.questions.move');
         Route::get('/encuestas/opiniones', [SurveyAdminController::class, 'reviews'])->name('surveys.reviews');
         Route::post('/encuestas/opiniones/{review}', [SurveyAdminController::class, 'moderate'])->name('surveys.reviews.moderate');
+        Route::delete('/encuestas/opiniones/{review}', [SurveyAdminController::class, 'destroyReview'])->name('surveys.reviews.destroy');
 
         Route::get('/disponibilidad', [AvailabilityController::class, 'index'])->name('availability.index');
         Route::post('/disponibilidad', [AvailabilityController::class, 'store'])->name('availability.store');
