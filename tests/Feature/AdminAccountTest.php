@@ -25,7 +25,9 @@ class AdminAccountTest extends TestCase
         $this->actingAs($this->admin())->get(route('site-settings.edit'))
             ->assertOk()
             ->assertSee('Cuenta del administrador')
+            // El correo sale de la base de datos; el campo Nombre ya no está.
             ->assertSee('value="admin@barberia.com"', false)
+            ->assertDontSee('id="account-name"', false)
             ->assertSee('data-password-toggle="account-current_password"', false)
             ->assertSee('data-password-toggle="account-password"', false)
             ->assertSee('data-password-toggle="account-password_confirmation"', false);
@@ -36,14 +38,14 @@ class AdminAccountTest extends TestCase
         $admin = $this->admin();
 
         $this->actingAs($admin)->put(route('site-settings.account'), [
-            'name' => 'Odi', 'email' => 'Dueno@Ejemplo.com',
+            'email' => 'Dueno@Ejemplo.com',
             'current_password' => 'password',
             'password' => 'NuevaClave2026', 'password_confirmation' => 'NuevaClave2026',
         ])->assertRedirect()->assertSessionHas('success', 'Cuenta actualizada y contraseña cambiada.');
 
         $admin->refresh();
         $this->assertSame('dueno@ejemplo.com', $admin->email);
-        $this->assertSame('Odi', $admin->name);
+        $this->assertSame('Dueño', $admin->name, 'El nombre no se toca desde este formulario.');
         $this->assertTrue(Hash::check('NuevaClave2026', $admin->password));
 
         $this->post(route('logout'));
@@ -56,7 +58,7 @@ class AdminAccountTest extends TestCase
         $admin = $this->admin();
 
         $this->actingAs($admin)->put(route('site-settings.account'), [
-            'name' => 'Otro', 'email' => 'otro@ejemplo.com',
+            'email' => 'otro@ejemplo.com',
             'current_password' => 'equivocada',
             'password' => 'NuevaClave2026', 'password_confirmation' => 'NuevaClave2026',
         ])->assertSessionHasErrorsIn('account', ['current_password']);
@@ -71,12 +73,12 @@ class AdminAccountTest extends TestCase
         $admin = $this->admin();
 
         $this->actingAs($admin)->put(route('site-settings.account'), [
-            'name' => 'Dueño', 'email' => 'admin@barberia.com', 'current_password' => 'password',
+            'email' => 'admin@barberia.com', 'current_password' => 'password',
             'password' => 'corta', 'password_confirmation' => 'corta',
         ])->assertSessionHasErrorsIn('account', ['password']);
 
         $this->actingAs($admin)->put(route('site-settings.account'), [
-            'name' => 'Dueño', 'email' => 'admin@barberia.com', 'current_password' => 'password',
+            'email' => 'admin@barberia.com', 'current_password' => 'password',
             'password' => 'NuevaClave2026', 'password_confirmation' => 'OtraClave2026',
         ])->assertSessionHasErrorsIn('account', ['password']);
 
@@ -88,7 +90,7 @@ class AdminAccountTest extends TestCase
         $admin = $this->admin();
 
         $this->actingAs($admin)->put(route('site-settings.account'), [
-            'name' => 'Dueño', 'email' => 'nuevo@ejemplo.com', 'current_password' => 'password',
+            'email' => 'nuevo@ejemplo.com', 'current_password' => 'password',
             'password' => '', 'password_confirmation' => '',
         ])->assertSessionHas('success', 'Cuenta actualizada.');
 
@@ -102,7 +104,7 @@ class AdminAccountTest extends TestCase
         User::factory()->create(['email' => 'carlos@barberia.com', 'role' => 'barbero']);
 
         $this->actingAs($admin)->put(route('site-settings.account'), [
-            'name' => 'Dueño', 'email' => 'carlos@barberia.com', 'current_password' => 'password',
+            'email' => 'carlos@barberia.com', 'current_password' => 'password',
         ])->assertSessionHasErrorsIn('account', ['email']);
     }
 
@@ -111,7 +113,7 @@ class AdminAccountTest extends TestCase
         $barber = User::factory()->create(['role' => 'barbero', 'active' => true]);
 
         $this->actingAs($barber)->put(route('site-settings.account'), [
-            'name' => 'X', 'email' => 'x@ejemplo.com', 'current_password' => 'password',
+            'email' => 'x@ejemplo.com', 'current_password' => 'password',
         ])->assertForbidden();
     }
 }

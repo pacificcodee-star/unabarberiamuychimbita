@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 
 /** Configuración del negocio: datos de contacto, horarios, redes, medios de pago y logo. Los textos de la página están en config/sitio.php. */
@@ -30,13 +31,11 @@ class SiteSettingController extends Controller
             'data.phone' => ['required', 'string', 'max:40'],
             'data.email' => ['required', 'email', 'max:160'],
             'data.whatsapp' => ['required', 'regex:/^[0-9]{10,15}$/'],
-            'data.hours_mon' => ['nullable', 'string', 'max:100'],
-            'data.hours_tue' => ['nullable', 'string', 'max:100'],
-            'data.hours_wed' => ['nullable', 'string', 'max:100'],
-            'data.hours_thu' => ['nullable', 'string', 'max:100'],
-            'data.hours_fri' => ['nullable', 'string', 'max:100'],
-            'data.hours_sat' => ['nullable', 'string', 'max:100'],
-            'data.hours_sun' => ['nullable', 'string', 'max:100'],
+            // Horario por día: "Cerrado" o un rango de horas (abre / cierra).
+            'hours' => ['required', 'array'],
+            'hours.*.closed' => ['nullable', 'boolean'],
+            'hours.*.open' => ['nullable', 'date_format:H:i'],
+            'hours.*.close' => ['nullable', 'date_format:H:i'],
             'data.booking_start' => ['required', 'date_format:H:i'],
             'data.booking_end' => ['required', 'date_format:H:i', 'after:data.booking_start'],
             'data.map_url' => ['required', 'url', 'max:500'],
@@ -58,18 +57,37 @@ class SiteSettingController extends Controller
             'data.booking_end.after' => 'La hora final de reservas debe ser después de la hora inicial.',
         ]);
 
+        // Cada día abierto necesita hora de apertura y de cierre, y el cierre va después de la apertura.
+        $hours = [];
+        $hourErrors = [];
+        foreach (SiteSetting::DAYS as $day => [$dayName]) {
+            $row = $request->input('hours.'.$day, []);
+            if (filter_var($row['closed'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                $hours['hours_'.$day] = 'Cerrado';
+
+                continue;
+            }
+            $open = (string) ($row['open'] ?? '');
+            $close = (string) ($row['close'] ?? '');
+            if ($open === '' || $close === '') {
+                $hourErrors['hours.'.$day] = "{$dayName}: elige la hora en que abre y la hora en que cierra, o márcalo como cerrado.";
+            } elseif ($close <= $open) {
+                $hourErrors['hours.'.$day] = "{$dayName}: la hora de cierre debe ser después de la hora de apertura.";
+            } else {
+                $hours['hours_'.$day] = SiteSetting::rangeText($open, $close);
+            }
+        }
+        if ($hourErrors) {
+            throw ValidationException::withMessages($hourErrors);
+        }
+
         $record = SiteSetting::query()->firstOrCreate([], ['data' => []]);
         $data = $record->data ?? [];
 
         foreach ($validated['data'] as $key => $value) {
             $data[$key] = trim((string) $value);
         }
-        // Un día sin horario escrito se toma como cerrado.
-        foreach (array_keys(SiteSetting::DAYS) as $day) {
-            if (($data['hours_'.$day] ?? '') === '') {
-                $data['hours_'.$day] = 'Cerrado';
-            }
-        }
+        $data = array_merge($data, $hours);
         // El teléfono para enlaces (tel:) se arma solo, a partir del teléfono visible.
         $data['phone_link'] = '+'.ltrim(preg_replace('/\D+/', '', $data['phone']), '+');
 
@@ -95,7 +113,7 @@ class SiteSettingController extends Controller
     }
 
     /**
-     * Cuenta del administrador: nombre, correo de ingreso y contraseña.
+     * Cuenta del administrador: correo de ingreso y contraseña.
      * Siempre pide la contraseña actual; la nueva es opcional (si se deja vacía, no cambia).
      */
     public function updateAccount(Request $request)
@@ -103,7 +121,6 @@ class SiteSettingController extends Controller
         $user = $request->user();
 
         $data = $request->validateWithBag('account', [
-            'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'max:150', Rule::unique('users', 'email')->ignore($user->id)],
             'current_password' => ['required', 'current_password'],
             'password' => ['nullable', 'confirmed', PasswordRule::min(10)->letters()->numbers()],
@@ -117,7 +134,6 @@ class SiteSettingController extends Controller
             'password.numbers' => 'La contraseña nueva debe tener al menos un número.',
         ]);
 
-        $user->name = trim($data['name']);
         $user->email = Str::lower(trim($data['email']));
         $passwordChanged = filled($data['password'] ?? null);
         if ($passwordChanged) {

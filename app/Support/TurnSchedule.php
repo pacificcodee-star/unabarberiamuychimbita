@@ -205,7 +205,7 @@ final class TurnSchedule
      *
      * @return list<string>
      */
-    private static function parseTimes(string $text): array
+    public static function parseTimes(string $text): array
     {
         if (trim($text) === '') {
             return [];

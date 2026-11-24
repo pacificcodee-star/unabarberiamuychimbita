@@ -13,9 +13,8 @@
                 'map_url' => ['Enlace de Google Maps (respaldo, para incrustar)', 'url', 'https://www.google.com/maps?q=...&output=embed'],
                 'map_coords' => ['Coordenadas del local (opcional)', 'text', 'Ej. 1.8067,-78.7647 — en Google Maps: clic derecho sobre el local'],
             ],
-            'Horario de atención' => collect(\App\Models\SiteSetting::DAYS)->mapWithKeys(fn ($day, $key) => [
-                'hours_'.$key => [$day[0], 'text', 'Ej. 9:00 a. m. - 12:00 m. y 2:00 - 8:00 p. m.  ·  o «Cerrado»'],
-            ])->all() + [
+            // Los 7 días se dibujan aparte (abre / cierra / cerrado); aquí solo van las horas de reserva.
+            'Horario de atención' => [
                 'booking_start' => ['Primera hora para reservar citas', 'time', ''],
                 'booking_end' => ['Última hora para reservar citas', 'time', ''],
             ],
@@ -26,7 +25,7 @@
                 'tiktok_url' => ['TikTok', 'url', 'https://www.tiktok.com/@tu_cuenta'],
             ],
         ];
-        $optional = ['map_coords', 'instagram_url', 'facebook_url', 'tiktok_url', 'hours_mon', 'hours_tue', 'hours_wed', 'hours_thu', 'hours_fri', 'hours_sat', 'hours_sun'];
+        $optional = ['map_coords', 'instagram_url', 'facebook_url', 'tiktok_url'];
         $icons = ['whatsapp' => 'bi-whatsapp', 'instagram_url' => 'bi-instagram', 'facebook_url' => 'bi-facebook', 'tiktok_url' => 'bi-tiktok'];
     @endphp
 
@@ -46,7 +45,34 @@
         @foreach($groups as $group => $fields)
             <section class="card mb-4 content-settings-card">
                 <div class="card-header"><h2 class="h6 mb-0">{{ $group }}</h2></div>
-                <div class="card-body"><div class="row g-3">
+                <div class="card-body">
+                    @if($group === 'Horario de atención')
+                        <div class="hours-week mb-4" role="group" aria-label="Horario de cada día">
+                            @foreach(\App\Models\SiteSetting::DAYS as $dayKey => [$dayName])
+                                @php
+                                    $range = \App\Models\SiteSetting::dayRange($settings['hours_'.$dayKey] ?? '');
+                                    $closed = (bool) old('hours.'.$dayKey.'.closed', $range['closed']);
+                                @endphp
+                                <div class="hours-day @if($closed) is-closed @endif @error('hours.'.$dayKey) is-invalid @enderror" data-hours-day>
+                                    <span class="hours-day-name">{{ $dayName }}</span>
+                                    <div class="form-check form-switch hours-day-switch">
+                                        <input type="hidden" name="hours[{{ $dayKey }}][closed]" value="0">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="hours-{{ $dayKey }}-closed" name="hours[{{ $dayKey }}][closed]" value="1" @checked($closed) data-hours-closed>
+                                        <label class="form-check-label" for="hours-{{ $dayKey }}-closed">Cerrado</label>
+                                    </div>
+                                    <div class="hours-day-range">
+                                        <label class="visually-hidden" for="hours-{{ $dayKey }}-open">{{ $dayName }}: abre</label>
+                                        <input id="hours-{{ $dayKey }}-open" type="time" name="hours[{{ $dayKey }}][open]" value="{{ old('hours.'.$dayKey.'.open', $range['open'] ?: '09:00') }}" class="form-control" step="900" @disabled($closed)>
+                                        <span class="hours-day-sep" aria-hidden="true">a</span>
+                                        <label class="visually-hidden" for="hours-{{ $dayKey }}-close">{{ $dayName }}: cierra</label>
+                                        <input id="hours-{{ $dayKey }}-close" type="time" name="hours[{{ $dayKey }}][close]" value="{{ old('hours.'.$dayKey.'.close', $range['close'] ?: '20:00') }}" class="form-control" step="900" @disabled($closed)>
+                                    </div>
+                                    @error('hours.'.$dayKey)<div class="hours-day-error">{{ $message }}</div>@enderror
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                <div class="row g-3">
                     @foreach($fields as $key => [$label, $type, $placeholder])
                         <div class="col-md-{{ $key === 'map_url' ? '12' : '6' }}">
                             <label for="setting-{{ $key }}" class="form-label fw-semibold">@isset($icons[$key])<i class="bi {{ $icons[$key] }} me-1" aria-hidden="true"></i>@endisset{{ $label }}</label>
@@ -54,7 +80,7 @@
                         </div>
                     @endforeach
                 </div></div>
-                @if($group === 'Horario de atención')<div class="card-footer bg-transparent small text-muted">Escribe el horario como quieras que se vea en la página. Escribe <strong>Cerrado</strong> (o déjalo vacío) en los días que no abren: ese día no se podrán reservar citas.</div>@endif
+                @if($group === 'Horario de atención')<div class="card-footer bg-transparent small text-muted">Elige a qué hora abre y cierra cada día. Marca <strong>Cerrado</strong> en los días que no abren: ese día no se podrán reservar citas ni pedir turnos.</div>@endif
                 @if($group === 'Redes sociales')<div class="card-footer bg-transparent small text-muted">Deja vacía una red para que no aparezca en la página.</div>@endif
             </section>
         @endforeach
@@ -136,11 +162,7 @@
                 @csrf
                 @method('PUT')
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <label for="account-name" class="form-label fw-semibold">Nombre</label>
-                        <input id="account-name" type="text" name="name" value="{{ old('name', $admin->name) }}" class="form-control @if($accountErrors->has('name')) is-invalid @endif" required maxlength="120" autocomplete="name">
-                    </div>
-                    <div class="col-md-6">
+                    <div class="col-12">
                         <label for="account-email" class="form-label fw-semibold">Correo para ingresar</label>
                         <input id="account-email" type="email" name="email" value="{{ old('email', $admin->email) }}" class="form-control @if($accountErrors->has('email')) is-invalid @endif" required maxlength="150" autocomplete="username">
                     </div>
@@ -163,6 +185,17 @@
 
 @push('scripts')
 <script>
+    // Horario: al marcar "Cerrado" se desactivan las horas de ese día.
+    document.querySelectorAll('[data-hours-day]').forEach((row) => {
+        const toggle = row.querySelector('[data-hours-closed]');
+        const times = row.querySelectorAll('input[type="time"]');
+        const sync = () => {
+            row.classList.toggle('is-closed', toggle.checked);
+            times.forEach((input) => { input.disabled = toggle.checked; input.required = !toggle.checked; });
+        };
+        toggle.addEventListener('change', sync);
+        sync();
+    });
     // Ojo de cada contraseña: muestra u oculta lo escrito en ese campo.
     document.querySelectorAll('[data-password-toggle]').forEach((btn) => {
         const input = document.getElementById(btn.dataset.passwordToggle);
@@ -192,5 +225,21 @@
     .settings-image-preview { display: grid; height: 140px; place-items: center; padding: 10px; border-radius: 12px; background: #182224; }
     .settings-image-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
     @media(max-width:575px) { .content-settings-card .card-body { padding: 15px; } }
+    /* Horario: una fila por día con interruptor de cerrado y rango de horas. */
+    .hours-week { display: grid; gap: 8px; }
+    .hours-day { display: grid; grid-template-columns: 110px auto minmax(0, 1fr); align-items: center; gap: 8px 16px; padding: 10px 14px; border: 1px solid rgba(24,34,36,.1); border-radius: 12px; }
+    .hours-day-name { font-weight: 600; }
+    .hours-day-switch { margin: 0; min-width: 110px; }
+    .hours-day-range { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .hours-day-range .form-control { flex: 1 1 0; min-width: 0; max-width: 150px; }
+    .hours-day-sep { color: var(--bs-secondary-color, #6c757d); }
+    .hours-day.is-closed .hours-day-range { opacity: .4; }
+    .hours-day.is-invalid { border-color: var(--bs-danger, #dc3545); }
+    .hours-day-error { grid-column: 1 / -1; color: var(--bs-danger, #dc3545); font-size: .85rem; }
+    @media(max-width:575px) {
+        .hours-day { grid-template-columns: 1fr auto; }
+        .hours-day-range { grid-column: 1 / -1; }
+        .hours-day-range .form-control { max-width: none; }
+    }
 </style>
 @endpush
