@@ -132,9 +132,12 @@ class User extends Authenticatable
 
     private function unavailabilitiesOn(string $date)
     {
-        $day = \Illuminate\Support\Carbon::parse($date)->toDateString();
+        $day = \Illuminate\Support\Carbon::parse($date);
+        $key = $day->toDateString();
 
-        return $this->unavailabilityCache[$day] ??= $this->unavailabilities()->whereDate('date', $day)->get();
+        return $this->unavailabilityCache[$key] ??= $this->unavailabilities()
+            ->where(fn ($query) => $query->whereDate('date', $key)->orWhere('weekday', $day->dayOfWeekIso))
+            ->get();
     }
 
     public function commissionPercentFor(int $serviceId): float

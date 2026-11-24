@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\BarberUnavailability;
 use App\Models\User;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class AvailabilityController extends Controller
@@ -14,87 +14,83 @@ class AvailabilityController extends Controller
     {
         $barbers = User::barbers()->orderBy('name')->get();
         $selectedBarberId = $request->integer('barber_id') ?: ($barbers->first()?->id);
-        $date = $request->input('date', now()->toDateString());
+        $selectedBarber = $barbers->firstWhere('id', $selectedBarberId);
+        $weekdays = BarberUnavailability::WEEKDAYS;
 
-        $unavailabilities = collect();
-        $selectedBarber = null;
-        if ($selectedBarberId) {
-            $selectedBarber = $barbers->firstWhere('id', $selectedBarberId) ?: User::barbers()->find($selectedBarberId);
-            if ($selectedBarber) {
-                $unavailabilities = BarberUnavailability::query()
-                    ->where('barber_id', $selectedBarber->id)
-                    ->whereDate('date', '>=', now()->subDays(1)->toDateString())
-                    ->orderBy('date')
-                    ->orderBy('start_time')
-                    ->get();
-            }
-        }
+        $unavailabilities = $selectedBarber?->unavailabilities()
+            ->where(fn ($query) => $query->whereNotNull('weekday')->orWhereDate('date', '>=', today()->subDay()->toDateString()))
+            ->orderByRaw('CASE WHEN weekday IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('weekday')
+            ->orderBy('date')
+            ->orderBy('start_time')
+            ->get() ?? collect();
 
-        return view('availability.index', compact('barbers', 'selectedBarber', 'selectedBarberId', 'date', 'unavailabilities'));
+        return view('availability.index', compact('barbers', 'selectedBarber', 'selectedBarberId', 'weekdays', 'unavailabilities'));
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
             'barber_id' => ['required', 'exists:users,id'],
-            'date' => ['required', 'date', 'after_or_equal:today'],
+            'weekdays' => ['required', 'array', 'list', 'min:1', 'max:7'],
+            'weekdays.*' => ['required', 'integer', 'between:1,7', 'distinct'],
             'type' => ['required', 'in:day,range'],
-            'start_time' => ['nullable', 'required_if:type,range', 'date_format:H:i'],
-            'end_time' => ['nullable', 'required_if:type,range', 'date_format:H:i', 'after:start_time'],
+            'start_time' => ['exclude_unless:type,range', 'required', 'date_format:H:i'],
+            'end_time' => ['exclude_unless:type,range', 'required', 'date_format:H:i', 'after:start_time'],
             'note' => ['nullable', 'string', 'max:255'],
         ], [
+            'weekdays.required' => 'Marca al menos un día de la semana.',
+            'start_time.required' => 'Selecciona la hora de inicio.',
+            'end_time.required' => 'Selecciona la hora de fin.',
             'end_time.after' => 'La hora de fin debe ser mayor que la hora de inicio.',
         ]);
 
-        $barber = User::barbers()->findOrFail($data['barber_id']);
+        DB::transaction(function () use ($data) {
+            $barber = User::barbers()->lockForUpdate()->findOrFail($data['barber_id']);
+            $start = $data['start_time'] ?? null;
+            $end = $data['end_time'] ?? null;
 
-        $start = $data['type'] === 'range' ? $data['start_time'] : null;
-        $end = $data['type'] === 'range' ? $data['end_time'] : null;
+            $conflicts = $barber->unavailabilities()
+                ->whereIn('weekday', $data['weekdays'])
+                ->when($start !== null, fn ($query) => $query->where(function ($query) use ($start, $end) {
+                    $query->whereNull('start_time')
+                        ->orWhereNull('end_time')
+                        ->orWhere(fn ($range) => $range->whereTime('start_time', '<', $end.':00')->whereTime('end_time', '>', $start.':00'));
+                }))
+                ->distinct()
+                ->orderBy('weekday')
+                ->pluck('weekday');
 
-        // Evitar duplicados exactos o solapamientos simples.
-        $exists = BarberUnavailability::query()
-            ->where('barber_id', $barber->id)
-            ->whereDate('date', $data['date'])
-            ->where(function ($q) use ($start, $end) {
-                if ($start === null) {
-                    $q->whereNull('start_time');
-                } else {
-                    $q->whereNull('start_time')
-                      ->orWhere(function ($q2) use ($start, $end) {
-                          $q2->where('start_time', '<', $end)
-                             ->where('end_time', '>', $start);
-                      });
-                }
-            })
-            ->exists();
+            if ($conflicts->isNotEmpty()) {
+                $days = $conflicts->map(fn ($day) => BarberUnavailability::WEEKDAYS[$day])->join(', ');
 
-        if ($exists) {
-            throw ValidationException::withMessages([
-                'date' => 'Ya existe una indisponibilidad que se cruza con ese día u horario para este barbero.',
-            ]);
-        }
+                throw ValidationException::withMessages([
+                    'weekdays' => 'El horario se cruza con un bloqueo semanal en '.mb_strtolower($days).'.',
+                ]);
+            }
 
-        BarberUnavailability::create([
-            'barber_id' => $barber->id,
-            'date' => Carbon::parse($data['date'])->toDateString(),
-            'start_time' => $start,
-            'end_time' => $end,
-            'note' => $data['note'] ?? null,
-        ]);
+            foreach ($data['weekdays'] as $day) {
+                $barber->unavailabilities()->create([
+                    'weekday' => $day,
+                    'start_time' => $start,
+                    'end_time' => $end,
+                    'note' => $data['note'] ?? null,
+                ]);
+            }
+        });
 
         return redirect()
-            ->route('availability.index', ['barber_id' => $barber->id, 'date' => $data['date']])
-            ->with('success', 'Disponibilidad actualizada: se registró la indisponibilidad del barbero.');
+            ->route('availability.index', ['barber_id' => $data['barber_id']])
+            ->with('success', 'Bloqueo semanal guardado para los días seleccionados.');
     }
 
     public function destroy(BarberUnavailability $availability)
     {
         $barberId = $availability->barber_id;
-        $date = $availability->date?->toDateString();
         $availability->delete();
 
         return redirect()
-            ->route('availability.index', ['barber_id' => $barberId, 'date' => $date])
-            ->with('success', 'Indisponibilidad eliminada. El barbero vuelve a estar disponible en ese periodo.');
+            ->route('availability.index', ['barber_id' => $barberId])
+            ->with('success', 'Indisponibilidad eliminada.');
     }
 }

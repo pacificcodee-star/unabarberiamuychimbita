@@ -84,13 +84,26 @@ class Appointment extends Model
     public static function reserveSlot(array $attributes, ?self $existing = null, string $message = self::SLOT_TAKEN_MESSAGE): self
     {
         return DB::transaction(function () use ($attributes, $existing, $message) {
-            User::whereKey($attributes['barber_id'])->lockForUpdate()->first();
+            $barber = User::whereKey($attributes['barber_id'])->lockForUpdate()->first();
+            $date = Carbon::parse($attributes['appointment_date'])->toDateString();
+            $time = Carbon::parse($attributes['appointment_time'])->format('H:i:s');
+            $sameSlot = $existing && $existing->status !== 'cancelada'
+                && $existing->barber_id === (int) $attributes['barber_id']
+                && $existing->appointment_date->toDateString() === $date
+                && Carbon::parse($existing->appointment_time)->format('H:i:s') === $time;
+
+            if (! $sameSlot && ($attributes['status'] ?? $existing?->status) !== 'cancelada'
+                && $barber?->isUnavailableAt($date, $time)) {
+                throw ValidationException::withMessages([
+                    'appointment_time' => 'El barbero no está disponible en ese horario. Elige otra hora.',
+                ]);
+            }
 
             $taken = static::query()
                 ->where('barber_id', $attributes['barber_id'])
-                ->whereDate('appointment_date', $attributes['appointment_date'])
+                ->whereDate('appointment_date', $date)
                 // Siempre H:i:s: así la comparación es exacta en MySQL y en SQLite ('11:00' = '11:00:00').
-                ->whereTime('appointment_time', \Carbon\Carbon::parse($attributes['appointment_time'])->format('H:i:s'))
+                ->whereTime('appointment_time', $time)
                 ->where('status', '!=', 'cancelada')
                 ->when($existing, fn ($query) => $query->whereKeyNot($existing->getKey()))
                 ->exists();
