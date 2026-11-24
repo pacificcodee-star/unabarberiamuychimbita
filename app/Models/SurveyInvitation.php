@@ -30,6 +30,28 @@ class SurveyInvitation extends Model
         return $this->morphTo();
     }
 
+    /** Invitación de una cita o turno concreto. */
+    public function scopeForSubject($query, Model $subject)
+    {
+        return $query->where('subject_type', $subject->getMorphClass())->where('subject_id', $subject->getKey());
+    }
+
+    /**
+     * Invitaciones cuya cita o turno ya no existe (se borró). No son de un servicio real, así que se
+     * eliminan con sus respuestas para que no cuenten en Resultados.
+     */
+    public static function purgeOrphans(): int
+    {
+        $orphans = 0;
+        foreach (['appointment' => 'appointments', 'turn' => 'turns'] as $type => $table) {
+            $orphans += static::where('subject_type', $type)
+                ->whereNotIn('subject_id', fn ($q) => $q->select('id')->from($table))
+                ->get()->each->delete()->count();
+        }
+
+        return $orphans;
+    }
+
     public function session(): HasOne
     {
         return $this->hasOne(SurveySession::class);

@@ -293,6 +293,35 @@ class SurveySystemTest extends TestCase
         $this->get(route('public.reviews'))->assertDontSee('class="rv-score"', false);
     }
 
+    public function test_deleting_the_appointment_removes_its_survey_from_results(): void
+    {
+        $appointment = $this->finishedAndSent();
+        $this->fullHappyPath($appointment);
+        $this->assertSame(1, SurveySession::count());
+
+        $appointment->delete();
+
+        $this->assertSame(0, SurveyInvitation::count());
+        $this->assertSame(0, SurveySession::count());
+        $this->assertSame(0, \App\Models\SurveyAnswer::count());
+    }
+
+    public function test_surveys_whose_appointment_or_turn_was_removed_are_purged(): void
+    {
+        $appointment = $this->finishedAndSent();
+        $this->fullHappyPath($appointment);
+        // Borrada sin pasar por el modelo (p. ej. desde la base de datos): queda huérfana.
+        \Illuminate\Support\Facades\DB::table('appointments')->where('id', $appointment->id)->delete();
+        $this->assertSame(1, SurveyInvitation::count());
+
+        app(SurveyService::class)->tick();
+
+        $this->assertSame(0, SurveyInvitation::count());
+        $this->assertSame(0, SurveySession::count());
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $this->actingAs($admin)->get(route('surveys.index'))->assertOk();
+    }
+
     public function test_barbers_cannot_delete_reviews(): void
     {
         $appointment = $this->finishedAndSent();

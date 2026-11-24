@@ -126,6 +126,9 @@ class SurveyService
         SurveyInvitation::whereIn('status', ['programada', 'enviada'])->where('expires_at', '<', now())
             ->update(['status' => 'vencida', 'updated_at' => now()]);
 
+        // Encuestas de citas o turnos que ya se borraron: no son de un servicio real, no cuentan.
+        SurveyInvitation::purgeOrphans();
+
         // Conservación: las encuestas que nadie terminó se borran pasado el plazo.
         SurveySession::where('status', 'en_curso')
             ->where('last_activity_at', '<', now()->subDays((int) config('encuestas.retention_incomplete_days', 180)))

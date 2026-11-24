@@ -60,6 +60,8 @@ class Appointment extends Model
         static::saving(function (self $appointment): void {
             $appointment->client_phone_normalized = GuestVisitor::normalizePhone($appointment->client_phone);
         });
+        // Sin cita no hay encuesta: se borra su invitación (y con ella las respuestas) para que no cuente en Resultados.
+        static::deleted(fn (self $appointment) => SurveyInvitation::forSubject($appointment)->delete());
     }
 
     public function canTransitionTo(string $status): bool

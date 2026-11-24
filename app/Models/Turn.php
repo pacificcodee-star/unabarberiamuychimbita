@@ -37,6 +37,8 @@ class Turn extends Model
         static::saving(function (self $turn): void {
             $turn->client_phone_normalized = GuestVisitor::normalizePhone($turn->client_phone);
         });
+        // Sin turno no hay encuesta: se borra su invitación (y con ella las respuestas) para que no cuente en Resultados.
+        static::deleted(fn (self $turn) => SurveyInvitation::forSubject($turn)->delete());
     }
 
     public function canTransitionTo(string $status): bool
