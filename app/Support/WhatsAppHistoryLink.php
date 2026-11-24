@@ -2,85 +2,58 @@
 
 namespace App\Support;
 
-use App\Models\SiteSetting;
 use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 
 class WhatsAppHistoryLink
 {
-    private const SESSION_KEY = 'whatsapp_history_challenge';
-
-    private const COMMAND = 'Vincular historial ';
+    private const SESSION_KEY = 'whatsapp_history_link';
 
     public function __construct(private WhatsAppService $whatsApp) {}
 
-    public function available(): bool
+    public function respondToCommand(string $message, string $sender): ?string
     {
-        return (bool) config('services.evolution.bot_enabled') && $this->whatsApp->isConfigured()
-            && filled(SiteSetting::currentData()['whatsapp'] ?? null);
-    }
-
-    public function begin(Request $request): void
-    {
-        abort_unless($this->available(), 404);
-        $token = Str::random(32);
-        $request->session()->put(self::SESSION_KEY, $token);
-        Cache::put($this->key($token), ['phone' => null], now()->addMinutes(10));
-    }
-
-    public function chatUrl(Request $request): ?string
-    {
-        $token = $request->session()->get(self::SESSION_KEY);
-        if (! $this->available() || ! is_string($token) || ! Cache::has($this->key($token))) {
+        // También reconoce el mensaje preparado por versiones anteriores de la página.
+        if (! preg_match('/^vincular (?:mi )?historial(?: [A-Za-z0-9]{32})?[.!]?$/i', trim($message))) {
             return null;
         }
 
-        $business = $this->whatsApp->normalizePhone((string) SiteSetting::currentData()['whatsapp']);
-
-        return 'https://wa.me/'.$business.'?text='.rawurlencode(self::COMMAND.$token);
-    }
-
-    public function acknowledge(string $message, string $sender): ?string
-    {
-        if (! preg_match('/^vincular historial ([A-Za-z0-9]{32})$/i', trim($message), $match)) {
-            return null;
-        }
-
-        $key = $this->key($match[1]);
         $phone = $this->whatsApp->normalizePhone($sender);
-        $confirmed = Cache::lock($key.':lock', 15)->get(function () use ($key, $phone) {
-            $challenge = Cache::get($key);
-            if (! $challenge || ! preg_match('/^[1-9][0-9]{9,14}$/', $phone)) {
-                return false;
-            }
+        if (! preg_match('/^[1-9][0-9]{9,14}$/', $phone)) {
+            return 'No pude identificar tu número. Escribe de nuevo desde el WhatsApp donde hiciste tus reservas.';
+        }
 
-            if ($challenge['phone'] !== null) {
-                return $challenge['phone'] === $phone;
-            }
+        $token = Str::random(48);
+        Cache::put($this->key($token), $phone, now()->addMinutes(10));
+        $path = route('my-services.whatsapp.open', ['token' => $token], absolute: false);
+        $url = rtrim((string) config('app.url'), '/').$path;
 
-            Cache::put($key, ['phone' => $phone], now()->addMinutes(5));
+        return 'Aquí está tu enlace privado para vincular este historial. Ábrelo en el navegador donde quieras consultar tus reservas. Es de un solo uso y vence en 10 minutos.'."\n\n".$url;
+    }
 
-            return true;
-        });
+    public function stage(Request $request, string $token): void
+    {
+        abort_unless(is_string(Cache::get($this->key($token))), 404);
+        // Una vista previa de WhatsApp solo abre el enlace. El acceso se concede al confirmar.
+        $request->session()->put(self::SESSION_KEY, $token);
+    }
 
-        return $confirmed
-            ? 'Confirmamos tu WhatsApp. Vuelve a Mis servicios en el dispositivo donde empezaste y pulsa Actualizar mi historial.'
-            : 'Este enlace de vinculación ya no está disponible. Empieza de nuevo desde Mis servicios.';
+    public function maskedPhone(Request $request): string
+    {
+        $token = $this->sessionToken($request);
+        $phone = Cache::get($this->key($token));
+        abort_unless(is_string($phone), 404);
+
+        return '•••• '.substr($phone, -4);
     }
 
     public function finish(Request $request): void
     {
-        $token = $request->session()->get(self::SESSION_KEY);
-        if (! is_string($token)) {
-            throw ValidationException::withMessages(['historial' => 'Inicia la vinculación desde Mis servicios.']);
-        }
-
-        $key = $this->key($token);
+        $key = $this->key($this->sessionToken($request));
         $linked = Cache::lock($key.':lock', 30)->get(function () use ($request, $key) {
-            $phone = Cache::get($key)['phone'] ?? null;
+            $phone = Cache::get($key);
             if (! is_string($phone)) {
                 return false;
             }
@@ -91,14 +64,19 @@ class WhatsAppHistoryLink
 
             return true;
         });
+        abort_unless($linked, 404);
+    }
 
-        if (! $linked) {
-            throw ValidationException::withMessages(['historial' => 'Envía el mensaje desde WhatsApp y vuelve a intentarlo. Si el enlace venció, inicia la vinculación otra vez.']);
-        }
+    private function sessionToken(Request $request): string
+    {
+        $token = $request->session()->get(self::SESSION_KEY);
+        abort_unless(is_string($token), 404);
+
+        return $token;
     }
 
     private function key(string $token): string
     {
-        return 'whatsapp-history:'.hash('sha256', $token);
+        return 'whatsapp:history-link:'.hash('sha256', $token);
     }
 }

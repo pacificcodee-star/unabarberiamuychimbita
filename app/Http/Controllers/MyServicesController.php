@@ -24,7 +24,7 @@ class MyServicesController extends Controller
         return redirect()->route('my-services.index')->header('Referrer-Policy', 'no-referrer')->header('Cache-Control', 'private, no-store');
     }
 
-    public function index(Request $request, TurnQueueService $queue, ServiceTimeline $timeline, WhatsAppHistoryLink $historyLink)
+    public function index(Request $request, TurnQueueService $queue, ServiceTimeline $timeline)
     {
         $now = now();
         $appointments = ClientServiceAccess::owned($request, 'cita')->with(['barber', 'service', 'completionEvent'])
@@ -61,29 +61,34 @@ class MyServicesController extends Controller
         $hasHistory = $historyAppointments->isNotEmpty() || $historyTurns->isNotEmpty();
         $defaultTab = ! $hasActive && $hasHistory ? 'historial' : 'activos';
         $template = $request->header('X-Service-List') ? 'public.partials.my-services-list' : 'public.my-services';
-        $whatsAppLinked = ClientServiceAccess::whatsappPhone($request) !== null;
-        $whatsAppLinkAvailable = $template === 'public.my-services' && $historyLink->available();
-        $whatsAppChat = $whatsAppLinkAvailable && ! $whatsAppLinked ? $historyLink->chatUrl($request) : null;
 
         return response()->view($template, compact(
             'activeCitas', 'activeTurns', 'historyAppointments', 'historyTurns', 'estimates', 'hasActive', 'hasHistory', 'defaultTab',
-            'timelines', 'now', 'whatsAppLinked', 'whatsAppLinkAvailable', 'whatsAppChat'
+            'timelines', 'now'
         ))
             ->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer')->header('X-Robots-Tag', 'noindex, nofollow');
     }
 
-    public function beginWhatsAppLink(Request $request, WhatsAppHistoryLink $historyLink)
+    public function openWhatsAppLink(Request $request, string $token, WhatsAppHistoryLink $historyLink)
     {
-        $historyLink->begin($request);
+        $historyLink->stage($request, $token);
 
-        return redirect(route('my-services.index').'#historial-whatsapp');
+        return redirect()->route('my-services.whatsapp.confirm')
+            ->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer');
+    }
+
+    public function confirmWhatsAppLink(Request $request, WhatsAppHistoryLink $historyLink)
+    {
+        return response()->view('my-services.connect-whatsapp', ['maskedPhone' => $historyLink->maskedPhone($request)])
+            ->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer')->header('X-Robots-Tag', 'noindex, nofollow');
     }
 
     public function finishWhatsAppLink(Request $request, WhatsAppHistoryLink $historyLink)
     {
         $historyLink->finish($request);
 
-        return redirect()->route('my-services.index')->with('status', 'Tu historial de WhatsApp ya está vinculado en este dispositivo.');
+        return redirect()->route('my-services.index')
+            ->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer');
     }
 
     public function update(Request $request, string $type, int $id, string $action, ClientBookingActions $actions)

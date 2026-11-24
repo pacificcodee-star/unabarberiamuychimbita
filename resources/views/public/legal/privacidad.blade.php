@@ -37,7 +37,7 @@
                     <li><strong>Al reservar una cita o pedir un turno:</strong> nombre, número de celular, correo (opcional), barbero y servicio elegidos, fecha y hora, y las notas que escribas.</li>
                     <li><strong>Si aceptas los avisos por WhatsApp:</strong> tu número y los mensajes que intercambiamos sobre tu reserva.</li>
                     <li><strong>Al consultar «Mis servicios» sin cuenta:</strong> una credencial anónima que guardamos en una cookie de tu navegador. En nuestros servidores solo conservamos un hash de esa credencial, nunca el valor completo.</li>
-                    <li><strong>Si vinculas tu historial de WhatsApp:</strong> usamos un identificador temporal para comprobar el número desde el que envías el mensaje. Asociamos ese número a la credencial de este navegador para que puedas consultar tus servicios vinculados.</li>
+                    <li><strong>Si vinculas tu historial de WhatsApp:</strong> enviamos al chat un enlace temporal. Al confirmar la vinculación, asociamos el número de ese chat a la credencial del navegador para que puedas consultar tus servicios vinculados.</li>
                     <li><strong>Si activas las notificaciones del navegador:</strong> un identificador técnico de suscripción que entrega tu navegador. No incluye tu nombre.</li>
                     <li><strong>Al dejar una opinión:</strong> el nombre que escribas, la calificación y el comentario.</li>
                     <li><strong>Al navegar:</strong> datos técnicos (dirección IP, tipo de navegador y páginas visitadas). Las estadísticas de visitas solo se recogen si aceptas las cookies de analítica.</li>

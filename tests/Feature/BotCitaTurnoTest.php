@@ -117,17 +117,25 @@ class BotCitaTurnoTest extends TestCase
         $legacy = Appointment::create($past + ['client_name' => 'Cita antigua del bot', 'appointment_time' => '10:00']);
         ConsentRecord::grant($legacy, 'tratamiento_reserva', 'whatsapp_bot');
         Appointment::create($past + ['client_name' => 'Cita ajena sin vincular', 'appointment_time' => '11:00']);
-        $this->get('/mis-servicios')->assertDontSee('Cita antigua del bot')->assertSee('Reserva de la PWA');
+        $this->get('/')->assertDontSee('historial-whatsapp', false);
+        $this->get('/mis-servicios')->assertDontSee('Cita antigua del bot')->assertSee('Reserva de la PWA')
+            ->assertDontSee('Abrir WhatsApp')->assertDontSee('Actualizar mi historial')
+            ->assertDontSee('Envía el mensaje preparado')->assertDontSee('Vincular historial de WhatsApp');
 
+        $confirm = route('my-services.whatsapp.confirm');
         $finish = route('my-services.whatsapp.finish');
-        $this->post(route('my-services.whatsapp.start'))->assertRedirect();
-        $command = 'Vincular historial '.session('whatsapp_history_challenge');
-        $this->get('/mis-servicios')->assertSee(rawurlencode($command));
-        $this->post($finish)->assertSessionHasErrors('historial');
-        $this->assertStringContainsString('Confirmamos tu WhatsApp', $this->escribir($command));
+        $this->get($confirm)->assertNotFound();
+        $this->post($finish)->assertNotFound();
+        $link = $this->enlaceDeHistorial();
+        $this->get($link)->assertRedirect($confirm);
+        $this->get($confirm)->assertOk()->assertSee('Vincular este dispositivo')->assertSee('4567')->assertDontSee('573001234567');
+        $this->assertDatabaseCount('guest_credentials', 1);
+        $this->get('/mis-servicios')->assertDontSee('Cita antigua del bot');
         $linked = $this->post($finish)->assertRedirect(route('my-services.index'));
+        $this->get($link)->assertNotFound();
         $this->withCookie('mis_servicios', $linked->getCookie('mis_servicios')->getValue());
-        $this->get('/mis-servicios')->assertSee('Cita antigua del bot')->assertDontSee('Cita ajena sin vincular');
+        $this->get('/mis-servicios')->assertSee('Cita antigua del bot')->assertDontSee('Cita ajena sin vincular')
+            ->assertDontSee('Actualizar mi historial');
 
         $this->escribir(WhatsappBotService::TURN_REQUEST);
         $this->escribir('Ana turno WhatsApp');
@@ -145,12 +153,30 @@ class BotCitaTurnoTest extends TestCase
         $this->withCookie('mis_servicios', '');
         $this->get('/mis-servicios')->assertDontSee('Cita antigua del bot')->assertDontSee('Reserva de la PWA');
 
-        $this->post(route('my-services.whatsapp.start'))->assertRedirect();
-        $this->escribir('Vincular historial '.session('whatsapp_history_challenge'));
+        $this->get($this->enlaceDeHistorial())->assertRedirect($confirm);
         $other = $this->post($finish)->assertRedirect(route('my-services.index'));
         $this->withCookie('mis_servicios', $other->getCookie('mis_servicios')->getValue());
         $this->get('/mis-servicios')->assertSee('Cita antigua del bot')->assertSee('Reserva de la PWA')
             ->assertSee('Ana turno WhatsApp')->assertDontSee('Cita ajena sin vincular');
+    }
+
+    public function test_el_enlace_privado_del_historial_vence_sin_vincular_el_dispositivo(): void
+    {
+        $link = $this->enlaceDeHistorial();
+        $this->get($link)->assertRedirect(route('my-services.whatsapp.confirm'));
+        $this->travel(11)->minutes();
+
+        $this->get($link)->assertNotFound();
+        $this->post(route('my-services.whatsapp.finish'))->assertNotFound()->assertCookieMissing('mis_servicios');
+    }
+
+    private function enlaceDeHistorial(): string
+    {
+        $reply = $this->escribir('Vincular historial');
+        $this->assertStringContainsString('enlace privado', $reply);
+        $this->assertSame(1, preg_match('~https?://\S+/whatsapp/conectar/[A-Za-z0-9]{48}$~', $reply, $link));
+
+        return $link[0];
     }
 
     public function test_agendar_cita_solo_muestra_barberos_de_cita(): void
