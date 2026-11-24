@@ -50,14 +50,14 @@
 
     <div class="row g-3 mb-3">
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="blue">
                 <div class="icon"><i class="bi bi-file-earmark-text"></i></div>
                 <div class="label">Comprobantes</div>
                 <div class="value">{{ $totals['count'] }}</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="emerald">
                 <div class="icon"><i class="bi bi-cash-stack"></i></div>
                 <div class="label">Total</div>
                 <div class="value">{{ format_money($totals['total']) }}</div>

@@ -8,6 +8,15 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Panel') · {{ config('app.name') }}</title>
     @include('partials.favicon')
+    {{-- App instalable del panel (PWA): manifiesto propio, abre directo en el Panel general --}}
+    <link rel="manifest" href="{{ asset('panel.webmanifest') }}">
+    <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#121418" media="(prefers-color-scheme: dark)">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Panel Chimbita">
+    <link rel="apple-touch-icon" href="{{ asset('icons/apple-touch-icon.png') }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -78,32 +87,22 @@
             color: inherit; text-decoration: none; transition: background-color .15s ease;
         }
         .nt-item + .nt-item { border-top: 1px solid var(--bs-border-color); }
-        a.nt-item:hover { background: rgba(160, 46, 37, .05); color: inherit; }
+        a.nt-item:hover { background: var(--ui-surface-2); color: inherit; }
         .nt-ico { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; font-size: 1.05rem; }
         .nt-text { min-width: 0; flex: 1; display: grid; gap: 2px; }
         .nt-text strong { font-size: .86rem; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
         .nt-text span { font-size: .8rem; line-height: 1.4; color: var(--bs-secondary-color); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .nt-text time { font-size: .72rem; color: var(--bs-secondary-color); opacity: .85; margin-top: 2px; }
         .nt-item.is-unread strong { color: var(--bs-emphasis-color); }
-        .nt-item.is-unread::after { content: ''; position: absolute; top: 50%; right: 16px; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 3px rgba(160, 46, 37, .15); }
+        .nt-item.is-unread::after { content: ''; position: absolute; top: 50%; right: 16px; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; background: var(--c-brand); box-shadow: 0 0 0 3px var(--c-brand-soft); }
 
-        .tone-green   { background: rgba(31, 138, 91, .12);  color: #1a7a50; }
-        .tone-blue    { background: rgba(32, 107, 196, .12); color: #1f5fa8; }
-        .tone-amber   { background: rgba(196, 135, 24, .15); color: #96600a; }
-        .tone-red     { background: rgba(192, 57, 43, .12);  color: #b03a2e; }
-        .tone-brand   { background: rgba(160, 46, 37, .12);  color: var(--gold); }
-        .tone-neutral { background: rgba(127, 127, 127, .14); color: var(--bs-secondary-color); }
-        html.admin-dark .tone-green { color: #62d3a0; }
-        html.admin-dark .tone-blue { color: #7fb2ef; }
-        html.admin-dark .tone-amber { color: #f0b54e; }
-        html.admin-dark .tone-red, html.admin-dark .tone-brand { color: #f08a7e; }
 
         .nt-empty { display: grid; justify-items: center; gap: 6px; padding: 38px 24px; text-align: center; color: var(--bs-secondary-color); }
         .nt-empty .nt-ico { width: 52px; height: 52px; border-radius: 16px; font-size: 1.4rem; margin-bottom: 6px; }
         .nt-empty strong { color: var(--bs-body-color); font-size: .92rem; }
         .nt-empty p { margin: 0; max-width: 30ch; font-size: .8rem; line-height: 1.45; }
         .nt-foot { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 12px; border-top: 1px solid var(--bs-border-color); color: var(--gold); font-size: .82rem; font-weight: 700; text-decoration: none; }
-        .nt-foot:hover { background: rgba(160, 46, 37, .05); color: var(--gold-ink); }
+        .nt-foot:hover { background: var(--ui-surface-2); color: var(--gold-ink); }
         html.admin-dark .nt-foot, html.admin-dark .nt-foot:hover { color: #f08a7e; }
 
         /* En el teléfono la campana se abre como hoja inferior: así nunca se sale de la pantalla. */
@@ -127,7 +126,34 @@
     @stack('styles')
     @include('partials.speculation-rules')
 </head>
-<body class="{{ request()->boolean('embed') ? 'is-embed' : '' }}">
+@php
+    // Color e icono de cada sección del panel (mismos tonos que los grupos del menú lateral).
+    $pageSections = [
+        'dashboard' => ['brand', 'bi-grid-1x2'],
+        'appointments.*' => ['blue', 'bi-calendar2-check'],
+        'turns.*' => ['blue', 'bi-list-ol'],
+        'sales.*' => ['emerald', 'bi-receipt'],
+        'pos.*' => ['emerald', 'bi-shop'],
+        'invoices.*' => ['emerald', 'bi-file-earmark-text'],
+        'cash.*' => ['emerald', 'bi-safe2'],
+        'services.*' => ['amber', 'bi-scissors'],
+        'supplies.*' => ['amber', 'bi-box-seam'],
+        'barbers.*' => ['violet', 'bi-people'],
+        'availability.*' => ['violet', 'bi-calendar2-x'],
+        'commissions.*' => ['violet', 'bi-wallet2'],
+        'surveys.*' => ['rose', 'bi-star-half'],
+        'expenses.*' => ['teal', 'bi-cash-stack'],
+        'reports.*' => ['teal', 'bi-bar-chart-line'],
+        'whatsapp.*' => ['slate', 'bi-whatsapp'],
+        'site-settings.*' => ['slate', 'bi-gear'],
+        'staff-notifications.*' => ['brand', 'bi-bell'],
+    ];
+    [$pageTone, $pageIcon] = ['brand', 'bi-grid-1x2'];
+    foreach ($pageSections as $pattern => $section) {
+        if (request()->routeIs($pattern)) { [$pageTone, $pageIcon] = $section; break; }
+    }
+@endphp
+<body class="{{ request()->boolean('embed') ? 'is-embed' : '' }}" data-tone="{{ $pageTone }}">
 @if(request()->boolean('embed'))
 <style>
     /* Vista dentro de una ventana emergente del mismo panel: sin menú lateral ni barra superior */
@@ -143,6 +169,7 @@
         <div class="topbar">
             <div class="topbar-title">
                 <x-sidebar.open-button class="btn btn-icon mobile-nav-toggle" />
+                <span class="page-icon" aria-hidden="true"><i class="bi {{ $pageIcon }}"></i></span>
                 <div>
                     <h1>@yield('title', 'Panel')</h1>
                     <div class="date">{{ now()->locale('es')->translatedFormat('l, d \d\e F \d\e Y') }}</div>
@@ -249,6 +276,13 @@
 <script src="{{ asset('vendor/sidebar/js/sidebar.js') }}?v={{ @filemtime(public_path('vendor/sidebar/js/sidebar.js')) }}"></script>
 <script src="{{ asset('js/chime.js') }}?v={{ @filemtime(public_path('js/chime.js')) }}"></script>
 <script>
+    // Color de la sección actual (paleta del panel) para las gráficas: panelTone() o panelTone(.12) con transparencia.
+    window.panelTone = function (alpha) {
+        var hex = getComputedStyle(document.body).getPropertyValue('--tone').trim() || '#b32533';
+        if (alpha === undefined || hex.charAt(0) !== '#') return hex;
+        var n = parseInt(hex.slice(1), 16);
+        return 'rgba(' + (n >> 16 & 255) + ', ' + (n >> 8 & 255) + ', ' + (n & 255) + ', ' + alpha + ')';
+    };
     // Gráficas y modo oscuro: colores de texto y líneas según el tema, también al cambiarlo.
     (function () {
         if (!window.Chart) return;
@@ -450,6 +484,7 @@
 })();
 </script>
 <script src="{{ asset('js/staff-push.js') }}?v={{ @filemtime(public_path('js/staff-push.js')) }}"></script>
+<script src="{{ asset('js/panel-pwa.js') }}?v={{ @filemtime(public_path('js/panel-pwa.js')) }}" defer></script>
 @if(request()->routeIs('dashboard', 'turns.index', 'appointments.index'))
     <script src="{{ asset('js/booking-panels.js') }}?v={{ filemtime(public_path('js/booking-panels.js')) }}"></script>
 @endif

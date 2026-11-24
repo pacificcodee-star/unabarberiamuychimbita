@@ -47,7 +47,7 @@
     {{-- Resumen del período --}}
     <div class="row g-3 mb-4">
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="blue">
                 <div class="icon"><i class="bi bi-scissors"></i></div>
                 <div class="label">Producción por servicios</div>
                 <div class="value">{{ format_money($earnedServices) }}</div>
@@ -55,7 +55,7 @@
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="amber">
                 <div class="icon"><i class="bi bi-box-seam"></i></div>
                 <div class="label">+ Producción por insumos</div>
                 <div class="value">{{ format_money($earnedSupplies) }}</div>
@@ -63,7 +63,7 @@
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="violet">
                 <div class="icon"><i class="bi bi-calculator"></i></div>
                 <div class="label">= Total acumulado en el período</div>
                 <div class="value">{{ format_money($totalEarned) }}</div>
@@ -71,7 +71,7 @@
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card tone-warning">
+            <div class="card stat-card" data-tone="rose">
                 <div class="icon"><i class="bi bi-hourglass-split"></i></div>
                 <div class="label">Saldo pendiente total</div>
                 <div class="value {{ $pendingAll > 0 ? 'text-danger' : 'text-success' }}">{{ format_money($pendingAll) }}</div>

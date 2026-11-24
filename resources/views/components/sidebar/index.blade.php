@@ -37,12 +37,12 @@
         <p class="sidebar-search-empty" data-sidebar-empty hidden>Sin resultados</p>
 
         <ul class="menu-sections">
-            <x-sidebar.section title="Inicio">
+            <x-sidebar.section title="Inicio" tone="brand">
                 <x-sidebar.item route="dashboard" icon="bi bi-grid-1x2" label="Panel" />
             </x-sidebar.section>
 
             @if($showAppointments || $showTurns)
-                <x-sidebar.section title="Agenda">
+                <x-sidebar.section title="Agenda" tone="blue">
                     @if($showAppointments)
                         <x-sidebar.item route="appointments.index" active="appointments.*" icon="bi bi-calendar2-check" label="Citas" />
                     @endif
@@ -52,7 +52,7 @@
                 </x-sidebar.section>
             @endif
 
-            <x-sidebar.section title="Ventas">
+            <x-sidebar.section title="Ventas" tone="emerald">
                 <x-sidebar.item route="sales.index" active="sales.*" icon="bi bi-receipt" label="Ventas y servicios" />
                 @if($isAdmin)
                     <x-sidebar.item route="pos.index" active="pos.*" icon="bi bi-shop" label="Venta POS" />
@@ -62,27 +62,27 @@
             </x-sidebar.section>
 
             @if($isAdmin)
-                <x-sidebar.section title="Catálogo">
+                <x-sidebar.section title="Catálogo" tone="amber">
                     <x-sidebar.item route="services.index" active="services.*" icon="bi bi-scissors" label="Servicios" />
                     <x-sidebar.item route="supplies.index" active="supplies.*" icon="bi bi-box-seam" label="Insumos" />
                 </x-sidebar.section>
 
-                <x-sidebar.section title="Personal">
+                <x-sidebar.section title="Personal" tone="violet">
                     <x-sidebar.item route="barbers.index" active="barbers.*" icon="bi bi-people" label="Barberos" />
                     <x-sidebar.item route="availability.index" active="availability.*" icon="bi bi-calendar2-x" label="Disponibilidad" />
                     <x-sidebar.item route="commissions.index" active="commissions.*" icon="bi bi-wallet2" label="Nómina" />
                 </x-sidebar.section>
 
-                <x-sidebar.section title="Clientes">
+                <x-sidebar.section title="Clientes" tone="rose">
                     <x-sidebar.item route="surveys.index" active="surveys.*" icon="bi bi-star-half" label="Satisfacción y opiniones" />
                 </x-sidebar.section>
 
-                <x-sidebar.section title="Finanzas y reportes">
+                <x-sidebar.section title="Finanzas y reportes" tone="teal">
                     <x-sidebar.item route="expenses.index" active="expenses.*" icon="bi bi-cash-stack" label="Gastos" />
                     <x-sidebar.item route="reports.index" active="reports.*" icon="bi bi-bar-chart-line" label="Informes" />
                 </x-sidebar.section>
 
-                <x-sidebar.section title="Configuración">
+                <x-sidebar.section title="Configuración" tone="slate">
                     @php($waUnread = \App\Models\WhatsAppConversation::unreadTotal())
                     <x-sidebar.item route="whatsapp.index" active="whatsapp.*" icon="bi bi-whatsapp" label="WhatsApp" :badge="$waUnread ?: null" />
                     <x-sidebar.item route="site-settings.edit" active="site-settings.*" icon="bi bi-gear" label="Configuración del negocio" />
@@ -101,9 +101,9 @@
         </div>
 
         <div class="sidebar-tools">
-            <a href="{{ route('landing') }}" class="sidebar-icon-btn" title="Ver página principal" aria-label="Ver página principal">
-                <i class="bi bi-globe2" aria-hidden="true"></i>
-            </a>
+            <button type="button" class="sidebar-icon-btn is-install" data-pwa-install hidden title="Instalar el panel como app" aria-label="Instalar el panel como app">
+                <i class="bi bi-download" aria-hidden="true"></i>
+            </button>
             <button type="button" class="sidebar-icon-btn button-change-theme" aria-pressed="false" title="Cambiar a modo oscuro" aria-label="Cambiar a modo oscuro">
                 <span class="icon-theme"><i class="bi bi-moon-stars" aria-hidden="true"></i></span>
             </button>

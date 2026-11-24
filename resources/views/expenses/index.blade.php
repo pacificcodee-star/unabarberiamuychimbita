@@ -43,7 +43,7 @@
 
     <div class="row g-3">
         <div class="col-6 col-xl-3">
-            <div class="card stat-card tone-danger">
+            <div class="card stat-card" data-tone="red">
                 <div class="icon"><i class="bi bi-wallet2"></i></div>
                 <div class="label">Total de gastos filtrados</div>
                 <div class="value">{{ format_money($total) }}</div>

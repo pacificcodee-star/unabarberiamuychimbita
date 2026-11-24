@@ -49,19 +49,19 @@
     @php
         $fmt = fn ($v, $suffix = '') => $v === null ? '—' : ($suffix === '%' ? number_format($v, 0, ',', '.').'%' : number_format($v, 1, ',', '.').$suffix);
         $kpis = [
-            ['Calificación promedio', $summary['avg_experience'] === null ? '—' : $fmt($summary['avg_experience']).' / 5', $summary['rated'] ? 'Con '.$summary['rated'].' respuestas' : 'Aún sin respuestas', 'bi-star'],
-            ['Atención del barbero', $summary['avg_barber'] === null ? '—' : $fmt($summary['avg_barber']).' / 5', '', 'bi-person-check'],
-            ['Encuestas respondidas', $summary['completed'], $summary['sent'] ? 'de '.$summary['sent'].' enviadas' : 'Ninguna enviada aún', 'bi-clipboard-check'],
-            ['Tasa de respuesta', $fmt($summary['response_rate'], '%'), $summary['pending'].' pendientes', 'bi-reply'],
-            ['Recomendarían', $fmt($summary['recommend_rate'], '%'), '', 'bi-hand-thumbs-up'],
-            ['Opiniones públicas', $summary['public_reviews'], $summary['in_review'] ? $summary['in_review'].' en revisión' : '', 'bi-chat-quote'],
-            ['Requieren atención', $summary['needs_attention'], 'Calificación baja o expectativa no cumplida', 'bi-exclamation-triangle'],
+            ['Calificación promedio', $summary['avg_experience'] === null ? '—' : $fmt($summary['avg_experience']).' / 5', $summary['rated'] ? 'Con '.$summary['rated'].' respuestas' : 'Aún sin respuestas', 'bi-star', 'amber'],
+            ['Atención del barbero', $summary['avg_barber'] === null ? '—' : $fmt($summary['avg_barber']).' / 5', '', 'bi-person-check', 'violet'],
+            ['Encuestas respondidas', $summary['completed'], $summary['sent'] ? 'de '.$summary['sent'].' enviadas' : 'Ninguna enviada aún', 'bi-clipboard-check', 'blue'],
+            ['Tasa de respuesta', $fmt($summary['response_rate'], '%'), $summary['pending'].' pendientes', 'bi-reply', 'teal'],
+            ['Recomendarían', $fmt($summary['recommend_rate'], '%'), '', 'bi-hand-thumbs-up', 'emerald'],
+            ['Opiniones públicas', $summary['public_reviews'], $summary['in_review'] ? $summary['in_review'].' en revisión' : '', 'bi-chat-quote', 'rose'],
+            ['Requieren atención', $summary['needs_attention'], 'Calificación baja o expectativa no cumplida', 'bi-exclamation-triangle', 'red'],
         ];
     @endphp
     <div class="row g-3 mb-3">
-        @foreach($kpis as [$label, $value, $hint, $icon])
+        @foreach($kpis as [$label, $value, $hint, $icon, $tone])
             <div class="col-6 col-xl-3">
-                <div class="card stat-card {{ $label === 'Requieren atención' && $value ? 'tone-danger' : '' }}">
+                <div class="card stat-card" data-tone="{{ $tone }}">
                     <div class="icon"><i class="bi {{ $icon }}" aria-hidden="true"></i></div>
                     <div class="label">{{ $label }}</div>
                     <div class="value">{{ $value }}</div>

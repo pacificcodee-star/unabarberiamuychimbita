@@ -9,13 +9,13 @@
 @section('content')
     <div class="row g-3 mb-3">
         <div class="col-6 col-md-4">
-            <div class="card stat-card"><div class="icon"><i class="bi bi-box-seam"></i></div><div class="label">Productos</div><div class="value">{{ $stats['count'] }}</div></div>
+            <div class="card stat-card" data-tone="blue"><div class="icon"><i class="bi bi-box-seam"></i></div><div class="label">Productos</div><div class="value">{{ $stats['count'] }}</div></div>
         </div>
         <div class="col-6 col-md-4">
-            <div class="card stat-card"><div class="icon"><i class="bi bi-stack"></i></div><div class="label">Unidades en stock</div><div class="value">{{ $stats['stock'] }}</div></div>
+            <div class="card stat-card" data-tone="teal"><div class="icon"><i class="bi bi-stack"></i></div><div class="label">Unidades en stock</div><div class="value">{{ $stats['stock'] }}</div></div>
         </div>
         <div class="col-6 col-md-4">
-            <div class="card stat-card tone-danger"><div class="icon"><i class="bi bi-exclamation-triangle"></i></div><div class="label">Stock bajo</div><div class="value {{ $stats['low'] > 0 ? 'text-danger' : '' }}">{{ $stats['low'] }}</div></div>
+            <div class="card stat-card" data-tone="red"><div class="icon"><i class="bi bi-exclamation-triangle"></i></div><div class="label">Stock bajo</div><div class="value {{ $stats['low'] > 0 ? 'text-danger' : '' }}">{{ $stats['low'] }}</div></div>
         </div>
     </div>
 

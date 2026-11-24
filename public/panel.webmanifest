@@ -1,0 +1,28 @@
+{
+  "name": "Panel · Una Barberia Muy Chimbita",
+  "short_name": "Panel Chimbita",
+  "description": "Panel administrativo de Una Barberia Muy Chimbita: citas, turnos, ventas, caja y nómina.",
+  "lang": "es-CO",
+  "id": "/dashboard",
+  "start_url": "/dashboard?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#f3f1ed",
+  "theme_color": "#f3f1ed",
+  "categories": ["business", "productivity"],
+  "prefer_related_applications": false,
+  "launch_handler": { "client_mode": "focus-existing" },
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Tomar servicio", "short_name": "Servicio", "url": "/sales/create?source=pwa", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Citas", "url": "/appointments?source=pwa", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Turnos", "url": "/turns?source=pwa", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Caja", "url": "/cash?source=pwa", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

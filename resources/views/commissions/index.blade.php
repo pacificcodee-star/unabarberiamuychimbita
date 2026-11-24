@@ -5,28 +5,28 @@
 @section('content')
     <div class="row g-3 mb-4">
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="blue">
                 <div class="icon"><i class="bi bi-scissors"></i></div>
                 <div class="label">Producción por servicios</div>
                 <div class="value">{{ format_money($totalCommissions) }}</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="amber">
                 <div class="icon"><i class="bi bi-box-seam"></i></div>
                 <div class="label">+ Producción por insumos</div>
                 <div class="value">{{ format_money($totalSupplies) }}</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card tone-success">
+            <div class="card stat-card" data-tone="emerald">
                 <div class="icon"><i class="bi bi-check2-circle"></i></div>
                 <div class="label">− Abonado</div>
                 <div class="value text-success">{{ format_money($totalPaid) }}</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card tone-warning">
+            <div class="card stat-card" data-tone="rose">
                 <div class="icon"><i class="bi bi-hourglass-split"></i></div>
                 <div class="label">= Pendiente</div>
                 <div class="value">{{ format_money($totalPending) }}</div>

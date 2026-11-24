@@ -81,14 +81,14 @@
     </div>
     <div class="row g-3 mb-3">
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="emerald">
                 <div class="icon"><i class="bi bi-cash-coin"></i></div>
                 <div class="label">Ingresos</div>
                 <div class="value">{{ format_money($totals['total']) }}</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="blue">
                 <div class="icon"><i class="bi bi-scissors"></i></div>
                 <div class="label">Servicios realizados</div>
                 <div class="value">{{ $totals['services'] }}</div>
@@ -96,7 +96,7 @@
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="violet">
                 <div class="icon"><i class="bi bi-person-badge"></i></div>
                 <div class="label">Nómina por servicios</div>
                 <div class="value">{{ format_money($totals['commission']) }}</div>
@@ -104,7 +104,7 @@
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card tone-success">
+            <div class="card stat-card" data-tone="teal">
                 <div class="icon"><i class="bi bi-piggy-bank"></i></div>
                 <div class="label">Queda para el negocio</div>
                 <div class="value">{{ format_money($totals['total'] - $totals['commission']) }}</div>

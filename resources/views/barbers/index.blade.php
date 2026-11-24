@@ -49,7 +49,7 @@
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 @if($user->photo_path)
-                                    <img src="{{ asset('storage/'.$user->photo_path) }}" alt="Foto de {{ $user->name }}" class="admin-barber-thumb" width="40" height="40" style="width:40px;height:40px;min-width:40px;border-radius:50%;object-fit:cover;object-position:center top;border:2px solid #e3c27a;background:#211f1a" loading="lazy">
+                                    <img src="{{ asset('storage/'.$user->photo_path) }}" alt="Foto de {{ $user->name }}" class="admin-barber-thumb" width="40" height="40" style="width:40px;height:40px;min-width:40px;border-radius:50%;object-fit:cover;object-position:center top;border:2px solid var(--c-violet-soft);background:var(--ui-surface-3)" loading="lazy">
                                 @else
                                     <div class="avatar" style="width: 40px; height: 40px; min-width: 40px; font-size: .85rem;">{{ strtoupper(substr($user->name, 0, 1)) }}</div>
                                 @endif

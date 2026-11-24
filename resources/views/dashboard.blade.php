@@ -18,7 +18,7 @@
 @section('content')
     <div class="row g-3 mb-4">
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="emerald">
                 <div class="icon"><i class="bi bi-cash-coin"></i></div>
                 <div class="label">Ventas de hoy</div>
                 <div class="value">{{ format_money($salesTotal) }}</div>
@@ -26,7 +26,7 @@
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="blue">
                 <div class="icon"><i class="bi bi-scissors"></i></div>
                 <div class="label">Servicios realizados</div>
                 <div class="value">{{ $servicesCount }}</div>
@@ -35,7 +35,7 @@
         </div>
         @if($isAdmin)
             <div class="col-6 col-xl-3">
-                <div class="card stat-card">
+                <div class="card stat-card" data-tone="red">
                     <div class="icon"><i class="bi bi-wallet2"></i></div>
                     <div class="label">Gastos de hoy</div>
                     <div class="value">{{ format_money($expensesToday) }}</div>
@@ -43,7 +43,7 @@
                 </div>
             </div>
             <div class="col-6 col-xl-3">
-                <div class="card stat-card">
+                <div class="card stat-card" data-tone="violet">
                     <div class="icon"><i class="bi bi-graph-up-arrow"></i></div>
                     <div class="label">Ganancia aproximada</div>
                     <div class="value">{{ format_money($profitToday) }}</div>
@@ -52,7 +52,7 @@
             </div>
         @else
             <div class="col-6 col-xl-3">
-                <div class="card stat-card">
+                <div class="card stat-card" data-tone="violet">
                     <div class="icon"><i class="bi bi-percent"></i></div>
                     <div class="label">Comisión de hoy</div>
                     <div class="value">{{ format_money($commissionsToday) }}</div>
@@ -60,7 +60,7 @@
                 </div>
             </div>
             <div class="col-6 col-xl-3">
-                <div class="card stat-card">
+                <div class="card stat-card" data-tone="amber">
                     <div class="icon"><i class="bi bi-hourglass-split"></i></div>
                     <div class="label">Nómina por pagar</div>
                     <div class="value">{{ format_money($pendingCommissions) }}</div>
@@ -240,14 +240,14 @@
                     datasets: [{
                         label: 'Ventas',
                         data: @json($chartSales->pluck('total')),
-                        borderColor: '#b32533',
-                        backgroundColor: 'rgba(179, 37, 51, .10)',
+                        borderColor: panelTone(),
+                        backgroundColor: panelTone(.10),
                         borderWidth: 2.5,
                         fill: true,
                         tension: .35,
                         pointRadius: 4,
                         pointHoverRadius: 6,
-                        pointBackgroundColor: '#b32533',
+                        pointBackgroundColor: panelTone(),
                         pointBorderColor: '#fff',
                         pointBorderWidth: 2,
                     }]

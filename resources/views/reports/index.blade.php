@@ -58,7 +58,7 @@
 
     <div class="row g-3 mb-4">
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="emerald">
                 <div class="icon"><i class="bi bi-cash-coin"></i></div>
                 <div class="label">Ingresos totales</div>
                 <div class="value">{{ format_money($totalSales) }}</div>
@@ -66,7 +66,7 @@
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card tone-danger">
+            <div class="card stat-card" data-tone="red">
                 <div class="icon"><i class="bi bi-wallet2"></i></div>
                 <div class="label">Gastos</div>
                 <div class="value text-danger">{{ format_money($totalExpenses) }}</div>
@@ -74,7 +74,7 @@
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card">
+            <div class="card stat-card" data-tone="violet">
                 <div class="icon"><i class="bi bi-person-badge"></i></div>
                 <div class="label">Nómina generada</div>
                 <div class="value">{{ format_money($totalCommissions + $totalSupplies) }}</div>
@@ -82,7 +82,7 @@
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card tone-success">
+            <div class="card stat-card" data-tone="teal">
                 <div class="icon"><i class="bi bi-graph-up-arrow"></i></div>
                 <div class="label">Ganancia neta</div>
                 <div class="value {{ $profit >= 0 ? 'text-success' : 'text-danger' }}">{{ format_money($profit) }}</div>
@@ -248,12 +248,12 @@
                     datasets: [{
                         label: 'Ingresos',
                         data: @json($dailySales->pluck('total')->map(fn ($value) => (float) $value)->values()),
-                        borderColor: '#a02e25',
-                        backgroundColor: 'rgba(160, 46, 37, .12)',
+                        borderColor: panelTone(),
+                        backgroundColor: panelTone(.12),
                         fill: true,
                         tension: .35,
-                        pointBackgroundColor: '#161616',
-                        pointBorderColor: '#a02e25',
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: panelTone(),
                         pointRadius: 4,
                     }]
                 },

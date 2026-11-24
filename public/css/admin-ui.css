@@ -1299,3 +1299,207 @@ html:not(.sidebar-preload) .sidebar { transition: background-color .25s ease, bo
     .card { box-shadow: none; }
     .receipt { border: none; max-width: 100%; box-shadow: none; }
 }
+
+/* =====================================================================
+   18. Paleta por secciones
+   Cada grupo del menú tiene un color que se repite en su página: icono
+   del título, fichas de las tarjetas e indicadores. Los indicadores
+   llevan además el color de lo que miden (ingresos verde, gastos rojo…).
+   ===================================================================== */
+:root {
+    --c-brand: #b32533;   --c-brand-soft: #fbeaec;
+    --c-blue: #2563eb;    --c-blue-soft: #e7eefe;
+    --c-emerald: #0b8a5e; --c-emerald-soft: #e1f4ec;
+    --c-amber: #b86e00;   --c-amber-soft: #fcf0d9;
+    --c-violet: #7445e0;  --c-violet-soft: #efe9fd;
+    --c-rose: #d0306f;    --c-rose-soft: #fce8f0;
+    --c-teal: #0a8582;    --c-teal-soft: #dff3f2;
+    --c-slate: #4a5768;   --c-slate-soft: #e9ecf0;
+    --c-red: #c4362b;     --c-red-soft: #fbe9e7;
+    --tone: var(--c-brand);
+    --tone-soft: var(--c-brand-soft);
+
+    /* Fondo con un toque de color (muy suave) */
+    --ui-bg: #f3f1ed;
+    --ui-glow-1: rgba(37, 99, 235, .06);
+    --ui-glow-2: rgba(179, 37, 51, .05);
+}
+html.admin-dark {
+    --c-brand: #f27a7f;   --c-brand-soft: rgba(242, 122, 127, .15);
+    --c-blue: #7ea6ff;    --c-blue-soft: rgba(126, 166, 255, .15);
+    --c-emerald: #4fd39e; --c-emerald-soft: rgba(79, 211, 158, .14);
+    --c-amber: #f5b84f;   --c-amber-soft: rgba(245, 184, 79, .14);
+    --c-violet: #b597ff;  --c-violet-soft: rgba(181, 151, 255, .15);
+    --c-rose: #f581b3;    --c-rose-soft: rgba(245, 129, 179, .14);
+    --c-teal: #4fd2cb;    --c-teal-soft: rgba(79, 210, 203, .14);
+    --c-slate: #a8b4c4;   --c-slate-soft: rgba(168, 180, 196, .14);
+    --c-red: #f3877c;     --c-red-soft: rgba(243, 135, 124, .14);
+    --ui-glow-1: rgba(126, 166, 255, .06);
+    --ui-glow-2: rgba(242, 122, 127, .05);
+}
+
+[data-tone="brand"]   { --tone: var(--c-brand);   --tone-soft: var(--c-brand-soft); }
+[data-tone="blue"]    { --tone: var(--c-blue);    --tone-soft: var(--c-blue-soft); }
+[data-tone="emerald"] { --tone: var(--c-emerald); --tone-soft: var(--c-emerald-soft); }
+[data-tone="amber"]   { --tone: var(--c-amber);   --tone-soft: var(--c-amber-soft); }
+[data-tone="violet"]  { --tone: var(--c-violet);  --tone-soft: var(--c-violet-soft); }
+[data-tone="rose"]    { --tone: var(--c-rose);    --tone-soft: var(--c-rose-soft); }
+[data-tone="teal"]    { --tone: var(--c-teal);    --tone-soft: var(--c-teal-soft); }
+[data-tone="slate"]   { --tone: var(--c-slate);   --tone-soft: var(--c-slate-soft); }
+
+/* Fondo de la página: dos halos de color muy suaves */
+body, .main-content {
+    background:
+        radial-gradient(1200px 520px at 100% -10%, var(--ui-glow-1), transparent 60%),
+        radial-gradient(900px 480px at 20% -20%, var(--ui-glow-2), transparent 60%),
+        var(--ui-bg);
+    background-attachment: fixed;
+}
+
+/* Barra superior: icono de la página en el color de su sección */
+.page-icon {
+    flex: none;
+    display: grid; place-items: center;
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(140deg, color-mix(in srgb, var(--tone) 92%, #fff), color-mix(in srgb, var(--tone) 78%, #000));
+    color: #fff;
+    font-size: 1.2rem;
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--tone) 30%, transparent), inset 0 1px 0 rgba(255, 255, 255, .25);
+}
+html.admin-dark .page-icon { color: #111; }
+
+/* Fichas de icono en los títulos de las tarjetas: color de la sección */
+.card-header > i.bi:first-child,
+.card-header > :first-child > i.bi:first-child,
+.card-header > :first-child > :first-child > i.bi:first-child:only-child {
+    background: var(--tone-soft);
+    color: var(--tone) !important;
+}
+
+/* Menú lateral: cada grupo con su color */
+.menu-section-title { display: flex; align-items: center; gap: 8px; }
+.menu-section-title::before {
+    content: '';
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--tone);
+    box-shadow: 0 0 0 3px var(--tone-soft);
+}
+.sidebar.close .menu-section-title::before { display: none; }
+.menu-link i { color: var(--tone); opacity: .8; }
+.menu-link:hover i { color: var(--tone); opacity: 1; }
+.menu-link.active { background: var(--tone-soft); color: var(--ui-text); }
+.menu-link.active i { color: var(--tone); opacity: 1; }
+.menu-link.active::before { background: var(--tone); }
+.sidebar-user-avatar { background: linear-gradient(140deg, var(--c-brand), var(--c-violet)); color: #fff; }
+.sidebar-icon-btn.is-install { color: var(--c-emerald); background: var(--c-emerald-soft); }
+.sidebar-icon-btn.is-install:hover { color: #fff; background: var(--c-emerald); }
+
+/* Indicadores: franja superior, halo y ficha en el color de lo que miden */
+.stat-card { --tone: var(--c-blue); --tone-soft: var(--c-blue-soft); }
+.stat-card.tone-success, .stat-card[data-tone="emerald"] { --tone: var(--c-emerald); --tone-soft: var(--c-emerald-soft); }
+.stat-card.tone-danger, .stat-card[data-tone="red"] { --tone: var(--c-red); --tone-soft: var(--c-red-soft); }
+.stat-card.tone-warning, .stat-card[data-tone="amber"] { --tone: var(--c-amber); --tone-soft: var(--c-amber-soft); }
+.stat-card.tone-info { --tone: var(--c-blue); --tone-soft: var(--c-blue-soft); }
+.stat-card {
+    border-color: color-mix(in srgb, var(--tone) 20%, var(--ui-border));
+    background:
+        radial-gradient(260px 160px at 100% 0%, color-mix(in srgb, var(--tone) 18%, transparent), transparent 70%),
+        linear-gradient(160deg, color-mix(in srgb, var(--tone) 10%, var(--ui-surface)), color-mix(in srgb, var(--tone) 3%, var(--ui-surface)));
+}
+.stat-card .label { color: color-mix(in srgb, var(--tone) 70%, var(--ui-text)); }
+.stat-card .hint { color: color-mix(in srgb, var(--tone) 35%, var(--ui-text-3)); }
+.stat-card .icon,
+.stat-card.tone-success .icon, .stat-card.tone-danger .icon,
+.stat-card.tone-warning .icon, .stat-card.tone-info .icon {
+    background: var(--tone) !important;
+    color: #fff !important;
+    box-shadow: 0 6px 14px color-mix(in srgb, var(--tone) 28%, transparent);
+}
+html.admin-dark .stat-card .icon { color: #111 !important; }
+.stat-card:hover { border-color: color-mix(in srgb, var(--tone) 40%, var(--ui-border)); }
+
+/* Fichas pequeñas y franjas de estado */
+.mini-stat {
+    border-color: color-mix(in srgb, var(--tone) 20%, var(--ui-border));
+    background: linear-gradient(160deg, color-mix(in srgb, var(--tone) 9%, var(--ui-surface)), color-mix(in srgb, var(--tone) 3%, var(--ui-surface)));
+}
+.mini-stat-label { color: color-mix(in srgb, var(--tone) 65%, var(--ui-text)); }
+.status-chip { --chip: var(--ui-text-3); border-color: color-mix(in srgb, var(--chip) 22%, var(--ui-border)); background: linear-gradient(160deg, color-mix(in srgb, var(--chip) 11%, var(--ui-surface)), color-mix(in srgb, var(--chip) 3%, var(--ui-surface))); color: color-mix(in srgb, var(--chip) 70%, var(--ui-text)); }
+.status-chip:has(.badge-soft.gold) { --chip: var(--c-amber); }
+.status-chip:has(.badge-soft.blue) { --chip: var(--c-blue); }
+.status-chip:has(.badge-soft.green) { --chip: var(--c-emerald); }
+.status-chip:has(.badge-soft.red) { --chip: var(--c-red); }
+.status-chip .badge-soft { background: var(--chip); color: #fff; }
+html.admin-dark .status-chip .badge-soft { color: #111; }
+
+/* Insignias con color propio */
+.badge-soft.gold, .badge-soft.brand { background: var(--c-amber-soft); color: var(--c-amber); }
+.badge-soft.blue { background: var(--c-blue-soft); color: var(--c-blue); }
+.badge-soft.green { background: var(--c-emerald-soft); color: var(--c-emerald); }
+.badge-soft.red { background: var(--c-red-soft); color: var(--c-red); }
+.agenda-time { background: var(--tone-soft); color: var(--tone); }
+
+/* Tablas: cabecera con un velo del color de la sección */
+.table thead th,
+.table thead.table-light th,
+.table-light > tr > th { background: color-mix(in srgb, var(--tone) 5%, var(--ui-surface-2)); }
+
+/* Controles: el foco usa el color de la sección */
+.form-control:focus, .form-select:focus {
+    border-color: var(--tone);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 18%, transparent);
+}
+.segmented > .is-active, .segmented > .active { color: var(--tone); }
+.nav-pills .nav-link.active { background: var(--tone); color: #fff; }
+html.admin-dark .nav-pills .nav-link.active { color: #111; }
+.nav-tabs .nav-link.active { border-bottom-color: var(--tone); }
+.empty-state > i, .empty-state > .bi { background: var(--tone-soft) !important; color: var(--tone) !important; }
+
+/* Acción principal: latón con un leve degradado */
+.btn-gold, .btn-gold:focus, .btn-primary {
+    background: linear-gradient(180deg, #c49d33, var(--ui-action));
+}
+.stat-card[data-tone="brand"]   { --tone: var(--c-brand);   --tone-soft: var(--c-brand-soft); }
+.stat-card[data-tone="blue"]    { --tone: var(--c-blue);    --tone-soft: var(--c-blue-soft); }
+.stat-card[data-tone="emerald"] { --tone: var(--c-emerald); --tone-soft: var(--c-emerald-soft); }
+.stat-card[data-tone="amber"]   { --tone: var(--c-amber);   --tone-soft: var(--c-amber-soft); }
+.stat-card[data-tone="violet"]  { --tone: var(--c-violet);  --tone-soft: var(--c-violet-soft); }
+.stat-card[data-tone="rose"]    { --tone: var(--c-rose);    --tone-soft: var(--c-rose-soft); }
+.stat-card[data-tone="teal"]    { --tone: var(--c-teal);    --tone-soft: var(--c-teal-soft); }
+.stat-card[data-tone="slate"]   { --tone: var(--c-slate);   --tone-soft: var(--c-slate-soft); }
+.stat-card[data-tone="red"]     { --tone: var(--c-red);     --tone-soft: var(--c-red-soft); }
+
+/* Aviso breve del instalador del panel */
+.pwa-toast {
+    position: fixed; z-index: 1400; left: 50%; bottom: 24px; transform: translateX(-50%);
+    max-width: min(440px, calc(100vw - 32px));
+    padding: 12px 16px;
+    border: 1px solid var(--ui-border);
+    border-left: 3px solid var(--c-emerald);
+    border-radius: var(--ui-radius);
+    background: var(--ui-surface);
+    color: var(--ui-text);
+    box-shadow: var(--ui-shadow-lg);
+    font-size: .86rem; font-weight: 600;
+}
+.pwa-toast[hidden] { display: none; }
+
+/* Pie del menú: usuario y accesos rápidos en dos filas (no se aprietan) */
+.sidebar-footer { flex-wrap: wrap; row-gap: 10px; }
+.sidebar-user { flex: 1 1 100%; }
+.sidebar-tools { flex: 1 1 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: var(--ui-radius); background: var(--ui-surface-2); }
+.sidebar-tools > form { display: contents; }
+.sidebar-icon-btn { width: 100%; height: 34px; }
+.sidebar-icon-btn[hidden] { display: none; }
+.sidebar.close .sidebar-tools { display: flex; padding: 0; background: none; }
+.sidebar.close .sidebar-icon-btn { width: 32px; }
+/* Menú contraído: usuario y accesos apilados en una sola columna */
+.sidebar.close .sidebar-footer { flex-direction: column; align-items: center; flex-wrap: nowrap; padding: 12px 0; }
+.sidebar.close .sidebar-user, .sidebar.close .sidebar-tools { flex: none; width: auto; padding: 0; }
+.sidebar.close .sidebar-tools { flex-direction: column; gap: 4px; }
+@media (max-width: 991.98px) {
+    .sidebar.close .sidebar-footer { flex-direction: row; flex-wrap: wrap; padding: 12px; }
+    .sidebar.close .sidebar-user, .sidebar.close .sidebar-tools { flex: 1 1 100%; }
+    .sidebar.close .sidebar-tools { display: grid; padding: 4px; }
+}

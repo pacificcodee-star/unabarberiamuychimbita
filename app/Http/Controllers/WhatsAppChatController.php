@@ -80,6 +80,9 @@ class WhatsAppChatController extends Controller
                 'status' => $message->statusLabel(),
                 'sender_name' => $message->sender_name,
                 'created_at' => $message->created_at?->format('d/m/Y H:i'),
+                'status_key' => $message->status,
+                'time' => $message->created_at?->format('H:i'),
+                'day' => $message->created_at?->format('d/m/Y'),
             ]),
             'unread' => $conversation->fresh()?->unread_count ?? 0,
         ]);
