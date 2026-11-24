@@ -1,7 +1,8 @@
 @extends('layouts.public')
 
-@section('title', 'Reservar cita o turno · '.($siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita'))
-@section('meta_description', $siteSettings['booking_hero_description'] ?? $siteSettings['footer_description'])
+@php $seo = \App\Support\Seo::page('booking', $siteSettings); @endphp
+@section('title', $seo['title'])
+@section('meta_description', $seo['description'])
 
 @section('content')
     @php

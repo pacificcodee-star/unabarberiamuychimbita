@@ -1,7 +1,8 @@
 @extends('layouts.public')
 
-@section('title', 'Contacto · '.($siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita'))
-@section('meta_description', $siteSettings['contact_hero_description'] ?? $siteSettings['footer_description'])
+@php $seo = \App\Support\Seo::page('contact', $siteSettings); @endphp
+@section('title', $seo['title'])
+@section('meta_description', $seo['description'])
 
 @php
     $fullAddress = trim($siteSettings['address'].', '.($siteSettings['city'] ?? ''), ', ');

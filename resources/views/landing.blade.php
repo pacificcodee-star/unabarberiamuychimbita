@@ -1,7 +1,8 @@
 @extends('layouts.public')
 
-@section('title', ($siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita').' · Barbería en '.trim(explode(',', $siteSettings['city'] ?? 'Colombia')[0]))
-@section('meta_description', $siteSettings['home_description'] ?? $siteSettings['footer_description'])
+@php $seo = \App\Support\Seo::page('landing', $siteSettings); @endphp
+@section('title', $seo['title'])
+@section('meta_description', $seo['description'])
 
 @section('content')
     @php

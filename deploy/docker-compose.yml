@@ -39,6 +39,11 @@ x-app-env: &app-env
   VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
   VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
   VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:no-reply@example.com}
+  # Google: verificación de Search Console, ficha del negocio y analítica (opcionales).
+  GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
+  GOOGLE_BUSINESS_URL: ${GOOGLE_BUSINESS_URL:-}
+  GOOGLE_REVIEW_URL: ${GOOGLE_REVIEW_URL:-}
+  ANALYTICS_GA4_ID: ${ANALYTICS_GA4_ID:-}
 
 x-app-build: &app-build
   context: ..

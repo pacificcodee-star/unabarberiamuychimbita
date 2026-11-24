@@ -1,7 +1,8 @@
 @extends('layouts.public')
 
-@section('title', 'Servicios y precios · '.($siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita'))
-@section('meta_description', $siteSettings['services_hero_description'] ?? $siteSettings['footer_description'])
+@php $seo = \App\Support\Seo::page('services', $siteSettings); @endphp
+@section('title', $seo['title'])
+@section('meta_description', $seo['description'])
 
 @section('content')
     @php
