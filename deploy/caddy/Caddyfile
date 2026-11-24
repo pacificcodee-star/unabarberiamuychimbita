@@ -105,6 +105,7 @@ www.{$APP_HOST} {
 	php_fastcgi 127.0.0.1:9000 {
 		# Laravel recibe solo la IP que Caddy resolvió, nunca un XFF enviado por el visitante.
 		header_up X-Forwarded-For {client_ip}
+		env HTTP_X_FORWARDED_FOR {client_ip}
 	}
 	file_server
 
