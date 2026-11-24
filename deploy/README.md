@@ -17,7 +17,7 @@ Internet
    │                                            ├─ scheduler (barberia:tick cada minuto)
    │                                            └─ MySQL
    │
-   └─ https://wa.IP.sslip.io ─────► Caddy ──► Evolution API v2.3.1
+   └─ https://wa.IP.sslip.io ─────► Caddy ──► Evolution API v2.3.8
                                                 ├─ PostgreSQL (datos)
                                                 └─ Redis (caché / sesión WhatsApp)
 
@@ -29,7 +29,7 @@ webhook `POST /webhook/evolution` validado con la misma `EVOLUTION_APIKEY`, bot 
 bandeja de chat y avisos de citas/turnos.
 
 > **No hace falta subir `evolution-api-main` al servidor.** El compose usa la imagen oficial
-> `evoapicloud/evolution-api:v2.3.1`. Esa carpeta queda solo para desarrollo/referencia.
+> `evoapicloud/evolution-api:v2.3.8`. Esa carpeta queda solo para desarrollo/referencia.
 
 > **Aviso e2-micro:** el plan gratis tiene 1 GB de RAM. El stack está ajustado para eso
 > (MySQL con buffer pequeño, Node limitado, Redis 96 MB) y **necesita 2 GB de swap** (paso 2).

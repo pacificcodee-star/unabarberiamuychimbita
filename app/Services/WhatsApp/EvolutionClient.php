@@ -2,6 +2,7 @@
 
 namespace App\Services\WhatsApp;
 
+use App\Support\WhatsAppLid;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
@@ -279,14 +280,14 @@ class EvolutionClient
         return $this->sendTextReceipt($number, $text) !== null;
     }
 
-    public function sendTextReceipt(string $number, string $text): ?array
+    public function sendTextReceipt(string $number, string $text, ?string $lid = null): ?array
     {
         if (! $this->isConfigured() || $number === '' || trim($text) === '') {
             return null;
         }
 
         $response = $this->request('POST', '/message/sendText/'.$this->instance(), [], [
-            'number' => $number,
+            'number' => $lid ?? $number,
             'text' => $text,
         ], chatSend: true);
 
@@ -300,8 +301,8 @@ class EvolutionClient
         if (is_string($sentKey['id'] ?? null) && $sentKey['id'] !== '') {
             Cache::put($this->sentKey($sentKey['id']), true, now()->addHour());
         }
-        foreach ([$sentKey['remoteJid'] ?? null, $sentKey['remoteJidAlt'] ?? null, $sentKey['senderLid'] ?? null] as $jid) {
-            \App\Support\WhatsAppLid::remember(is_string($jid) ? $jid : null, $number);
+        foreach ([$sentKey['remoteJid'] ?? null, $sentKey['remoteJidAlt'] ?? null] as $jid) {
+            WhatsAppLid::remember(is_string($jid) ? $jid : null, $number);
         }
 
         Log::info('WhatsApp (Evolution) enviado', ['to' => \App\Support\Pii::phone($number)]);

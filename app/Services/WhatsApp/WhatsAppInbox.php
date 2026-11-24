@@ -6,6 +6,7 @@ use App\Models\StaffNotification;
 use App\Models\WhatsAppConversation;
 use App\Models\WhatsAppMessage;
 use App\Services\WhatsAppService;
+use App\Support\WhatsAppLid;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -199,6 +200,7 @@ class WhatsAppInbox
         if (preg_match('/@(g\.us|broadcast|newsletter)$/', $remote) === 1) {
             return null;
         }
+        $lid = WhatsAppLid::isLid($remote) ? $remote : null;
 
         $candidates = [$key['remoteJidAlt'] ?? null, $remote];
         if (empty($key['fromMe'])) {
@@ -210,17 +212,18 @@ class WhatsAppInbox
             }
             $jid = str_contains($candidate, '@') ? $candidate : $candidate.'@s.whatsapp.net';
             if (($phone = self::phoneFromJid($jid)) !== null) {
-                \App\Support\WhatsAppLid::remember($remote, $phone);
+                $phone = $this->whatsApp->normalizePhone($phone);
+                WhatsAppLid::remember($lid, $phone);
 
-                return [$this->whatsApp->normalizePhone($phone), $jid];
+                return [$phone, $lid ?? $jid];
             }
         }
 
-        $phone = \App\Support\WhatsAppLid::phoneFor($remote);
+        $phone = WhatsAppLid::phoneFor($lid);
         if ($phone !== null) {
-            return [$this->whatsApp->normalizePhone($phone), $phone.'@s.whatsapp.net'];
+            return [$this->whatsApp->normalizePhone($phone), $lid];
         }
-        if (\App\Support\WhatsAppLid::isLid($remote)) {
+        if ($lid !== null) {
             Log::warning('WhatsApp: mensaje entrante sin número de teléfono (solo @lid); no se pudo atender', ['campos' => array_keys($key)]);
         }
 
@@ -296,10 +299,10 @@ class WhatsAppInbox
         }
 
         // Estado de un mensaje nuestro con el @lid del cliente: se aprende de qué número es.
-        if (\App\Support\WhatsAppLid::isLid($key['remoteJid'] ?? null)) {
+        if (WhatsAppLid::isLid($key['remoteJid'] ?? null)) {
             $phone = self::phoneFromJid((string) ($key['remoteJidAlt'] ?? ''))
                 ?? WhatsAppMessage::query()->where('evolution_id', $evolutionId)->first()?->conversation?->phone;
-            \App\Support\WhatsAppLid::remember($key['remoteJid'], $phone);
+            WhatsAppLid::remember($key['remoteJid'], $phone);
         }
 
         $status = $data['update']['status'] ?? $data['status'] ?? null;
@@ -361,14 +364,15 @@ class WhatsAppInbox
     // ------------------------------------------------------------------------------------------
 
     /** Envía una respuesta y la guarda en la conversación. Devuelve true si Evolution la aceptó. */
-    public function send(WhatsAppConversation $conversation, string $body): bool
+    public function send(WhatsAppConversation $conversation, string $body, bool $useChatAddress = true): bool
     {
         $phone = $this->whatsApp->normalizePhone($conversation->phone);
         $this->pace($phone);
 
+        $lid = $useChatAddress && WhatsAppLid::isLid($conversation->jid) ? $conversation->jid : null;
         $receipt = $this->whatsApp->usesTemplates()
             ? ($this->whatsApp->sendText($phone, $body) ? [] : null)
-            : $this->evolution->sendTextReceipt($phone, $body);
+            : $this->evolution->sendTextReceipt($phone, $body, $lid);
         $id = is_string($receipt['key']['id'] ?? null) ? Str::limit($receipt['key']['id'], 100, '') : null;
         $ok = $receipt !== null;
         $this->recordOutgoing($conversation, $body, $ok ? 'sent' : 'failed', $id);
@@ -419,7 +423,7 @@ class WhatsAppInbox
             $conversation->fill(['client_name' => Str::limit((string) $name, 120, '')])->save();
         }
 
-        return $this->send($conversation, $body);
+        return $this->send($conversation, $body, useChatAddress: false);
     }
 
     public function evolution(): EvolutionClient
