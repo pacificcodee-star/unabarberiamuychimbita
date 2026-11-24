@@ -8,9 +8,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BarberUnavailability extends Model
 {
+    public const WEEKDAYS = [
+        1 => 'Lunes',
+        2 => 'Martes',
+        3 => 'Miércoles',
+        4 => 'Jueves',
+        5 => 'Viernes',
+        6 => 'Sábado',
+        7 => 'Domingo',
+    ];
+
     protected $fillable = [
         'barber_id',
         'date',
+        'weekday',
         'start_time',
         'end_time',
         'note',
@@ -18,6 +29,7 @@ class BarberUnavailability extends Model
 
     protected $casts = [
         'date' => 'date',
+        'weekday' => 'integer',
     ];
 
     public function barber(): BelongsTo
@@ -32,8 +44,12 @@ class BarberUnavailability extends Model
 
     public function blocksSlot(string $date, string $time): bool
     {
-        $day = Carbon::parse($date)->toDateString();
-        if ($this->date?->toDateString() !== $day) {
+        $day = Carbon::parse($date);
+        $matches = $this->weekday === null
+            ? $this->date?->toDateString() === $day->toDateString()
+            : $this->weekday === $day->dayOfWeekIso;
+
+        if (! $matches) {
             return false;
         }
 
