@@ -6,5 +6,5 @@
         aria-expanded="false"
         aria-label="Abrir menú"
         title="Menú">
-    <i class="fa-solid fa-bars" aria-hidden="true"></i>
+    <i class="bi bi-list" aria-hidden="true"></i>
 </button>

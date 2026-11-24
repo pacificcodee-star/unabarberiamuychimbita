@@ -41,31 +41,35 @@
     </div>
 
     <div class="row g-3 mb-3">
-        <div class="col-6 col-lg-3">
-            <div class="card stat-card py-3 h-100">
+        <div class="col-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="icon"><i class="bi bi-bag-check"></i></div>
                 <div class="label">Ventas</div>
-                <div class="value fs-3">{{ $totals['count'] }}</div>
+                <div class="value">{{ $totals['count'] }}</div>
                 <div class="hint">comprobantes en el periodo</div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
-            <div class="card stat-card py-3 h-100">
+        <div class="col-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="icon"><i class="bi bi-cash-coin"></i></div>
                 <div class="label">Total vendido</div>
-                <div class="value fs-3">{{ format_money($totals['amount']) }}</div>
+                <div class="value">{{ format_money($totals['amount']) }}</div>
                 <div class="hint">ingresos POS</div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
-            <div class="card stat-card py-3 h-100">
+        <div class="col-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="icon"><i class="bi bi-receipt"></i></div>
                 <div class="label">Promedio por venta</div>
-                <div class="value fs-3">{{ format_money($totals['average']) }}</div>
+                <div class="value">{{ format_money($totals['average']) }}</div>
                 <div class="hint">ticket promedio</div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
-            <div class="card stat-card py-3 h-100">
+        <div class="col-6 col-xl-3">
+            <div class="card stat-card">
+                <div class="icon"><i class="bi bi-credit-card"></i></div>
                 <div class="label">Métodos usados</div>
-                <div class="value fs-3">{{ $byPayment->count() }}</div>
+                <div class="value">{{ $byPayment->count() }}</div>
                 <div class="hint">formas de pago</div>
             </div>
         </div>
@@ -139,8 +143,8 @@
                                 <td><span class="badge-soft gold">{{ \App\Models\Sale::PAYMENT_METHODS[$sale->payment_method] ?? $sale->payment_method }}</span></td>
                                 <td class="text-end fw-semibold">{{ format_money($sale->total) }}</td>
                                 <td class="text-end">
-                                    <a href="{{ route('sales.show', $sale) }}" class="btn btn-sm btn-outline-dark" title="Ver"><i class="bi bi-eye"></i></a>
-                                    <a href="{{ route('invoices.show', $sale) }}" class="btn btn-sm btn-outline-secondary" title="Comprobante"><i class="bi bi-receipt-cutoff"></i></a>
+                                    <a href="{{ route('sales.show', $sale) }}" class="btn btn-sm btn-outline-dark btn-icon" title="Ver" aria-label="Ver detalle"><i class="bi bi-eye"></i></a>
+                                    <a href="{{ route('invoices.show', $sale) }}" class="btn btn-sm btn-outline-secondary btn-icon" title="Comprobante"><i class="bi bi-receipt-cutoff"></i></a>
                                 </td>
                             </tr>
                         @empty

@@ -17,27 +17,27 @@
             <div class="card-body">
                 <div class="row g-3 mb-4">
                     <div class="col-6 col-lg-3">
-                        <div class="p-3 rounded-4 h-100" style="background: rgba(22,22,22,.04);">
-                            <div class="small text-muted">Base inicial</div>
-                            <div class="fs-5 fw-bold">{{ format_money($openSession->initial_amount) }}</div>
+                        <div class="mini-stat">
+                            <span class="mini-stat-label">Base inicial</span>
+                            <div class="mini-stat-value">{{ format_money($openSession->initial_amount) }}</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
-                        <div class="p-3 rounded-4 h-100" style="background: rgba(31,138,91,.07);">
-                            <div class="small text-muted">Ventas en efectivo</div>
-                            <div class="fs-5 fw-bold text-success">{{ format_money($cashSales) }}</div>
+                        <div class="mini-stat">
+                            <span class="mini-stat-label">Ventas en efectivo</span>
+                            <div class="mini-stat-value text-success">{{ format_money($cashSales) }}</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
-                        <div class="p-3 rounded-4 h-100" style="background: rgba(192,57,43,.06);">
-                            <div class="small text-muted">Gastos en efectivo</div>
-                            <div class="fs-5 fw-bold text-danger">{{ format_money($cashExpenses) }}</div>
+                        <div class="mini-stat">
+                            <span class="mini-stat-label">Gastos en efectivo</span>
+                            <div class="mini-stat-value text-danger">{{ format_money($cashExpenses) }}</div>
                         </div>
                     </div>
                     <div class="col-6 col-lg-3">
-                        <div class="p-3 rounded-4 h-100" style="background: rgba(160,46,37,.12);">
-                            <div class="small text-muted">Efectivo esperado</div>
-                            <div class="fs-5 fw-bold">{{ format_money($expected) }}</div>
+                        <div class="mini-stat">
+                            <span class="mini-stat-label">Efectivo esperado</span>
+                            <div class="mini-stat-value">{{ format_money($expected) }}</div>
                         </div>
                     </div>
                 </div>
@@ -57,7 +57,7 @@
                 </div>
 
                 <div class="collapse mt-3" id="closeForm">
-                    <div class="border rounded-4 p-3">
+                    <div class="inset-panel">
                         <form method="POST" action="{{ route('cash.close', $openSession) }}" class="row g-2 align-items-end" onsubmit="return confirm('¿Confirmas el cierre de caja? Las ventas y gastos que se registren después quedarán para la próxima apertura.');">
                             @csrf
                             <div class="col-md-4">
@@ -80,7 +80,7 @@
             </div>
         </div>
     @else
-        <div class="row g-3 mb-4">
+        <div class="row g-3">
             <div class="col-lg-5">
                 <div class="card h-100">
                     <div class="card-header"><i class="bi bi-cash-stack me-1 text-warning"></i> Abrir la caja</div>
@@ -107,10 +107,10 @@
             <div class="col-lg-7">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column justify-content-center">
-                        <div class="empty-state py-3">
+                        <div class="empty-state">
                             <i class="bi bi-cash-stack"></i>
-                            <h4 class="mb-2">La caja está cerrada</h4>
-                            <p class="mb-0">Ábrela al iniciar el día. Todas las ventas en efectivo y los gastos de todos los barberos entran a esta misma caja.</p>
+                            <strong class="empty-title">La caja está cerrada</strong>
+                            <p>Ábrela al iniciar el día. Todas las ventas en efectivo y los gastos de todos los barberos entran a esta misma caja.</p>
                         </div>
                     </div>
                 </div>
@@ -161,7 +161,7 @@
                             <span class="badge-soft {{ $session->status === 'abierta' ? 'green' : '' }}">{{ ucfirst($session->status) }}</span>
                         </td>
                         <td class="text-end">
-                            <a href="{{ route('cash.show', $session) }}" class="btn btn-sm btn-outline-dark"><i class="bi bi-eye"></i></a>
+                            <a href="{{ route('cash.show', $session) }}" class="btn btn-sm btn-outline-dark btn-icon" aria-label="Ver detalle" title="Ver detalle"><i class="bi bi-eye"></i></a>
                         </td>
                     </tr>
                 @empty

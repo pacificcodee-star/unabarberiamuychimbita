@@ -14,250 +14,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=JetBrains+Mono:wght@400..600&family=Manrope:wght@400..800&display=swap" rel="stylesheet">
     <script src="{{ asset('js/panel.js') }}?v={{ @filemtime(public_path('js/panel.js')) }}"></script>
-    <style>
-        /* Campos compactos en todo el panel */
-        .form-control, .form-select { padding: .34rem .65rem; font-size: .86rem; min-height: 34px; border-radius: 8px; }
-        .form-control-sm, .form-select-sm { padding: .22rem .55rem; font-size: .8rem; min-height: 30px; }
-        textarea.form-control { min-height: 64px; }
-        .form-control[type="file"] { padding: .26rem .5rem; }
-        .form-label { font-size: .8rem; margin-bottom: .2rem; }
-        .form-text { font-size: .74rem; margin-top: .2rem; }
-        .form-check-label { font-size: .84rem; }
-        .input-group-text { padding: .34rem .6rem; font-size: .86rem; }
-        .card-body .row.g-3 { --bs-gutter-y: .7rem; }
-        :root {
-            --ink: #16130e;
-            --ink-soft: #29251d;
-            --gold: #a02e25;          /* colores del logo (antes dorado) */
-            --gold-ink: #7f2d28;
-            --gold-soft: #f6e6e3;
-            --cream: #f4efe6;
-            --paper: #ffffff;
-            --muted: #6b6356;
-            --success: #1f8a5b;
-            --danger: #c0392b;
-            --sidebar-width: 265px;
-        }
-
-        * { box-sizing: border-box; }
-
-        body {
-            margin: 0;
-            background: var(--cream);
-            color: var(--ink);
-            font-family: 'Manrope', system-ui, sans-serif;
-            font-size: .92rem;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        h1, h2, h3, h4, h5, h6, .brand-title {
-            font-family: 'Manrope', system-ui, sans-serif;
-            font-weight: 700;
-            letter-spacing: -.02em;
-        }
-
-        /* Mismo tipo de letra que la página pública en todo el panel */
-        body, button, input, select, textarea, .btn, .form-control, .form-select, .table, .badge, .dropdown-menu, .modal, .tooltip, .popover { font-family: 'Manrope', system-ui, sans-serif; }
-        [style*="Cormorant"], [style*="Georgia"], [style*="Playfair"] { font-family: 'Manrope', system-ui, sans-serif !important; }
-
-        .app-shell { min-height: 100vh; }
-
-        .main-content {
-            flex: 1;
-            min-width: 0;
-            margin-left: 0;
-            min-height: 100vh;
-            padding: clamp(22px, 3vw, 40px) clamp(18px, 3vw, 42px) 54px;
-            background: var(--cream);
-            transition: margin-left .4s ease;
-        }
-
-        .topbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 18px;
-            margin-bottom: 28px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid rgba(22,22,22,.09);
-        }
-        .topbar h1 { font-size: 1.75rem; margin: 0; }
-        .topbar .date { color: var(--muted); font-size: .82rem; }
-
-        .mobile-nav-toggle {
-            display: none;
-            align-items: center; justify-content: center;
-            width: 42px; height: 42px; padding: 0;
-            border-radius: 12px; border: 1px solid rgba(22,22,22,.12);
-            background: #fff; color: var(--ink);
-            box-shadow: 0 4px 14px rgba(22,22,22,.06);
-        }
-        .mobile-nav-toggle:hover { background: #fbf3f2; border-color: rgba(160,46,37,.45); color: var(--gold-ink); }
-
-        .card {
-            border: 1px solid rgba(22, 22, 22, .07);
-            border-radius: 18px;
-            box-shadow: 0 12px 34px rgba(22, 22, 22, .045);
-            background: var(--paper);
-        }
-
-        .main-content > .row > [class*="col-"] > .card,
-        .main-content > .card { overflow: hidden; }
-
-        .card-header {
-            background: transparent;
-            border-bottom: 1px solid rgba(22, 22, 22, .07);
-            padding: 17px 21px;
-            font-weight: 600;
-            color: #27251f;
-        }
-
-        .stat-card {
-            padding: 20px;
-            height: 100%;
-            min-height: 166px;
-            position: relative;
-            overflow: hidden;
-            border-left: 3px solid var(--gold);
-            transition: transform .2s ease, box-shadow .2s ease;
-        }
-        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 18px 38px rgba(22,22,22,.09); }
-
-        .stat-card .icon {
-            width: 44px;
-            height: 44px;
-            border-radius: 13px;
-            display: grid;
-            place-items: center;
-            background: rgba(160, 46, 37, .12);
-            color: var(--gold-ink);
-            font-size: 1.2rem;
-            margin-bottom: 14px;
-        }
-
-        .stat-card .label {
-            color: var(--muted);
-            font-size: .76rem;
-            text-transform: uppercase;
-            letter-spacing: .1em;
-            font-weight: 600;
-        }
-
-        .stat-card .value {
-            font-family: 'Manrope', system-ui, sans-serif;
-            font-weight: 700;
-            font-size: 2rem;
-            line-height: 1.1;
-            margin-top: 5px;
-        }
-
-        .stat-card .hint { color: var(--muted); font-size: .78rem; margin-top: 6px; }
-
-        .btn { border-radius: 8px; font-weight: 600; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
-        .btn-sm { min-height: 32px; }
-        .btn:focus-visible, .form-control:focus-visible, .form-select:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-        .btn-dark { background: var(--ink); border-color: var(--ink); }
-        .btn-gold { background: var(--gold); border-color: var(--gold); color: #fff; }
-        .btn-gold:hover { background: #bc3a2e; border-color: #bc3a2e; color: #fff; }
-        .btn-outline-dark { border-color: rgba(22,22,22,.2); }
-
-        .form-control, .form-select {
-            border-radius: 10px;
-            border-color: rgba(22, 22, 22, .15);
-            padding: .58rem .75rem;
-        }
-
-        .form-control:focus, .form-select:focus {
-            border-color: var(--gold);
-            box-shadow: 0 0 0 .2rem rgba(160, 46, 37, .15);
-        }
-
-        .table > :not(caption) > * > * { padding: .8rem .75rem; vertical-align: middle; }
-        .table thead th {
-            color: var(--muted);
-            font-size: .7rem;
-            text-transform: uppercase;
-            letter-spacing: .1em;
-            font-weight: 700;
-            border-bottom-width: 1px;
-        }
-        .table tbody tr:last-child td { border-bottom: 0; }
-        .table tbody tr:hover { background: rgba(160,46,37,.045); }
-
-        .badge-soft {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: .35rem .55rem;
-            border-radius: 999px;
-            font-size: .72rem;
-            font-weight: 600;
-            background: rgba(22, 22, 22, .06);
-            color: #4b463e;
-        }
-
-        .badge-soft.gold { background: rgba(160, 46, 37, .18); color: var(--gold-ink); }
-        .badge-soft.green { background: rgba(31, 138, 91, .12); color: #16704a; }
-        .badge-soft.red { background: rgba(192, 57, 43, .1); color: #a63225; }
-        .badge-soft.blue { background: rgba(32, 107, 196, .1); color: #1f5fa8; }
-
-        .alert { border-radius: 14px; border: none; }
-        .alert-success { background: rgba(31, 138, 91, .12); color: #146341; }
-        .alert-danger { background: rgba(192, 57, 43, .1); color: #8e2b20; }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--muted);
-        }
-
-        .empty-state i { font-size: 2.3rem; color: rgba(160, 46, 37, .5); display: block; margin-bottom: 12px; }
-
-        .page-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-
-        .receipt {
-            max-width: 560px;
-            margin: 0 auto;
-            background: #fff;
-            border-radius: 18px;
-            padding: 34px;
-            border: 1px solid rgba(22,22,22,.08);
-        }
-
-        @media (max-width: 991.98px) {
-            .app-shell { display: block; }
-            .mobile-nav-toggle { display: inline-flex; }
-            .main-content { margin-left: 0; padding: 22px 18px 40px; }
-            .topbar h1 { font-size: 1.4rem; }
-        }
-        @media (min-width: 992px) {
-            .app-shell { display: flex; align-items: flex-start; }
-            .mobile-nav-toggle { display: none; }
-        }
-        @media (max-width: 575.98px) {
-            .topbar { align-items: flex-start; flex-direction: column; gap: 14px; margin-bottom: 20px; padding-bottom: 16px; }
-            .topbar > .d-flex:last-child { width: 100%; justify-content: flex-start !important; }
-            .topbar > .d-flex:last-child form { margin-left: auto; }
-            .page-actions { flex: 1 1 auto; }
-            .page-actions .btn { padding: .48rem .65rem; font-size: .8rem; }
-            .main-content { padding: 18px 13px 32px; }
-            .stat-card { min-height: 150px; padding: 16px; }
-            .stat-card .value { font-size: 1.45rem; }
-            .card-header { padding: 15px 16px; }
-        }
-
-        @media print {
-            .topbar, .no-print, .alert { display: none !important; }
-            .main-content { margin: 0; padding: 0; }
-            body { background: #fff; }
-            .receipt { border: none; max-width: 100%; }
-        }
-    </style>
-    {{-- Menú lateral: Sidebar Menu Template (FathyHesham) --}}
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" referrerpolicy="no-referrer">
-    <link rel="stylesheet" href="{{ asset('vendor/sidebar/css/sidebar.css') }}?v={{ @filemtime(public_path('vendor/sidebar/css/sidebar.css')) }}">
-    {{-- Colores del logo y modo oscuro de todo el panel --}}
-    <link rel="stylesheet" href="{{ asset('css/admin-theme.css') }}?v={{ @filemtime(public_path('css/admin-theme.css')) }}">
+    {{-- Sistema de diseño del panel: tokens, componentes, menú lateral y modo oscuro --}}
+    <link rel="stylesheet" href="{{ asset('css/admin-ui.css') }}?v={{ @filemtime(public_path('css/admin-ui.css')) }}">
     <script>(function(r){r.classList.add('sidebar-preload');try{var t=localStorage.getItem('admin:theme')||localStorage.getItem('sidebar:theme')||localStorage.getItem('sidebarTheme');if(t==='dark'){r.classList.add('admin-dark');r.setAttribute('data-bs-theme','dark')}}catch(e){}})(document.documentElement)</script>
     <style>
         /* ---------- Notificaciones del equipo (campana y página /notificaciones) ---------- */
@@ -383,18 +141,18 @@
 
     <main class="main-content">
         <div class="topbar">
-            <div class="d-flex align-items-center gap-3">
-                <x-sidebar.open-button class="btn mobile-nav-toggle" />
+            <div class="topbar-title">
+                <x-sidebar.open-button class="btn btn-icon mobile-nav-toggle" />
                 <div>
                     <h1>@yield('title', 'Panel')</h1>
                     <div class="date">{{ now()->locale('es')->translatedFormat('l, d \d\e F \d\e Y') }}</div>
                 </div>
             </div>
-            <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+            <div class="topbar-actions">
                 @yield('actions')
                 {{-- Campana de avisos del equipo --}}
                 <div class="dropdown" id="staffBell" data-feed="{{ route('staff-notifications.feed') }}" data-seen="{{ route('staff-notifications.seen') }}" data-clear="{{ route('staff-notifications.clear') }}">
-                    <button class="btn btn-outline-dark bell-btn" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Notificaciones" title="Notificaciones">
+                    <button class="btn btn-outline-dark btn-icon bell-btn" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Notificaciones" title="Notificaciones">
                         <i class="bi bi-bell" aria-hidden="true"></i>
                         <span class="bell-badge" data-staff-bell-badge hidden>0</span>
                     </button>
@@ -427,38 +185,40 @@
                         <a class="nt-foot" href="{{ route('staff-notifications.index') }}">Ver todas las notificaciones <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                     </div>
                 </div>
-                <form method="POST" action="{{ route('logout') }}">
+                <form method="POST" action="{{ route('logout') }}" class="logout-form">
                     @csrf
-                    <button class="btn btn-outline-dark" type="submit" title="Cerrar sesión">
-                        <i class="bi bi-box-arrow-right"></i>
-                        <span class="d-none d-md-inline ms-1">Cerrar sesión</span>
+                    <button class="btn btn-outline-dark btn-icon" type="submit" title="Cerrar sesión" aria-label="Cerrar sesión">
+                        <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
                     </button>
                 </form>
             </div>
         </div>
 
         @if(session('success'))
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle me-1"></i> {{ session('success') }}
+            <div class="alert alert-success alert-dismissible fade show d-flex gap-2" role="alert">
+                <i class="bi bi-check-circle-fill" aria-hidden="true"></i><span>{{ session('success') }}</span>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         @endif
 
         @if(session('error'))
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle me-1"></i> {{ session('error') }}
+            <div class="alert alert-danger alert-dismissible fade show d-flex gap-2" role="alert">
+                <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span>{{ session('error') }}</span>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         @endif
 
         @if($errors->any())
-            <div class="alert alert-danger" role="alert">
-                <strong><i class="bi bi-exclamation-triangle me-1"></i> Revisa la información:</strong>
-                <ul class="mb-0 mt-2">
-                    @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
+            <div class="alert alert-danger d-flex gap-2" role="alert">
+                <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+                <div>
+                    <strong>Revisa la información:</strong>
+                    <ul class="mb-0 mt-1">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
             </div>
         @endif
 
@@ -471,16 +231,17 @@
         <strong id="staffPushTitle">Activa los avisos del equipo</strong>
         <span data-staff-push-status role="status" aria-live="polite">Recibe avisos de nuevas reservas y cambios de turno.</span>
     </div>
-    <button type="button" class="btn btn-primary btn-sm" data-staff-push-enable>Activar avisos</button>
-    <button type="button" class="btn btn-outline-secondary btn-sm" data-staff-push-close>Ahora no</button>
+    <button type="button" class="btn btn-gold btn-sm" data-staff-push-enable>Activar avisos</button>
+    <button type="button" class="btn btn-outline-dark btn-sm" data-staff-push-close>Ahora no</button>
 </div>
 <style>
-    .staff-push-prompt { position: fixed; z-index: 1300; right: 20px; bottom: 20px; display: flex; align-items: center; gap: 12px; width: min(640px, calc(100vw - 32px)); padding: 16px; border: 1px solid rgba(201,162,39,.35); border-radius: 16px; background: #1c1813; color: #f3ebdd; box-shadow: 0 18px 50px rgba(0,0,0,.28); }
+    .staff-push-prompt { position: fixed; z-index: 1300; right: 24px; bottom: 24px; display: flex; align-items: center; gap: 12px; width: min(560px, calc(100vw - 32px)); padding: 14px 16px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius-lg); background: var(--ui-surface); color: var(--ui-text); box-shadow: var(--ui-shadow-lg); }
     .staff-push-prompt[hidden] { display: none; }
-    .staff-push-prompt > div { display: grid; gap: 3px; flex: 1; }
-    .staff-push-prompt span { color: #c0b4a2; font-size: .82rem; }
+    .staff-push-prompt > div { display: grid; gap: 2px; flex: 1; min-width: 0; }
+    .staff-push-prompt strong { font-size: .88rem; }
+    .staff-push-prompt span { color: var(--ui-text-3); font-size: .8rem; line-height: 1.4; }
     .staff-push-prompt button { white-space: nowrap; }
-    @media (max-width: 575px) { .staff-push-prompt { right: 12px; bottom: 12px; flex-wrap: wrap; } .staff-push-prompt > div { flex-basis: 100%; } }
+    @media (max-width: 575px) { .staff-push-prompt { right: 12px; bottom: 12px; flex-wrap: wrap; } .staff-push-prompt > div { flex-basis: calc(100% - 50px); } }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

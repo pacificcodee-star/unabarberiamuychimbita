@@ -24,10 +24,10 @@
     $rangeMinutesEnd = $hourEnd * 60;
     $totalHeight = max(1, ($rangeMinutesEnd - $rangeMinutesStart)) * $pxPerMinute;
     $statusColors = [
-        'pendiente' => ['bg' => '#efe9e8', 'border' => '#29251d', 'text' => '#29251d'],
-        'confirmada' => ['bg' => '#dbeafe', 'border' => '#3b82f6', 'text' => '#1e3a8a'],
-        'atendida' => ['bg' => '#dcfce7', 'border' => '#22c55e', 'text' => '#14532d'],
-        'cancelada' => ['bg' => '#fee2e2', 'border' => '#ef4444', 'text' => '#7f1d1d'],
+        'pendiente' => ['bg' => 'var(--ui-warning-soft)', 'border' => 'var(--ui-warning)', 'text' => 'var(--ui-text)'],
+        'confirmada' => ['bg' => 'var(--ui-info-soft)', 'border' => 'var(--ui-info)', 'text' => 'var(--ui-text)'],
+        'atendida' => ['bg' => 'var(--ui-success-soft)', 'border' => 'var(--ui-success)', 'text' => 'var(--ui-text)'],
+        'cancelada' => ['bg' => 'var(--ui-danger-soft)', 'border' => 'var(--ui-danger)', 'text' => 'var(--ui-text)'],
     ];
     $grouped = $appointments->groupBy(fn($a) => \Carbon\Carbon::parse($a->appointment_date)->toDateString());
     $queryBase = request()->except('date', 'view');
@@ -39,18 +39,18 @@
 @endphp
 
 @section('content')
-    <div class="card mb-3 gc-toolbar">
-        <div class="card-body py-2">
+    <div class="card gc-toolbar">
+        <div class="card-body">
             {{-- Navegación semanal/mes-año removida del encabezado según solicitud --}}
             <form method="GET" action="{{ route('appointments.index') }}" class="row g-2 align-items-end">
                 <div class="col-sm-6 col-lg-3">
                     <label class="form-label small text-muted mb-1">Ir a fecha</label>
-                    <input type="date" name="date" value="{{ $date }}" class="form-control form-control-sm">
+                    <input type="date" name="date" value="{{ $date }}" class="form-control">
                 </div>
                 @if(auth()->user()->isAdmin())
                     <div class="col-sm-6 col-lg-3">
                         <label class="form-label small text-muted mb-1">Barbero</label>
-                        <select name="barber_id" class="form-select form-select-sm">
+                        <select name="barber_id" class="form-select">
                             <option value="">Todos</option>
                             @foreach($barbers as $barber)
                                 <option value="{{ $barber->id }}" @selected(request('barber_id') == $barber->id)>{{ $barber->name }}</option>
@@ -60,7 +60,7 @@
                 @endif
                 <div class="col-sm-6 col-lg-2">
                     <label class="form-label small text-muted mb-1">Estado</label>
-                    <select name="status" class="form-select form-select-sm">
+                    <select name="status" class="form-select">
                         <option value="">Todos</option>
                         @foreach(\App\Models\Appointment::STATUSES as $key => $label)
                             <option value="{{ $key }}" @selected(request('status') === $key)>{{ $label }}</option>
@@ -68,30 +68,25 @@
                     </select>
                 </div>
                 <div class="col-auto">
-                    <button class="btn btn-dark btn-sm"><i class="bi bi-funnel me-1"></i> Aplicar</button>
+                    <button class="btn btn-dark"><i class="bi bi-funnel"></i> Aplicar</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div class="row g-2 mb-3" data-booking-region="counts">
+    <div class="status-strip" data-booking-region="counts">
         @foreach(\App\Models\Appointment::STATUSES as $key => $label)
-            <div class="col-6 col-lg-3">
-                <div class="card py-2 px-3 h-100">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="small text-muted">{{ $label }}</span>
-                        <span class="badge-soft {{ $key === 'cancelada' ? 'red' : ($key === 'atendida' ? 'green' : ($key === 'confirmada' ? 'blue' : 'gold')) }}">{{ $counts[$key] ?? 0 }}</span>
-                    </div>
-
-                </div>
+            <div class="status-chip">
+                <span>{{ $label }}</span>
+                <span class="badge-soft {{ $key === 'cancelada' ? 'red' : ($key === 'atendida' ? 'green' : ($key === 'confirmada' ? 'blue' : 'gold')) }}">{{ $counts[$key] ?? 0 }}</span>
             </div>
         @endforeach
     </div>
 
-    <div class="d-flex align-items-center justify-content-center gap-3 mb-2">
-        <a class="btn btn-outline-dark btn-sm" href="{{ route('appointments.index', array_merge($queryBase, ['date' => $prevMonthDate])) }}" title="Mes anterior" aria-label="Mes anterior"><i class="bi bi-chevron-left"></i></a>
-        <div class="fw-semibold text-capitalize" style="min-width: 180px; text-align: center;">{{ $current->locale('es')->translatedFormat('F Y') }}</div>
-        <a class="btn btn-outline-dark btn-sm" href="{{ route('appointments.index', array_merge($queryBase, ['date' => $nextMonthDate])) }}" title="Mes siguiente" aria-label="Mes siguiente"><i class="bi bi-chevron-right"></i></a>
+    <div class="month-nav">
+        <a class="btn btn-outline-dark btn-sm btn-icon" href="{{ route('appointments.index', array_merge($queryBase, ['date' => $prevMonthDate])) }}" title="Mes anterior" aria-label="Mes anterior"><i class="bi bi-chevron-left"></i></a>
+        <div class="month-nav-title">{{ $current->locale('es')->translatedFormat('F Y') }}</div>
+        <a class="btn btn-outline-dark btn-sm btn-icon" href="{{ route('appointments.index', array_merge($queryBase, ['date' => $nextMonthDate])) }}" title="Mes siguiente" aria-label="Mes siguiente"><i class="bi bi-chevron-right"></i></a>
     </div>
 
     <div class="card gc-calendar">
@@ -217,52 +212,53 @@
 
 @push('styles')
 <style>
-    /* Estilo tipo Google Calendar (vista semanal) */
-    .gc-toolbar.card { border: 1px solid #dadce0; box-shadow: none; border-radius: 8px; }
-    .gc-calendar { overflow: hidden; border: 1px solid #dadce0; border-radius: 8px; box-shadow: none; }
-    .gc-scroll { overflow: auto; background: #fff; }
+    /* Calendario semanal: mismos tokens que el resto del panel (claro y oscuro) */
+    .gc-calendar { overflow: hidden; }
+    .gc-scroll { overflow: auto; background: var(--ui-surface); max-height: calc(100vh - 220px); }
     .gc-grid { min-width: 980px; }
-    .gc-header { display: grid; grid-template-columns: 56px repeat(var(--days), minmax(120px, 1fr)); border-bottom: 1px solid #dadce0; position: sticky; top: 0; background: #fff; z-index: 5; }
-    .gc-gutter { width: 56px; }
-    .gc-head-corner { border-right: 1px solid #dadce0; }
-    .gc-day-head { text-align: center; padding: 8px 4px 10px; border-right: 1px solid #dadce0; }
-    .gc-dow { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #70757a; font-weight: 500; }
-    .gc-day-head.is-today .gc-dow { color: #1a73e8; font-weight: 600; }
-    .gc-date { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; text-decoration: none; color: #3c4043; font-weight: 400; font-size: 1.35rem; margin-top: 2px; line-height: 1; }
-    .gc-date:hover { background: #f1f3f4; color: #3c4043; }
-    .gc-date.is-today { background: #1a73e8; color: #fff; font-weight: 500; }
-    .gc-body { display: grid; grid-template-columns: 56px repeat(var(--days), minmax(120px, 1fr)); }
-    .gc-times { border-right: 1px solid #dadce0; background: #fff; }
-    .gc-time { position: relative; padding-right: 8px; text-align: right; font-size: .65rem; color: #70757a; }
-    .gc-time span { position: relative; top: -7px; background: #fff; padding-left: 2px; }
-    .gc-day-col { position: relative; border-right: 1px solid #dadce0; min-height: var(--body-h); background: #fff; }
-    .gc-day-col.is-today { background: #fff; }
+    .gc-header { display: grid; grid-template-columns: 64px repeat(var(--days), minmax(120px, 1fr)); border-bottom: 1px solid var(--ui-border); position: sticky; top: 0; background: var(--ui-surface); z-index: 5; }
+    .gc-gutter { width: 64px; }
+    .gc-head-corner { border-right: 1px solid var(--ui-border); }
+    .gc-day-head { text-align: center; padding: 10px 4px 12px; border-right: 1px solid var(--ui-border); }
+    .gc-day-head:last-child { border-right: 0; }
+    .gc-dow { font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--ui-text-3); font-weight: 700; }
+    .gc-day-head.is-today .gc-dow { color: var(--ui-brand); }
+    .gc-date { display: inline-grid; place-items: center; width: 38px; height: 38px; margin-top: 4px; border-radius: 50%; text-decoration: none; color: var(--ui-text); font-weight: 700; font-size: 1.15rem; line-height: 1; }
+    .gc-date:hover { background: var(--ui-surface-3); color: var(--ui-text); }
+    .gc-date.is-today { background: var(--ui-brand); color: #fff; }
+    .gc-body { display: grid; grid-template-columns: 64px repeat(var(--days), minmax(120px, 1fr)); }
+    .gc-times { border-right: 1px solid var(--ui-border); background: var(--ui-surface); }
+    .gc-time { position: relative; padding-right: 10px; text-align: right; font-size: .66rem; font-weight: 600; color: var(--ui-text-3); }
+    .gc-time span { position: relative; top: -8px; background: var(--ui-surface); padding-left: 2px; }
+    .gc-day-col { position: relative; border-right: 1px solid var(--ui-border); min-height: var(--body-h); background: var(--ui-surface); }
+    .gc-day-col:last-child { border-right: 0; }
+    .gc-day-col.is-today { background: color-mix(in srgb, var(--ui-brand) 3%, var(--ui-surface)); }
     .gc-slots { position: absolute; inset: 0; }
-    .gc-slot { border-bottom: 1px solid #f1f3f4; box-sizing: border-box; }
-    .gc-slot:nth-child(even) { border-bottom-color: #dadce0; }
+    .gc-slot { border-bottom: 1px dashed color-mix(in srgb, var(--ui-border) 60%, transparent); box-sizing: border-box; }
+    .gc-slot:nth-child(even) { border-bottom: 1px solid var(--ui-border); }
     .gc-events { position: absolute; inset: 0 6px 0 2px; }
-    .gc-event { position: absolute; left: 2px; right: 2px; border-radius: 4px; padding: 2px 6px 2px 8px; text-decoration: none; color: #3c4043; background: var(--ev-bg, #e8f0fe); border: 0; border-left: 4px solid var(--ev-border, #1a73e8); box-shadow: none; overflow: hidden; font-size: .75rem; line-height: 1.25; z-index: 2; cursor: pointer; }
-    .gc-event:hover { filter: brightness(.96); z-index: 3; }
-    .gc-event-time { font-weight: 500; font-size: .7rem; color: inherit; opacity: .95; }
-    .gc-event-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .gc-event-sub { opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .7rem; }
-    .gc-now { position: absolute; left: 0; right: 0; height: 2px; background: #ea4335; z-index: 4; pointer-events: none; }
-    .gc-now span { position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: #ea4335; }
-    .gc-range-title { text-transform: capitalize; color: #3c4043; font-weight: 400; }
+    .gc-event { position: absolute; left: 2px; right: 2px; border-radius: var(--ui-radius-sm); padding: 4px 8px 4px 10px; text-decoration: none; color: var(--ev-text, var(--ui-text)); background: var(--ev-bg, var(--ui-info-soft)); border: 0; border-left: 3px solid var(--ev-border, var(--ui-info)); overflow: hidden; font-size: .74rem; line-height: 1.3; z-index: 2; cursor: pointer; transition: box-shadow .15s ease; }
+    .gc-event:hover { box-shadow: var(--ui-shadow-lg); z-index: 3; color: var(--ev-text, var(--ui-text)); }
+    .gc-event-time { font-weight: 700; font-size: .68rem; color: var(--ev-border); }
+    .gc-event-title { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gc-event-sub { color: var(--ui-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .68rem; }
+    .gc-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--ui-brand); z-index: 4; pointer-events: none; }
+    .gc-now span { position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--ui-brand); }
+    .gc-range-title { text-transform: capitalize; color: var(--ui-text); font-weight: 700; }
     .gc-title-wrap { position: relative; }
-    .gc-title-btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 0; padding: 6px 10px; border-radius: 8px; color: #3c4043; cursor: pointer; font-weight: 400; font-size: 1.25rem; }
-    .gc-title-btn:hover, .gc-title-btn[aria-expanded="true"] { background: #f1f3f4; }
-    .gc-title-caret { font-size: .7rem; color: #5f6368; }
-    .gc-picker { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; width: 300px; background: #fff; border: 1px solid #dadce0; border-radius: 8px; box-shadow: 0 1px 3px rgba(60,64,67,.3), 0 4px 8px 3px rgba(60,64,67,.15); padding: 12px; }
+    .gc-title-btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 0; padding: 6px 10px; border-radius: var(--ui-radius); color: var(--ui-text); cursor: pointer; font-weight: 700; font-size: 1.1rem; }
+    .gc-title-btn:hover, .gc-title-btn[aria-expanded="true"] { background: var(--ui-surface-3); }
+    .gc-title-caret { font-size: .7rem; color: var(--ui-text-3); }
+    .gc-picker { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; width: 300px; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-lg); box-shadow: var(--ui-shadow-lg); padding: 12px; }
     .gc-picker[hidden] { display: none; }
     .gc-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
-    .gc-picker-year { flex: 1; background: transparent; border: 0; font-weight: 500; font-size: 1rem; color: #3c4043; border-radius: 8px; padding: 4px 6px; }
-    .gc-picker-year:hover { background: #f1f3f4; }
+    .gc-picker-year { flex: 1; background: transparent; border: 0; font-weight: 700; font-size: 1rem; color: var(--ui-text); border-radius: var(--ui-radius-sm); padding: 4px 6px; }
+    .gc-picker-year:hover { background: var(--ui-surface-3); }
     .gc-picker-months { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
-    .gc-pick-month { border: 0; background: transparent; padding: 8px 6px; border-radius: 18px; font-size: .85rem; font-weight: 500; color: #3c4043; text-transform: capitalize; }
-    .gc-pick-month:hover { background: #f1f3f4; }
-    .gc-pick-month.is-current { background: #1a73e8; color: #fff; }
-    .gc-picker-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #dadce0; }
+    .gc-pick-month { border: 0; background: transparent; padding: 8px 6px; border-radius: var(--ui-radius-sm); font-size: .84rem; font-weight: 600; color: var(--ui-text-2); text-transform: capitalize; }
+    .gc-pick-month:hover { background: var(--ui-surface-3); }
+    .gc-pick-month.is-current { background: var(--ui-text); color: var(--ui-surface); }
+    .gc-picker-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--ui-border); }
 
     @media (max-width: 767.98px) {
         .gc-grid { min-width: 860px; }

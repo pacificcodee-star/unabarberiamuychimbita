@@ -23,20 +23,30 @@
                 <div class="col-auto">
                     <button class="btn btn-dark"><i class="bi bi-funnel me-1"></i> Generar informe</button>
                 </div>
-                <div class="col-auto d-flex flex-wrap gap-2">
-                    <a href="{{ route('reports.index') }}" class="btn {{ $start === $allStart && $end === now()->toDateString() ? 'btn-gold' : 'btn-outline-dark' }}">Todo</a>
-                    <a href="{{ route('reports.index', ['start' => now()->toDateString(), 'end' => now()->toDateString()]) }}" class="btn btn-outline-dark">Hoy</a>
-                    <a href="{{ route('reports.index', ['start' => now()->startOfWeek()->toDateString(), 'end' => now()->endOfWeek()->toDateString()]) }}" class="btn btn-outline-dark">Semana</a>
-                    <a href="{{ route('reports.index', ['start' => now()->startOfMonth()->toDateString(), 'end' => now()->toDateString()]) }}" class="btn btn-outline-dark">Mes</a>
-                    <a href="{{ route('reports.index', ['start' => now()->subMonthNoOverflow()->startOfMonth()->toDateString(), 'end' => now()->subMonthNoOverflow()->endOfMonth()->toDateString()]) }}" class="btn btn-outline-dark">Mes pasado</a>
+                <div class="col-12">
+                    @php
+                        $ranges = [
+                            'Todo' => [$allStart, now()->toDateString(), []],
+                            'Hoy' => [now()->toDateString(), now()->toDateString(), null],
+                            'Semana' => [now()->startOfWeek()->toDateString(), now()->endOfWeek()->toDateString(), null],
+                            'Mes' => [now()->startOfMonth()->toDateString(), now()->toDateString(), null],
+                            'Mes pasado' => [now()->subMonthNoOverflow()->startOfMonth()->toDateString(), now()->subMonthNoOverflow()->endOfMonth()->toDateString(), null],
+                        ];
+                    @endphp
+                    <nav class="segmented" aria-label="Rangos rápidos">
+                        @foreach($ranges as $rangeLabel => [$rangeStart, $rangeEnd, $params])
+                            @php $isCurrent = $start === $rangeStart && $end === $rangeEnd; @endphp
+                            <a href="{{ route('reports.index', $params ?? ['start' => $rangeStart, 'end' => $rangeEnd]) }}" class="{{ $isCurrent ? 'is-active' : '' }}" @if($isCurrent) aria-current="true" @endif>{{ $rangeLabel }}</a>
+                        @endforeach
+                    </nav>
                 </div>
             </form>
         </div>
     </div>
 
-    <div class="d-flex justify-content-between align-items-end mb-3">
+    <div class="section-title">
         <div>
-            <h4 class="mb-0">Informe financiero</h4>
+            <h2>Informe financiero</h2>
             <div class="text-muted small">{{ \Carbon\Carbon::parse($start)->format('d/m/Y') }} — {{ \Carbon\Carbon::parse($end)->format('d/m/Y') }}</div>
         </div>
         <div class="d-flex flex-wrap gap-2">
@@ -48,30 +58,34 @@
 
     <div class="row g-3 mb-4">
         <div class="col-6 col-xl-3">
-            <div class="card stat-card py-3">
+            <div class="card stat-card">
+                <div class="icon"><i class="bi bi-cash-coin"></i></div>
                 <div class="label">Ingresos totales</div>
-                <div class="value fs-3">{{ format_money($totalSales) }}</div>
+                <div class="value">{{ format_money($totalSales) }}</div>
                 <div class="hint">{{ $salesCount }} cobros · promedio {{ format_money($averageTicket) }}</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card py-3">
+            <div class="card stat-card tone-danger">
+                <div class="icon"><i class="bi bi-wallet2"></i></div>
                 <div class="label">Gastos</div>
-                <div class="value fs-3 text-danger">{{ format_money($totalExpenses) }}</div>
+                <div class="value text-danger">{{ format_money($totalExpenses) }}</div>
                 <div class="hint">Salidas del periodo</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card py-3">
+            <div class="card stat-card">
+                <div class="icon"><i class="bi bi-person-badge"></i></div>
                 <div class="label">Nómina generada</div>
-                <div class="value fs-3">{{ format_money($totalCommissions + $totalSupplies) }}</div>
+                <div class="value">{{ format_money($totalCommissions + $totalSupplies) }}</div>
                 <div class="hint">Servicios {{ format_money($totalCommissions) }} · Insumos {{ format_money($totalSupplies) }} · Pagado {{ format_money($totalPayouts) }}</div>
             </div>
         </div>
         <div class="col-6 col-xl-3">
-            <div class="card stat-card py-3">
+            <div class="card stat-card tone-success">
+                <div class="icon"><i class="bi bi-graph-up-arrow"></i></div>
                 <div class="label">Ganancia neta</div>
-                <div class="value fs-3 {{ $profit >= 0 ? 'text-success' : 'text-danger' }}">{{ format_money($profit) }}</div>
+                <div class="value {{ $profit >= 0 ? 'text-success' : 'text-danger' }}">{{ format_money($profit) }}</div>
                 <div class="hint">Ingresos totales − gastos − nómina de barberos (comisiones/insumos)</div>
             </div>
         </div>

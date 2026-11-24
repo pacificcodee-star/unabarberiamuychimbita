@@ -78,12 +78,12 @@
                                     <i class="bi {{ $user->active ? 'bi-person-slash' : 'bi-person-check' }}"></i>
                                 </button>
                             </form>
-                            <a href="{{ route('barbers.edit', $user) }}" class="btn btn-sm btn-outline-dark" title="Editar"><i class="bi bi-pencil"></i></a>
+                            <a href="{{ route('barbers.edit', $user) }}" class="btn btn-sm btn-outline-dark btn-icon" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
                             @if($user->id !== auth()->id())
                                 <form method="POST" action="{{ route('barbers.destroy', $user) }}" class="d-inline" onsubmit="return confirm('¿Eliminar o desactivar este barbero?');">
                                     @csrf
                                     @method('DELETE')
-                                    <button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button>
+                                    <button class="btn btn-sm btn-outline-danger btn-icon" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash"></i></button>
                                 </form>
                             @endif
                         </td>

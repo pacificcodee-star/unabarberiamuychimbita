@@ -78,7 +78,7 @@
                     <span class="badge-soft gold">{{ $isAdmin ? 'Barbería completa' : 'Mis ventas' }}</span>
                 </div>
                 <div class="card-body">
-                    <canvas id="salesChart" height="105"></canvas>
+                    <div class="chart-box"><canvas id="salesChart"></canvas></div>
                 </div>
             </div>
         </div>
@@ -87,22 +87,10 @@
                 <div class="card-header"><i class="bi bi-cash-stack me-1 text-warning"></i> Estado de la caja</div>
                 <div class="card-body">
                     @if($activeSession)
-                        <div class="d-flex justify-content-between mb-2">
-                            <span class="text-muted">Estado</span>
-                            <span class="badge-soft green"><i class="bi bi-unlock"></i> Abierta</span>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2">
-                            <span class="text-muted">Base inicial</span>
-                            <strong>{{ format_money($activeSession->initial_amount) }}</strong>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2">
-                            <span class="text-muted">Abierta por</span>
-                            <span>{{ $activeSession->openedBy?->name }}</span>
-                        </div>
-                        <div class="d-flex justify-content-between mb-3">
-                            <span class="text-muted">Hora de apertura</span>
-                            <span>{{ $activeSession->opened_at->format('h:i A') }}</span>
-                        </div>
+                        <div class="data-row"><span>Estado</span><span class="badge-soft green"><i class="bi bi-unlock"></i> Abierta</span></div>
+                        <div class="data-row"><span>Base inicial</span><strong>{{ format_money($activeSession->initial_amount) }}</strong></div>
+                        <div class="data-row"><span>Abierta por</span><span>{{ $activeSession->openedBy?->name }}</span></div>
+                        <div class="data-row mb-3"><span>Hora de apertura</span><span>{{ $activeSession->opened_at->format('h:i A') }}</span></div>
                         <a href="{{ route('cash.show', $activeSession) }}" class="btn btn-dark w-100">
                             Ver caja y cerrar día
                         </a>
@@ -138,8 +126,8 @@
                         <tbody>
                         @forelse($recentSales as $sale)
                             <tr>
-                                <td>{{ $sale->sold_at->format('h:i A') }}</td>
-                                <td>{{ $sale->barber?->name }}</td>
+                                <td class="text-nowrap">{{ $sale->sold_at->format('h:i A') }}</td>
+                                <td class="text-nowrap">{{ $sale->barber?->name }}</td>
                                 <td class="text-muted small">{{ $sale->items->pluck('service_name')->join(', ') }}</td>
                                 <td class="text-end fw-semibold">{{ format_money($sale->total) }}</td>
                             </tr>
@@ -168,23 +156,23 @@
                 <div class="card-body">
                     @if($isWalkIn)
                         @if($waitingTurns > 0)
-                            <div class="alert alert-warning py-2 small mb-3">
-                                <i class="bi bi-hourglass-split me-1"></i> {{ $waitingTurns }} turno{{ $waitingTurns === 1 ? '' : 's' }} esperando
+                            <div class="alert alert-warning mb-3">
+                                <i class="bi bi-hourglass-split"></i> {{ $waitingTurns }} turno{{ $waitingTurns === 1 ? '' : 's' }} esperando
                             </div>
                         @endif
                         @forelse($nextTurns as $turn)
-                            <div class="d-flex align-items-start gap-3 {{ !$loop->last ? 'border-bottom pb-3 mb-3' : '' }}">
-                                <div class="badge-soft gold">#{{ $turn->turn_number }}</div>
-                                <div class="flex-grow-1">
-                                    <div class="fw-semibold">{{ $turn->client_name }}</div>
-                                    <div class="small text-muted">
-                                        {{ $turn->service?->name ?? 'Servicio por definir' }} · {{ $turn->barber?->name }}
-                                    </div>
+                            @if($loop->first)<ul class="agenda-list">@endif
+                            <li class="agenda-item">
+                                <span class="agenda-time">#{{ $turn->turn_number }}</span>
+                                <div class="agenda-text">
+                                    <strong>{{ $turn->client_name }}</strong>
+                                    <span>{{ $turn->service?->name ?? 'Servicio por definir' }} · {{ $turn->barber?->name }}</span>
                                 </div>
                                 <span class="badge-soft {{ $turn->status === 'cancelado' ? 'red' : ($turn->status === 'atendido' ? 'green' : 'blue') }}">
                                     {{ $turn->statusLabel() }}
                                 </span>
-                            </div>
+                            </li>
+                            @if($loop->last)</ul>@endif
                         @empty
                             <div class="empty-state py-4">
                                 <i class="bi bi-list-ol"></i>
@@ -194,18 +182,18 @@
                         <a href="{{ route('turns.index') }}" class="btn btn-outline-dark w-100 mt-3">Gestionar turnos</a>
                     @else
                         @forelse($nextAppointments as $appointment)
-                            <div class="d-flex align-items-start gap-3 {{ !$loop->last ? 'border-bottom pb-3 mb-3' : '' }}">
-                                <div class="badge-soft gold">{{ \Carbon\Carbon::parse($appointment->appointment_time)->format('h:i A') }}</div>
-                                <div class="flex-grow-1">
-                                    <div class="fw-semibold">{{ $appointment->client_name }}</div>
-                                    <div class="small text-muted">
-                                        {{ $appointment->service?->name ?? 'Servicio por definir' }} · {{ $appointment->barber?->name }}
-                                    </div>
+                            @if($loop->first)<ul class="agenda-list">@endif
+                            <li class="agenda-item">
+                                <span class="agenda-time">{{ \Carbon\Carbon::parse($appointment->appointment_time)->format('h:i A') }}</span>
+                                <div class="agenda-text">
+                                    <strong>{{ $appointment->client_name }}</strong>
+                                    <span>{{ $appointment->service?->name ?? 'Servicio por definir' }} · {{ $appointment->barber?->name }}</span>
                                 </div>
                                 <span class="badge-soft {{ $appointment->status === 'cancelada' ? 'red' : ($appointment->status === 'atendida' ? 'green' : 'blue') }}">
                                     {{ $appointment->statusLabel() }}
                                 </span>
-                            </div>
+                            </li>
+                            @if($loop->last)</ul>@endif
                         @empty
                             <div class="empty-state py-4">
                                 <i class="bi bi-calendar-x"></i>
@@ -220,17 +208,17 @@
     </div>
 
     @if($topServices->isNotEmpty())
-        <div class="card mt-3">
-            <div class="card-header"><i class="bi bi-tags me-1 text-warning"></i> Servicios más vendidos hoy</div>
+        <div class="card">
+            <div class="card-header"><i class="bi bi-tags"></i> Servicios más vendidos hoy</div>
             <div class="card-body">
                 <div class="row g-3">
                     @foreach($topServices as $service)
-                        <div class="col-md-6 col-xl">
-                            <div class="p-3 rounded-4" style="background: rgba(160,46,37,.07);">
-                                <div class="small text-muted">{{ $service->service_name }}</div>
-                                <div class="d-flex justify-content-between align-items-end mt-1">
-                                    <strong class="fs-5">{{ $service->quantity }}×</strong>
-                                    <span class="small">{{ format_money($service->total) }}</span>
+                        <div class="col-sm-6 col-xl-3">
+                            <div class="mini-stat">
+                                <span class="mini-stat-label">{{ $service->service_name }}</span>
+                                <div class="mini-stat-row">
+                                    <strong>{{ $service->quantity }}×</strong>
+                                    <span>{{ format_money($service->total) }}</span>
                                 </div>
                             </div>
                         </div>
@@ -252,20 +240,21 @@
                     datasets: [{
                         label: 'Ventas',
                         data: @json($chartSales->pluck('total')),
-                        borderColor: '#a02e25',
-                        backgroundColor: 'rgba(160, 46, 37, .14)',
-                        borderWidth: 3,
+                        borderColor: '#b32533',
+                        backgroundColor: 'rgba(179, 37, 51, .10)',
+                        borderWidth: 2.5,
                         fill: true,
                         tension: .35,
                         pointRadius: 4,
                         pointHoverRadius: 6,
-                        pointBackgroundColor: '#a02e25',
+                        pointBackgroundColor: '#b32533',
                         pointBorderColor: '#fff',
                         pointBorderWidth: 2,
                     }]
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: { display: false },
                         tooltip: {

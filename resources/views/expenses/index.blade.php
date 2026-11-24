@@ -41,19 +41,19 @@
         </div>
     </div>
 
-    <div class="card mb-3">
-        <div class="card-body d-flex justify-content-between align-items-center">
-            <div>
-                <div class="label text-muted text-uppercase small fw-semibold">Total de gastos filtrados</div>
-                <div class="fs-3 fw-bold" style="font-family: 'Playfair Display', serif;">{{ format_money($total) }}</div>
-            </div>
-            <div class="icon" style="width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: rgba(192,57,43,.08); color: #a63225; font-size: 1.3rem;">
-                <i class="bi bi-wallet2"></i>
+    <div class="row g-3">
+        <div class="col-6 col-xl-3">
+            <div class="card stat-card tone-danger">
+                <div class="icon"><i class="bi bi-wallet2"></i></div>
+                <div class="label">Total de gastos filtrados</div>
+                <div class="value">{{ format_money($total) }}</div>
+                <div class="hint">{{ $expenses->total() }} registro{{ $expenses->total() === 1 ? '' : 's' }}</div>
             </div>
         </div>
     </div>
 
     <div class="card">
+        <div class="card-header"><i class="bi bi-list-ul"></i> Gastos registrados</div>
         <div class="table-responsive">
             <table class="table mb-0">
                 <thead>
@@ -75,11 +75,11 @@
                         <td class="text-muted small">{{ $expense->user?->name ?? '—' }}</td>
                         <td class="text-end fw-semibold text-danger">{{ format_money($expense->amount) }}</td>
                         <td class="text-end text-nowrap">
-                            <a href="{{ route('expenses.edit', $expense) }}" class="btn btn-sm btn-outline-dark"><i class="bi bi-pencil"></i></a>
+                            <a href="{{ route('expenses.edit', $expense) }}" class="btn btn-sm btn-outline-dark btn-icon" aria-label="Editar" title="Editar"><i class="bi bi-pencil"></i></a>
                             <form method="POST" action="{{ route('expenses.destroy', $expense) }}" class="d-inline" onsubmit="return confirm('¿Eliminar este gasto?');">
                                 @csrf
                                 @method('DELETE')
-                                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-danger btn-icon" aria-label="Eliminar" title="Eliminar"><i class="bi bi-trash"></i></button>
                             </form>
                         </td>
                     </tr>

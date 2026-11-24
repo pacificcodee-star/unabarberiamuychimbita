@@ -60,12 +60,13 @@
     @endphp
     <div class="row g-3 mb-3">
         @foreach($kpis as [$label, $value, $hint, $icon])
-            <div class="col-sm-6 col-xl-3">
-                <div class="card h-100"><div class="card-body">
-                    <div class="text-muted text-uppercase small fw-semibold"><i class="bi {{ $icon }} me-1" aria-hidden="true"></i>{{ $label }}</div>
-                    <div class="fs-3 fw-bold">{{ $value }}</div>
-                    @if($hint)<div class="small text-muted">{{ $hint }}</div>@endif
-                </div></div>
+            <div class="col-6 col-xl-3">
+                <div class="card stat-card {{ $label === 'Requieren atención' && $value ? 'tone-danger' : '' }}">
+                    <div class="icon"><i class="bi {{ $icon }}" aria-hidden="true"></i></div>
+                    <div class="label">{{ $label }}</div>
+                    <div class="value">{{ $value }}</div>
+                    @if($hint)<div class="hint">{{ $hint }}</div>@endif
+                </div>
             </div>
         @endforeach
     </div>
@@ -73,10 +74,9 @@
     <div class="row g-3 mb-3">
         @foreach([['Por barbero', $byBarber, $barbers], ['Por servicio', $byService, $services]] as [$heading, $rows, $names])
             <div class="col-lg-6">
-                <div class="card h-100"><div class="card-body">
-                    <h2 class="h6 fw-bold">{{ $heading }}</h2>
+                <div class="card h-100"><div class="card-header"><i class="bi {{ $heading === 'Por barbero' ? 'bi-people' : 'bi-scissors' }}" aria-hidden="true"></i> {{ $heading }}</div><div class="card-body">
                     @if($rows->isEmpty())
-                        <p class="text-muted small mb-0">Todavía no hay respuestas con este filtro.</p>
+                        <div class="empty-state py-4"><i class="bi bi-inbox"></i>Todavía no hay respuestas con este filtro.</div>
                     @else
                         <table class="table table-sm mb-0">
                             <thead><tr><th scope="col">Nombre</th><th scope="col" class="text-end">Encuestas</th><th scope="col" class="text-end">Promedio</th></tr></thead>
@@ -97,13 +97,12 @@
     </div>
 
     @if($monthly->isNotEmpty())
-        <div class="card mb-3"><div class="card-body">
-            <h2 class="h6 fw-bold">Evolución mensual</h2>
+        <div class="card"><div class="card-header"><i class="bi bi-graph-up" aria-hidden="true"></i> Evolución mensual</div><div class="card-body">
             <div class="d-flex flex-wrap gap-3 align-items-end" role="list" aria-label="Calificación promedio por mes">
                 @foreach($monthly as $m)
                     <div role="listitem" class="text-center" style="min-width: 72px;">
                         <div style="height: 90px; display: flex; align-items: flex-end; justify-content: center;">
-                            <div style="width: 28px; height: {{ max(6, $m['avg'] / 5 * 90) }}px; background: #c9a227; border-radius: 4px 4px 0 0;" aria-hidden="true"></div>
+                            <div style="width: 28px; height: {{ max(6, $m['avg'] / 5 * 90) }}px; background: var(--ui-brand); border-radius: 6px 6px 0 0;" aria-hidden="true"></div>
                         </div>
                         <div class="fw-bold small">{{ number_format($m['avg'], 1, ',', '') }}</div>
                         <div class="small text-muted">{{ $m['label'] }} · {{ $m['count'] }}</div>
@@ -114,6 +113,7 @@
     @endif
 
     <div class="card">
+        <div class="card-header"><i class="bi bi-clipboard-check" aria-hidden="true"></i> Encuestas enviadas</div>
         <div class="table-responsive">
             <table class="table mb-0 align-middle">
                 <thead><tr><th scope="col">Atención</th><th scope="col">Cliente</th><th scope="col">Barbero · servicio</th><th scope="col">Estado</th><th scope="col">Experiencia</th><th scope="col"><span class="visually-hidden">Acciones</span></th></tr></thead>
@@ -131,11 +131,11 @@
                         <td class="text-end">@if($session)<a href="{{ route('surveys.show', $session) }}" class="btn btn-sm btn-outline-dark">Ver respuestas</a>@endif</td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay encuestas. Se crean solas cuando un servicio queda como atendido.</td></tr>
+                    <tr><td colspan="6"><div class="empty-state"><i class="bi bi-clipboard"></i>Todavía no hay encuestas. Se crean solas cuando un servicio queda como atendido.</div></td></tr>
                 @endforelse
                 </tbody>
             </table>
         </div>
-        @if($invitations->hasPages())<div class="card-body">{{ $invitations->links() }}</div>@endif
+        @if($invitations->hasPages())<div class="card-body border-top">{{ $invitations->links() }}</div>@endif
     </div>
 @endsection

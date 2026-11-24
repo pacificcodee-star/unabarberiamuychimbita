@@ -1,6 +1,6 @@
 {{--
-    Menú lateral del panel — diseño "Sidebar Menu Template" de FathyHesham.
-    Estilos: public/vendor/sidebar/css/sidebar.css · Comportamiento: public/vendor/sidebar/js/sidebar.js
+    Menú lateral del panel.
+    Estilos: public/css/admin-ui.css (§14) · Comportamiento: public/vendor/sidebar/js/sidebar.js
     Uso en el layout: <x-sidebar />
 --}}
 @php
@@ -25,67 +25,67 @@
             </span>
         </a>
         <button type="button" class="sidebar-button-toggle" data-sidebar-collapse aria-controls="sidebar" aria-expanded="true" aria-label="Contraer menú" title="Contraer menú">
-            <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+            <i class="bi bi-chevron-left" aria-hidden="true"></i>
         </button>
     </header>
 
     <div class="sidebar-content">
         <form class="search-form" role="search" action="{{ url()->current() }}" title="Buscar en el menú">
-            <i class="fa-solid fa-magnifying-glass search-icon" aria-hidden="true"></i>
+            <i class="bi bi-search search-icon" aria-hidden="true"></i>
             <input class="search" type="search" placeholder="Buscar..." aria-label="Buscar en el menú" autocomplete="off">
         </form>
         <p class="sidebar-search-empty" data-sidebar-empty hidden>Sin resultados</p>
 
         <ul class="menu-sections">
             <x-sidebar.section title="Inicio">
-                <x-sidebar.item route="dashboard" icon="fa-solid fa-grip" label="Panel" />
+                <x-sidebar.item route="dashboard" icon="bi bi-grid-1x2" label="Panel" />
             </x-sidebar.section>
 
             @if($showAppointments || $showTurns)
                 <x-sidebar.section title="Agenda">
                     @if($showAppointments)
-                        <x-sidebar.item route="appointments.index" active="appointments.*" icon="fa-solid fa-calendar-check" label="Citas" />
+                        <x-sidebar.item route="appointments.index" active="appointments.*" icon="bi bi-calendar2-check" label="Citas" />
                     @endif
                     @if($showTurns)
-                        <x-sidebar.item route="turns.index" active="turns.*" icon="fa-solid fa-list-ol" label="Turnos" />
+                        <x-sidebar.item route="turns.index" active="turns.*" icon="bi bi-list-ol" label="Turnos" />
                     @endif
                 </x-sidebar.section>
             @endif
 
             <x-sidebar.section title="Ventas">
-                <x-sidebar.item route="sales.index" active="sales.*" icon="fa-solid fa-receipt" label="Ventas y servicios" />
+                <x-sidebar.item route="sales.index" active="sales.*" icon="bi bi-receipt" label="Ventas y servicios" />
                 @if($isAdmin)
-                    <x-sidebar.item route="pos.index" active="pos.*" icon="fa-solid fa-cash-register" label="Venta POS" />
-                    <x-sidebar.item route="invoices.index" active="invoices.*" icon="fa-solid fa-file-invoice" label="Comprobantes" />
+                    <x-sidebar.item route="pos.index" active="pos.*" icon="bi bi-shop" label="Venta POS" />
+                    <x-sidebar.item route="invoices.index" active="invoices.*" icon="bi bi-file-earmark-text" label="Comprobantes" />
                 @endif
-                <x-sidebar.item route="cash.index" active="cash.*" icon="fa-solid fa-sack-dollar" label="Caja" />
+                <x-sidebar.item route="cash.index" active="cash.*" icon="bi bi-safe2" label="Caja" />
             </x-sidebar.section>
 
             @if($isAdmin)
                 <x-sidebar.section title="Catálogo">
-                    <x-sidebar.item route="services.index" active="services.*" icon="fa-solid fa-scissors" label="Servicios" />
-                    <x-sidebar.item route="supplies.index" active="supplies.*" icon="fa-solid fa-box-open" label="Insumos" />
+                    <x-sidebar.item route="services.index" active="services.*" icon="bi bi-scissors" label="Servicios" />
+                    <x-sidebar.item route="supplies.index" active="supplies.*" icon="bi bi-box-seam" label="Insumos" />
                 </x-sidebar.section>
 
                 <x-sidebar.section title="Personal">
-                    <x-sidebar.item route="barbers.index" active="barbers.*" icon="fa-solid fa-user-group" label="Barberos" />
-                    <x-sidebar.item route="availability.index" active="availability.*" icon="fa-solid fa-calendar-xmark" label="Disponibilidad" />
-                    <x-sidebar.item route="commissions.index" active="commissions.*" icon="fa-solid fa-wallet" label="Nómina" />
+                    <x-sidebar.item route="barbers.index" active="barbers.*" icon="bi bi-people" label="Barberos" />
+                    <x-sidebar.item route="availability.index" active="availability.*" icon="bi bi-calendar2-x" label="Disponibilidad" />
+                    <x-sidebar.item route="commissions.index" active="commissions.*" icon="bi bi-wallet2" label="Nómina" />
                 </x-sidebar.section>
 
                 <x-sidebar.section title="Clientes">
-                    <x-sidebar.item route="surveys.index" active="surveys.*" icon="fa-solid fa-star-half-stroke" label="Satisfacción y opiniones" />
+                    <x-sidebar.item route="surveys.index" active="surveys.*" icon="bi bi-star-half" label="Satisfacción y opiniones" />
                 </x-sidebar.section>
 
                 <x-sidebar.section title="Finanzas y reportes">
-                    <x-sidebar.item route="expenses.index" active="expenses.*" icon="fa-solid fa-money-bill-wave" label="Gastos" />
-                    <x-sidebar.item route="reports.index" active="reports.*" icon="fa-solid fa-square-poll-vertical" label="Informes" />
+                    <x-sidebar.item route="expenses.index" active="expenses.*" icon="bi bi-cash-stack" label="Gastos" />
+                    <x-sidebar.item route="reports.index" active="reports.*" icon="bi bi-bar-chart-line" label="Informes" />
                 </x-sidebar.section>
 
                 <x-sidebar.section title="Configuración">
                     @php($waUnread = \App\Models\WhatsAppConversation::unreadTotal())
-                    <x-sidebar.item route="whatsapp.index" active="whatsapp.*" icon="fa-brands fa-whatsapp" :label="$waUnread ? 'WhatsApp ('.$waUnread.' sin leer)' : 'WhatsApp'" />
-                    <x-sidebar.item route="site-settings.edit" active="site-settings.*" icon="fa-solid fa-gear" label="Configuración del negocio" />
+                    <x-sidebar.item route="whatsapp.index" active="whatsapp.*" icon="bi bi-whatsapp" label="WhatsApp" :badge="$waUnread ?: null" />
+                    <x-sidebar.item route="site-settings.edit" active="site-settings.*" icon="bi bi-gear" label="Configuración del negocio" />
                 </x-sidebar.section>
             @endif
         </ul>
@@ -100,25 +100,19 @@
             </span>
         </div>
 
-        <a href="{{ route('landing') }}" class="sidebar-footer-link" title="Ver página principal">
-            <i class="fa-solid fa-globe" aria-hidden="true"></i>
-            <span class="menu-label">Ver página principal</span>
-        </a>
-
-        <form method="POST" action="{{ route('logout') }}">
-            @csrf
-            <button type="submit" class="sidebar-footer-link" title="Cerrar sesión">
-                <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
-                <span class="menu-label">Cerrar sesión</span>
+        <div class="sidebar-tools">
+            <a href="{{ route('landing') }}" class="sidebar-icon-btn" title="Ver página principal" aria-label="Ver página principal">
+                <i class="bi bi-globe2" aria-hidden="true"></i>
+            </a>
+            <button type="button" class="sidebar-icon-btn button-change-theme" aria-pressed="false" title="Cambiar a modo oscuro" aria-label="Cambiar a modo oscuro">
+                <span class="icon-theme"><i class="bi bi-moon-stars" aria-hidden="true"></i></span>
             </button>
-        </form>
-
-        <button type="button" class="button-change-theme" aria-pressed="false" title="Cambiar a modo oscuro">
-            <span class="icon-theme">
-                <i class="fa-solid fa-moon" aria-hidden="true"></i>
-                <span class="theme-text">Modo oscuro</span>
-            </span>
-            <span class="change-theme-track" aria-hidden="true"><span class="change-theme-indicator"></span></span>
-        </button>
+            <form method="POST" action="{{ route('logout') }}">
+                @csrf
+                <button type="submit" class="sidebar-icon-btn is-danger" title="Cerrar sesión" aria-label="Cerrar sesión">
+                    <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+                </button>
+            </form>
+        </div>
     </footer>
 </aside>

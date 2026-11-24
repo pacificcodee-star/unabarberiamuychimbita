@@ -15,8 +15,11 @@
                     <span><i class="bi bi-box-seam me-1 text-warning"></i> Productos disponibles</span>
                     <span class="badge-soft">{{ $products->count() }} activos</span>
                 </div>
-                <div class="p-2 border-bottom">
-                    <input type="text" id="posProductSearch" class="form-control form-control-sm" placeholder="Buscar por nombre o código">
+                <div class="card-toolbar">
+                    <div class="search-input">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <input type="search" id="posProductSearch" class="form-control" placeholder="Buscar por nombre o código" aria-label="Buscar producto">
+                    </div>
                 </div>
                 <div class="table-responsive" style="max-height: calc(100vh - 320px); min-height: 420px;">
                     <table class="table table-sm mb-0 align-middle" id="posAvailableTable">
@@ -52,10 +55,8 @@
         </div>
 
         <div class="col-lg-7">
-            <div class="card mb-3">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-cart-check me-1 text-warning"></i> Punto de venta</span>
-                </div>
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-cart-check"></i> Punto de venta</div>
                 <div class="card-body">
                     <p class="text-muted small mb-3">Selecciona productos desde la lista de disponibles, indica la cantidad y registra la venta.</p>
                     @if($products->isEmpty())
@@ -99,9 +100,9 @@
                             </table>
                         </div>
 
-                        <div class="d-flex justify-content-end align-items-center gap-3 mb-3">
-                            <span class="text-muted">Total</span>
-                            <span class="fs-3 fw-bold" id="posTotal">$0</span>
+                        <div class="total-row mb-3">
+                            <span>Total</span>
+                            <strong id="posTotal">$0</strong>
                         </div>
 
                         <div class="mb-3">
@@ -111,7 +112,7 @@
 
                         <button class="btn btn-gold w-100" @disabled($products->isEmpty())><i class="bi bi-check2-circle me-1"></i> Registrar venta</button>
                     </form>
-                    <div class="small text-muted mt-2"><i class="bi bi-info-circle me-1"></i> La venta descuenta stock automáticamente y se suma a los ingresos del negocio (ventas, caja, informes y comprobantes).</div>
+                    <div class="form-text mt-3"><i class="bi bi-info-circle me-1"></i> La venta descuenta stock automáticamente y se suma a los ingresos del negocio (ventas, caja, informes y comprobantes).</div>
                 </div>
             </div>
 
@@ -133,7 +134,7 @@
             <td><input type="number" name="__NAME__[price]" class="form-control form-control-sm pos-price" min="0" step="0.01" required></td>
             <td><input type="number" name="__NAME__[quantity]" class="form-control form-control-sm pos-qty text-center" min="1" max="9999" step="1" value="1" required style="min-width: 90px;"></td>
             <td class="text-end fw-semibold pos-subtotal">$0</td>
-            <td><button type="button" class="btn btn-sm btn-outline-danger pos-remove" title="Quitar"><i class="bi bi-x"></i></button></td>
+            <td><button type="button" class="btn btn-sm btn-outline-danger pos-remove btn-icon" title="Quitar" aria-label="Quitar"><i class="bi bi-x"></i></button></td>
         </tr>
     </template>
 @endsection

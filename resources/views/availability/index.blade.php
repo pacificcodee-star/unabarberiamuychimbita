@@ -3,12 +3,10 @@
 @section('title', 'Disponibilidad por barbero')
 
 @section('content')
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <p class="text-muted mb-0">Gestiona la disponibilidad de cada barbero: marca días completos u horarios en los que no podrá atender.</p>
-    </div>
+    <p class="page-intro">Gestiona la disponibilidad de cada barbero: marca días completos u horarios en los que no podrá atender.</p>
 
-    <div class="card mb-4">
-        <div class="card-body py-3">
+    <div class="card">
+        <div class="card-body">
             <form method="GET" action="{{ route('availability.index') }}" class="row g-2 align-items-end">
                 <div class="col-sm-8 col-md-5">
                     <label class="form-label mb-1">Barbero</label>
@@ -21,18 +19,16 @@
                 <div class="col-auto">
                     <noscript><button class="btn btn-dark">Ver</button></noscript>
                 </div>
+                @if($selectedBarber)
+                    <div class="col-md text-md-end">
+                        <span class="badge-soft gold"><i class="bi bi-person-badge" aria-hidden="true"></i> {{ $selectedBarber->attentionModeLabel() }}</span>
+                    </div>
+                @endif
             </form>
         </div>
     </div>
 
-    @if($selectedBarber)
-        <div class="alert alert-light border mb-4">
-            <i class="bi bi-person-badge me-1"></i> Administrando disponibilidad de: <strong>{{ $selectedBarber->name }}</strong>
-            <span class="text-muted">· {{ $selectedBarber->attentionModeLabel() }}</span>
-        </div>
-    @endif
-
-    <div class="row g-4">
+    <div class="row g-3">
         <div class="col-lg-5">
             <div class="card h-100">
                 <div class="card-header"><i class="bi bi-calendar-x me-1"></i> Marcar indisponibilidad</div>
@@ -86,13 +82,13 @@
         <div class="col-lg-7">
             <div class="card h-100">
                 <div class="card-header">
-                    <span><i class="bi bi-list-ul me-1"></i> Indisponibilidades de {{ $selectedBarber?->name ?? 'barbero' }}</span>
+                    <span><i class="bi bi-list-ul"></i> Indisponibilidades de {{ $selectedBarber?->name ?? 'barbero' }}</span>
                 </div>
                 <div class="card-body p-0">
                     @if(! $selectedBarber)
-                        <div class="p-4 text-muted">Selecciona un barbero para ver su disponibilidad.</div>
+                        <div class="empty-state"><i class="bi bi-person"></i>Selecciona un barbero para ver su disponibilidad.</div>
                     @elseif($unavailabilities->isEmpty())
-                        <div class="p-4 text-muted">No hay indisponibilidades registradas para <strong>{{ $selectedBarber->name }}</strong> (desde ayer en adelante).</div>
+                        <div class="empty-state"><i class="bi bi-calendar-check"></i><p>No hay indisponibilidades registradas para <strong>{{ $selectedBarber->name }}</strong> (desde ayer en adelante).</p></div>
                     @else
                         <div class="table-responsive">
                             <table class="table align-middle mb-0">
@@ -120,7 +116,7 @@
                                                 <form method="POST" action="{{ route('availability.destroy', $item) }}" onsubmit="return confirm('¿Eliminar esta indisponibilidad?');">
                                                     @csrf
                                                     @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button>
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger btn-icon" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash"></i></button>
                                                 </form>
                                             </td>
                                         </tr>
