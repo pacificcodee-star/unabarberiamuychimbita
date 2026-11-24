@@ -33,7 +33,11 @@ class SurveySystemTest extends TestCase
         $this->travelTo(Carbon::parse('2026-11-18 15:00:00'));
         // Estas pruebas recorren el motor de la encuesta también por la web. En producción la web está
         // apagada (solo WhatsApp); ese modo se prueba aparte en los tests "only_whatsapp".
-        config(['encuestas.whatsapp' => true, 'encuestas.web' => true]);
+        config([
+            'encuestas.whatsapp' => true,
+            'encuestas.web' => true,
+            'encuestas.send_delay_minutes' => 2,
+        ]);
     }
 
     public function test_only_whatsapp_the_invitation_goes_by_whatsapp_and_asks_inside_the_chat(): void

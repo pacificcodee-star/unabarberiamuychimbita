@@ -20,6 +20,8 @@ class TrustedProxiesTest extends TestCase
 
     public function test_cloudflare_puede_enviar_la_ip_real_y_el_protocolo_https(): void
     {
+        config(['web.force_https' => true]);
+
         $this->withServerVariables(['REMOTE_ADDR' => '173.245.48.10', 'HTTPS' => 'off'])
             ->get('http://localhost/__test/request-context', [
                 'CF-Connecting-IP' => '203.0.113.42',
@@ -27,7 +29,18 @@ class TrustedProxiesTest extends TestCase
                 'X-Forwarded-Proto' => 'https',
             ])
             ->assertOk()
+            ->assertHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
             ->assertJson(['ip' => '203.0.113.42', 'secure' => true]);
+    }
+
+    public function test_force_https_ignora_el_protocolo_enviado_por_un_cliente_directo(): void
+    {
+        config(['web.force_https' => true]);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.25', 'HTTPS' => 'off'])
+            ->get('http://localhost/__test/request-context', ['X-Forwarded-Proto' => 'https'])
+            ->assertStatus(301)
+            ->assertRedirect('https://localhost/__test/request-context');
     }
 
     public function test_las_cabeceras_de_un_origen_fuera_de_cloudflare_se_ignoran(): void

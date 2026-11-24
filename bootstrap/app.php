@@ -10,6 +10,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Http\Middleware\TrustProxies;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -30,6 +31,8 @@ return Application::configure(basePath: dirname(__DIR__))
         );
         // Redirige http:// → https:// en producción y añade HSTS y cabeceras de seguridad.
         $middleware->prepend(ForceHttps::class);
+        // Resuelve el protocolo de un proxy confiable antes de aplicar la redirección.
+        $middleware->prepend(TrustProxies::class);
         // Identificador de correlación en todos los registros y en la cabecera X-Request-Id.
         $middleware->prepend(AssignRequestId::class);
         // Páginas públicas ya armadas para visitantes anónimos: se responden antes de abrir la sesión
