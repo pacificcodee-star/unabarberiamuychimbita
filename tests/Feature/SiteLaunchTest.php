@@ -46,6 +46,7 @@ class SiteLaunchTest extends TestCase
     public function test_analytics_only_loads_when_configured(): void
     {
         // Sin analítica no hay nada que aceptar: el aviso flotante de cookies no aparece.
+        config(['web.ga4_id' => null]);
         $this->get('/')->assertDontSee('id="cookieBanner"', false)->assertSee('const GA4 = null', false);
 
         config(['web.ga4_id' => 'G-TEST123']);

@@ -41,6 +41,7 @@ COPY --from=assets /app/min/js /var/www/html/public/js
 COPY deploy/php/barberia.ini /usr/local/etc/php/conf.d/zz-barberia.ini
 COPY deploy/caddy/Caddyfile /etc/caddy/Caddyfile
 COPY deploy/caddy/Caddyfile.respaldo /etc/caddy/Caddyfile.respaldo
+COPY deploy/caddy/cloudflare_ips.caddy /etc/caddy/cloudflare_ips.caddy
 COPY deploy/supervisord.conf /etc/supervisord.conf
 COPY deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint
 

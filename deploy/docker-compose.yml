@@ -7,6 +7,7 @@ x-app-env: &app-env
   APP_KEY: ${APP_KEY}
   APP_DEBUG: "false"
   APP_URL: https://${APP_HOST}
+  TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
   APP_TIMEZONE: America/Bogota
   APP_LOCALE: es
   APP_FALLBACK_LOCALE: es
