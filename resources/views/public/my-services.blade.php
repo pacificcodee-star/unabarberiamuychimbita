@@ -19,8 +19,8 @@
         @endif
         <p id="service-feedback" role="status" tabindex="-1"></p>
         <div class="service-tabs" role="tablist" aria-label="Servicios activos e historial">
-            <button type="button" role="tab" id="tab-activos" data-service-tab="activos" aria-selected="true" tabindex="0">Activos</button>
-            <button type="button" role="tab" id="tab-historial" data-service-tab="historial" aria-selected="false" tabindex="-1">Historial</button>
+            <button type="button" role="tab" id="tab-activos" data-service-tab="activos" aria-selected="{{ $defaultTab === 'activos' ? 'true' : 'false' }}" tabindex="{{ $defaultTab === 'activos' ? 0 : -1 }}">Activos</button>
+            <button type="button" role="tab" id="tab-historial" data-service-tab="historial" aria-selected="{{ $defaultTab === 'historial' ? 'true' : 'false' }}" tabindex="{{ $defaultTab === 'historial' ? 0 : -1 }}">Historial</button>
         </div>
         <div id="service-list">@include('public.partials.my-services-list')</div>
         <dialog id="service-dialog" aria-labelledby="service-dialog-title">

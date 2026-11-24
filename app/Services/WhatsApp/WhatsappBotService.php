@@ -150,6 +150,15 @@ class WhatsappBotService
         // los pasos que esperan texto (nombre, últimos dígitos del teléfono), donde la respuesta es otra cosa.
         $saysYes = $this->isAffirmative($normalized) || $this->isApprovalEmoji($text) || $this->asksToConfirm($normalized);
 
+        if ($step === 'book_confirm' && $this->bookingMode($flow['data']) === 'turno') {
+            if ($saysYes) {
+                return $this->handleBookConfirm($conversation, $flow, 1);
+            }
+            if (in_array($normalized, ['no', 'cancelar'], true)) {
+                return $this->handleBookConfirm($conversation, $flow, 3);
+            }
+        }
+
         if ($saysYes && ! in_array($step, ['book_name', 'cancel_name', 'cancel_verify'], true)) {
             $confirmable = $flow === null || in_array($step, ['menu', 'done', 'book_done', 'cancel_done'], true);
             // Pendiente: se confirma siempre. Ya confirmada: solo fuera de un menú (ahí "sí" puede ser otra cosa).
@@ -354,7 +363,7 @@ class WhatsappBotService
         return $this->menuOption($conversation, $numeric);
     }
 
-    private function step(WhatsAppConversation $conversation, array $flow, int $n): string
+    private function step(WhatsAppConversation $conversation, array $flow, int $n): ?string
     {
         return match ($flow['step'] ?? 'menu') {
             'menu' => $this->menuOption($conversation, $n),
@@ -485,7 +494,7 @@ class WhatsappBotService
     }
 
     // ------------------------------------------------------------------------------------------
-    // Reservar: nombre -> servicio -> barbero -> (cita: fecha -> hora -> confirmación | turno: listo)
+    // Reservar: nombre -> servicio -> barbero -> (cita: fecha y hora) -> confirmación.
     // "cita" solo muestra barberos que atienden con cita; "turno" solo los que atienden por llegada.
     // ------------------------------------------------------------------------------------------
 
@@ -714,7 +723,10 @@ class WhatsappBotService
         // El tipo de reserva lo decide lo que eligió el cliente (cita o turno), no el barbero:
         // la lista ya solo muestra barberos de ese tipo.
         if ($mode === 'turno') {
-            return $this->bookTurn($conversation, $barber, $data['service_id'], $data['client_name']);
+            $data['date'] = now()->toDateString();
+            $flow = $this->enter($conversation->phone, $flow, 'book_confirm', $data);
+
+            return $this->bookingConfirmText($flow['data']);
         }
 
         $dates = $this->bookingDates($barber);
@@ -761,49 +773,77 @@ class WhatsappBotService
         return $first['barber'] ?? null;
     }
 
-    /** El barbero atiende por orden de llegada: se crea el turno de una vez. */
-    private function bookTurn(WhatsAppConversation $conversation, User $barber, ?int $serviceId, ?string $clientName = null): string
+    private function confirmTurnBooking(WhatsAppConversation $conversation, array $flow): ?string
+    {
+        $lock = Cache::lock($this->flowKey($conversation->phone).':confirm-turn', 60);
+        if (! $lock->get()) {
+            return 'Estamos confirmando tu turno. Por favor, espera un momento.';
+        }
+
+        try {
+            $current = $this->flow($conversation->phone);
+            if ($current !== $flow) {
+                return $current ? $this->render($conversation, $current) : $this->mainMenu($conversation);
+            }
+
+            return $this->bookTurn($conversation, $flow['data']);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function bookTurn(WhatsAppConversation $conversation, array $data): ?string
     {
         $turnState = TurnSchedule::forNow();
         if (! $turnState['open']) {
             return $this->turnUnavailable($conversation, $turnState['message']);
         }
 
-        $name = trim((string) $clientName) ?: (trim((string) $conversation->client_name) ?: 'Cliente WhatsApp');
+        if ($data['date'] !== now()->toDateString()) {
+            return 'Esa solicitud correspondía al día anterior. Pide un turno para hoy.'."\n\n".$this->mainMenu($conversation);
+        }
+
+        $service = Service::query()->active()->find($data['service_id'] ?? 0);
+        $barber = User::barbers()->where('active', true)->where('attention_mode', 'llegada')->find($data['barber_id'] ?? 0);
+        if (! $service || ! $barber || ! $barber->offersService($service->id)) {
+            return 'El servicio o el barbero elegido ya no está disponible. Elige otro.'."\n\n"
+                .$this->startBooking($conversation, 'turno');
+        }
+
+        $name = trim((string) ($data['client_name'] ?? ''))
+            ?: (trim((string) $conversation->client_name) ?: 'Cliente WhatsApp');
 
         $turn = $this->turns->createFor($barber, [
-            'service_id' => $serviceId,
+            'service_id' => $service->id,
             'client_name' => $name,
             'client_phone' => $conversation->phone,
             'whatsapp_consent' => true,
-        ], notify: false);
+        ], notify: false, advanceQueue: false);
 
-        $turn->load(['service', 'barber']);
+        $done = ['kind' => 'turn', 'turn_id' => $turn->id];
+        $this->saveFlow($conversation->phone, ['step' => 'done', 'data' => $done, 'history' => []]);
+
         \App\Models\ConsentRecord::grant($turn, 'tratamiento_reserva', 'whatsapp_bot');
         \App\Models\ConsentRecord::grant($turn, 'avisos_whatsapp', 'whatsapp_bot');
 
         StaffNotification::record(
             'turn_new',
-            'Nuevo turno #'.$turn->turn_number.' (WhatsApp): '.$turn->client_name,
-            'Con '.$barber->name.($turn->service ? ' · '.$turn->service->name : '').'. Pedido por el bot.',
+            'Nuevo turno #'.$turn->turn_number.' confirmado (WhatsApp): '.$turn->client_name,
+            'Con '.$barber->name.' · '.$service->name.'. Confirmado por el cliente en el chat.',
             route('turns.index', [], false),
             $barber->id,
         );
 
-        $this->saveFlow($conversation->phone, [
-            'step' => 'done',
-            'data' => ['kind' => 'turn', 'turn_id' => $turn->id],
-            'history' => [],
-        ]);
+        // Primero se confirma en el chat. Si el barbero está libre, la cola envía el llamado enseguida.
+        $this->inbox->send($conversation, $this->doneText($done));
+        $this->queue->advance($barber->id);
 
-        return $this->doneText(['kind' => 'turn', 'turn_id' => $turn->id]);
+        return null;
     }
 
     private function turnUnavailable(WhatsAppConversation $conversation, string $message): string
     {
-        return '🌙 '.$message."\n\n"
-            .'🌐 Consulta el horario de turnos en la página: '.route('public.booking', ['tipo' => 'turno'])."\n\n"
-            .$this->mainMenu($conversation);
+        return '🌙 '.$message."\n\n".$this->mainMenu($conversation);
     }
 
     private function bookingDateText(array $data): string
@@ -890,25 +930,39 @@ class WhatsappBotService
 
     private function bookingConfirmText(array $data): string
     {
+        $turn = $this->bookingMode($data) === 'turno';
         $service = Service::find($data['service_id'] ?? 0);
         $barber = User::find($data['barber_id'] ?? 0);
         $date = (string) ($data['date'] ?? '');
         $time = (string) ($data['time'] ?? '');
 
-        if (! $service || ! $barber || $date === '' || $time === '') {
+        if (! $service || ! $barber || (! $turn && ($date === '' || $time === ''))) {
             return $this->menuText();
         }
 
         $lines = [
             '✂️ Servicio: *'.$service->name.'*',
             '💈 Barbero: *'.$barber->name.'*',
-            '📅 Fecha: *'.$this->dateLabel(Carbon::parse($date)).'*',
-            '🕒 Hora: *'.$this->slotLabel($time).'*',
             '💰 Valor: *'.$this->money($service->price).'*',
         ];
+        if ($turn) {
+            $lines[] = '🎟️ Turno de hoy, por orden de llegada.';
+        } else {
+            array_splice($lines, 2, 0, [
+                '📅 Fecha: *'.$this->dateLabel(Carbon::parse($date)).'*',
+                '🕒 Hora: *'.$this->slotLabel($time).'*',
+            ]);
+        }
 
         if (! empty($data['client_name'])) {
             array_unshift($lines, '👤 Cliente: *'.$data['client_name'].'*');
+        }
+
+        if ($turn) {
+            return '📋 *Revisa tu solicitud de turno:*'."\n\n".implode("\n", $lines)."\n\n"
+                .'Responde *SÍ* o *1* para confirmar tu turno.'."\n"
+                .'2. ✏️ Cambiar la solicitud.'."\n"
+                .'3. ❌ Cancelar la solicitud.';
         }
 
         return '📋 *Revisa los detalles de tu reserva:*'."\n\n"
@@ -920,10 +974,11 @@ class WhatsappBotService
             .'Responde con el *número* de tu elección.';
     }
 
-    private function handleBookConfirm(WhatsAppConversation $conversation, array $flow, int $n): string
+    private function handleBookConfirm(WhatsAppConversation $conversation, array $flow, int $n): ?string
     {
+        $mode = $this->bookingMode($flow['data']);
         if ($n === 2) {
-            return $this->startBooking($conversation);
+            return $this->startBooking($conversation, $mode);
         }
 
         if ($n === 3) {
@@ -934,6 +989,10 @@ class WhatsappBotService
 
         if ($n !== 1) {
             return $this->invalidOption($conversation, $flow);
+        }
+
+        if ($mode === 'turno') {
+            return $this->confirmTurnBooking($conversation, $flow);
         }
 
         $data = $flow['data'];
@@ -1010,9 +1069,7 @@ class WhatsappBotService
             return '✅ ¡Perfecto! Tu turno *'.$number.'* con *'.($turn->barber?->name ?? 'tu barbero').'* quedó registrado correctamente.'."\n\n"
                 .($turn->service ? '✂️ Servicio: *'.$turn->service->name."*\n\n" : '')
                 .(trim((string) $turn->client_name) !== '' ? '👤 Cliente: *'.$turn->client_name."*\n\n" : '')
-                // Si el barbero estaba libre, el turno ya fue llamado ("¡Llegó tu turno!"): no se promete otro aviso.
-                .($turn->status === 'esperando' ? '⏰ Te avisaremos por aquí *15 minutos antes* de tu atención.'."\n\n" : '')
-                .'🌐 Abre tu turno en *Mis servicios*: '.ClientServiceAccess::recoveryUrl($turn)."\n\n"
+                .'📲 Recibirás por este chat el aviso cuando sea tu turno.'."\n\n"
                 .'1. 🏠 Volver al menú principal.'."\n"
                 .'2. 👋 Finalizar conversación.';
         }
@@ -1272,7 +1329,7 @@ class WhatsappBotService
 
         // El enlace también permite gestionar el turno. Solo se envía al número registrado.
         $colombianPhone = fn (?string $number) => preg_replace('/^57(?=\d{10}$)/', '', preg_replace('/\D/', '', (string) $number));
-        if ($colombianPhone($turn->client_phone) === $colombianPhone($conversation->phone)) {
+        if ($turn->guest_visitor_id !== null && $colombianPhone($turn->client_phone) === $colombianPhone($conversation->phone)) {
             $lines[] = '🌐 Abre tu turno en *Mis servicios*: '.ClientServiceAccess::recoveryUrl($turn);
         }
 

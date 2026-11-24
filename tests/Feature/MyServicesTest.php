@@ -95,22 +95,27 @@ class MyServicesTest extends TestCase
             ->assertDontSee('/mis-servicios/recuperar');
     }
 
-    public function test_the_saved_track_link_can_relink_the_device_after_the_cookie_is_lost(): void
+    public function test_web_and_pwa_keep_finished_services_with_the_cookie_after_the_session_closes(): void
     {
-        $barber = $this->barber('citas');
-        $appointment = Appointment::reserveSlot([
-            'barber_id' => $barber->id, 'client_name' => 'Sofía', 'client_phone' => '3001234567',
-            'appointment_date' => '2026-11-19', 'appointment_time' => '14:00', 'status' => 'pendiente',
-        ]);
+        $appointment = $this->book($this->barber('citas'), 'cita');
+        $turn = $this->book($this->barber('llegada'), 'turno');
+        $this->assertSame($appointment->guest_visitor_id, $turn->guest_visitor_id);
+        $appointment->update(['status' => 'atendida']);
+        $turn->update(['status' => 'atendido']);
 
-        $this->postJson('/mis-servicios/vincular', ['type' => 'cita', 'token' => 'no-existe'])->assertNotFound();
-        $response = $this->postJson('/mis-servicios/vincular', ['type' => 'cita', 'token' => $appointment->public_token])
-            ->assertOk()->assertJson(['ok' => true]);
-        $device = $response->getCookie('mis_servicios');
-        $this->assertNotNull($device);
+        $this->flushSession();
+        $this->travel(60)->days();
+        $this->get('/?source=pwa')->assertSee('Mis servicios');
+        $history = $this->get('/mis-servicios')->assertOk()
+            ->assertSee('data-service-tab="historial" aria-selected="true"', false)
+            ->assertSeeInOrder(['Citas anteriores', 'Atendida', 'Turnos anteriores', 'Finalizado']);
+        $this->assertStringContainsString('no-store', $history->headers->get('Cache-Control'));
 
-        $this->withCookie('mis_servicios', $device->getValue());
-        $this->get('/mis-servicios')->assertOk()->assertSee('2:00 pm');
+        $this->withCookie('mis_servicios', '');
+        $this->postJson('/mis-servicios/vincular', ['type' => 'cita', 'token' => $appointment->public_token])->assertNotFound();
+        $this->get('/mis-servicios')->assertOk()->assertDontSee('Citas anteriores')->assertDontSee('Turnos anteriores');
+        $this->assertNotNull($appointment->fresh());
+        $this->assertNotNull($turn->fresh());
     }
 
     public function test_checking_a_lost_booking_response_relinks_the_device(): void

@@ -20,6 +20,7 @@
     { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
+    { "name": "Mis servicios", "short_name": "Mis servicios", "url": "/mis-servicios", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Reservar cita", "short_name": "Reservar", "url": "/reservar?source=pwa", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Servicios", "url": "/servicios?source=pwa", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
   ]

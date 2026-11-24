@@ -3,7 +3,7 @@
    - CSS, JS, imágenes y fuentes: se sirven del caché y se actualizan en segundo plano.
    - El panel de administración y los formularios (POST) nunca se guardan en caché.
    - Notificaciones push: muestra los avisos de turnos y citas aunque la página o el navegador estén cerrados. */
-const VERSION = 'v8'; // v8: el panel instalado muestra la página sin conexión; v4: páginas públicas siempre revalidadas; v5: contenido del panel al día; v6: aviso al instante a todas las pestañas; v7: estilos del pie al día
+const VERSION = 'v9'; // Las páginas personalizadas no se guardan para uso sin conexión.
 const PAGES = `pages-${VERSION}`;
 const ASSETS = `assets-${VERSION}`;
 const OFFLINE_URL = '/offline.html';
@@ -41,7 +41,8 @@ self.addEventListener('fetch', (event) => {
         event.respondWith(
             fetch(request)
                 .then((response) => {
-                    if (response.ok) {
+                    const cacheControl = response.headers.get('Cache-Control') || '';
+                    if (response.ok && !/(?:^|,)\s*(?:private|no-store)\b/i.test(cacheControl)) {
                         const copy = response.clone();
                         caches.open(PAGES).then((cache) => cache.put(url.pathname, copy));
                     }

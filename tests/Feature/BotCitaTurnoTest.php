@@ -3,10 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\Appointment;
+use App\Models\ClientNotification;
 use App\Models\Service;
 use App\Models\SiteSetting;
+use App\Models\StaffNotification;
 use App\Models\Turn;
 use App\Models\User;
+use App\Services\TurnQueueService;
 use App\Services\WhatsApp\WhatsappBotService;
 use App\Support\ClientServiceAccess;
 use Carbon\Carbon;
@@ -154,13 +157,17 @@ class BotCitaTurnoTest extends TestCase
         $this->assertStringContainsString('Carlos Turno', $barberos);
         $this->assertStringNotContainsString('Andres Cita', $barberos);
 
-        $this->escribir('1'); // barbero
+        $preview = $this->escribir('1'); // barbero
+        $this->assertStringContainsString('Responde *SÍ* o *1*', $preview);
+        $this->assertDatabaseCount('turns', 0);
+        $this->assertDatabaseMissing('staff_notifications', ['type' => 'turn_new']);
 
+        $this->escribir('1'); // confirmar
         $this->assertSame(1, Turn::where('barber_id', $this->deTurno->id)->count());
         $this->assertSame(0, Appointment::count());
     }
 
-    public function test_turnos_de_la_web_y_whatsapp_comparten_cola_y_el_enlace_vincula_el_turno(): void
+    public function test_turnos_de_la_web_y_whatsapp_comparten_cola_y_avisan_al_confirmar_y_al_llamar(): void
     {
         $this->post(route('public.booking.turn'), [
             'barber_id' => $this->deTurno->id,
@@ -173,19 +180,37 @@ class BotCitaTurnoTest extends TestCase
         $this->assertStringContainsString('tomar tu turno', $this->escribir(WhatsappBotService::TURN_REQUEST));
         $this->escribir('Ana Gomez');
         $this->escribir('1');
-        $reply = $this->escribir('1');
+        $this->escribir('1');
+        $this->assertDatabaseCount('turns', 1);
+        $this->escribir('sí');
 
         $turn = Turn::where('client_name', 'Ana Gomez')->firstOrFail();
         $this->assertSame(2, $turn->turn_number);
         $this->assertSame('esperando', $turn->status);
-        $this->assertStringContainsString(ClientServiceAccess::recoveryUrl($turn), $reply);
+        $this->assertDatabaseHas('staff_notifications', [
+            'type' => 'turn_new',
+            'title' => 'Nuevo turno #2 confirmado (WhatsApp): Ana Gomez',
+            'url' => route('turns.index', [], false),
+        ]);
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'quedó registrado correctamente')
+            && ! str_contains((string) $request['text'], 'http'));
 
-        $this->postJson(route('my-services.update', ['type' => 'turno', 'id' => $turn->id, 'action' => 'cancelar']))->assertNotFound();
-        $access = $this->get(ClientServiceAccess::recoveryUrl($turn))->assertRedirect(route('my-services.index'));
-        $this->withCredentials()->withCookie('mis_servicios', $access->getCookie('mis_servicios')->getValue());
-        $this->postJson(route('my-services.update', ['type' => 'turno', 'id' => $turn->id, 'action' => 'cancelar']))->assertOk();
-        $this->assertSame('cancelado', $turn->fresh()->status);
+        $this->escribir('sí'); // no duplica el turno ni el aviso al equipo
         $this->assertDatabaseCount('turns', 2);
+        $this->assertSame(1, StaffNotification::where('type', 'turn_new')->where('title', 'like', '%(WhatsApp)%')->count());
+
+        Turn::where('turn_number', 1)->firstOrFail()->update([
+            'status' => 'atendiendo',
+            'started_at' => now()->subMinutes(30),
+        ]);
+        app(TurnQueueService::class)->advance($this->deTurno->id);
+
+        $this->assertSame('llamado', $turn->fresh()->status);
+        $this->assertDatabaseHas('client_notifications', [
+            'notifiable_id' => $turn->id, 'type' => 'turn_called', 'channel' => 'whatsapp', 'status' => ClientNotification::SENT,
+        ]);
+        Http::assertSent(fn ($request) => $request['number'] === '573001234567'
+            && str_contains((string) $request['text'], '¡Llegó tu turno!'));
     }
 
     public function test_el_bot_puede_consultar_en_el_mismo_numero_un_turno_hecho_en_la_web(): void
@@ -218,36 +243,36 @@ class BotCitaTurnoTest extends TestCase
         $this->get(route('public.contact'))->assertOk()->assertSee($advisor);
     }
 
-    public function test_turno_llamado_de_una_vez_no_promete_aviso_de_15_minutos(): void
+    public function test_turno_con_barbero_libre_recibe_confirmacion_antes_del_llamado(): void
     {
         // Barbero libre: al tomar el turno la fila lo llama de inmediato ("¡Llegó tu turno!").
         $this->escribir('hola');
         $this->escribir('2');
         $this->escribir('Ana Gomez');
         $this->escribir('1');
-        $listo = $this->escribir('1');
+        $this->escribir('1');
+        $before = count(Http::recorded());
+        $this->escribir('1');
 
         $this->assertSame('llamado', Turn::firstOrFail()->status);
-        $this->assertStringNotContainsString('Seguimiento', $listo);
-        $this->assertStringNotContainsString('/seguimiento', $listo);
-        $this->assertStringContainsString('👤 Cliente: *Ana Gomez*', $listo);
-        $this->assertStringNotContainsString('15 minutos antes', $listo);
-        $this->assertStringNotContainsString('A nombre de', $listo);
+        $messages = Http::recorded()->slice($before)->map(fn ($pair) => (string) $pair[0]['text'])->values();
+        $this->assertStringContainsString('👤 Cliente: *Ana Gomez*', $messages[0]);
+        $this->assertStringNotContainsString('http', $messages[0]);
+        $this->assertStringContainsString('¡Llegó tu turno!', $messages[1]);
     }
 
-    public function test_turno_en_espera_si_avisa_15_minutos_antes(): void
+    public function test_turno_no_se_guarda_si_el_horario_vence_antes_de_confirmar(): void
     {
-        // Ya hay alguien en la fila: el turno nuevo queda esperando.
-        app(\App\Services\TurnService::class)->createFor($this->deTurno, ['client_name' => 'Primero']);
-
+        $this->travelTo(Carbon::parse('2026-11-18 19:29:00'));
         $this->escribir('hola');
         $this->escribir('2');
         $this->escribir('Ana Gomez');
         $this->escribir('1');
-        $listo = $this->escribir('1');
+        $this->escribir('1');
 
-        $this->assertStringContainsString('👤 Cliente: *Ana Gomez*', $listo);
-        $this->assertStringContainsString('15 minutos antes', $listo);
+        $this->travelTo(Carbon::parse('2026-11-18 19:31:00'));
+        $this->assertStringContainsString('se reciben hasta las 7:30 p. m.', $this->escribir('sí'));
+        $this->assertDatabaseCount('turns', 0);
     }
 
     public function test_cancelar_busca_la_reserva_por_nombre_aunque_se_hiciera_con_otro_telefono(): void

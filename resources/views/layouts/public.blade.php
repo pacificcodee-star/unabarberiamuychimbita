@@ -169,7 +169,7 @@
     @stack('styles')
     @include('partials.speculation-rules')
 </head>
-<body data-content-version="{{ $contentVersion ?? '' }}" data-device-known="{{ $deviceKnown ? '1' : '0' }}">
+<body data-content-version="{{ $contentVersion ?? '' }}">
 {{-- Pantalla de carga: contador gigante con franjas de barbero que sube hasta 100 y se abre como puertas --}}
 <div class="pl" id="pageLoader" role="status" aria-live="polite" aria-label="Cargando la página">
     <div class="pl-door pl-door--top" aria-hidden="true"></div>
@@ -852,7 +852,6 @@
 {{-- Refresco automático: los cambios hechos en el panel se ven sin recargar a mano. --}}
 <script src="{{ asset('js/live-content.js') }}?v={{ file_exists(public_path('js/live-content.js')) ? filemtime(public_path('js/live-content.js')) : '1' }}" defer></script>
 {{-- Vuelve a vincular el dispositivo con sus reservas si la cookie de «Mis servicios» se perdió. --}}
-<script src="{{ asset('js/device-recovery.js') }}?v={{ file_exists(public_path('js/device-recovery.js')) ? filemtime(public_path('js/device-recovery.js')) : '1' }}" defer></script>
 {{-- Con los enlaces legales a la vista, aparta los avisos flotantes para que no tapen el pie. --}}
 <script src="{{ asset('js/footer-guard.js') }}?v={{ file_exists(public_path('js/footer-guard.js')) ? filemtime(public_path('js/footer-guard.js')) : '1' }}" defer></script>
 </body>
