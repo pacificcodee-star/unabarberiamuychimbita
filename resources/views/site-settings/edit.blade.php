@@ -112,7 +112,77 @@
 
         <div class="d-flex justify-content-end mb-4"><button class="btn btn-gold"><i class="bi bi-check2-circle me-1"></i> Guardar configuración</button></div>
     </form>
+
+    {{-- Cuenta del administrador: formulario aparte, con su propio botón, para no reenviar todo lo del negocio. --}}
+    @php
+        $admin = auth()->user();
+        $accountErrors = $errors->getBag('account');
+        $passwordFields = [
+            'current_password' => ['Contraseña actual', 'current-password', 'Obligatoria para guardar cualquier cambio de esta sección.'],
+            'password' => ['Contraseña nueva', 'new-password', 'Déjala vacía si no quieres cambiarla. Mínimo 10 caracteres, con letras y números.'],
+            'password_confirmation' => ['Repite la contraseña nueva', 'new-password', ''],
+        ];
+    @endphp
+    <section class="card mb-4 content-settings-card" id="cuenta-admin" aria-labelledby="cuenta-admin-title">
+        <div class="card-header"><h2 class="h6 mb-0" id="cuenta-admin-title"><i class="bi bi-shield-lock me-1" aria-hidden="true"></i> Cuenta del administrador</h2></div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">Con este correo y esta contraseña entras al panel. Solo el administrador puede iniciar sesión.</p>
+
+            @if($accountErrors->any())
+                <div class="alert alert-danger" role="alert"><ul class="mb-0">@foreach($accountErrors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
+            @endif
+
+            <form method="POST" action="{{ route('site-settings.account') }}" autocomplete="on">
+                @csrf
+                @method('PUT')
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="account-name" class="form-label fw-semibold">Nombre</label>
+                        <input id="account-name" type="text" name="name" value="{{ old('name', $admin->name) }}" class="form-control @if($accountErrors->has('name')) is-invalid @endif" required maxlength="120" autocomplete="name">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="account-email" class="form-label fw-semibold">Correo para ingresar</label>
+                        <input id="account-email" type="email" name="email" value="{{ old('email', $admin->email) }}" class="form-control @if($accountErrors->has('email')) is-invalid @endif" required maxlength="150" autocomplete="username">
+                    </div>
+                    @foreach($passwordFields as $field => [$label, $autocomplete, $help])
+                        <div class="col-md-{{ $field === 'current_password' ? '12' : '6' }}">
+                            <label for="account-{{ $field }}" class="form-label fw-semibold">{{ $label }}</label>
+                            <div class="input-group">
+                                <input id="account-{{ $field }}" type="password" name="{{ $field }}" class="form-control @if($accountErrors->has($field === 'password_confirmation' ? 'password' : $field)) is-invalid @endif" autocomplete="{{ $autocomplete }}" @if($field === 'current_password') required @endif @if($help) aria-describedby="account-{{ $field }}-help" @endif>
+                                <button type="button" class="btn btn-outline-secondary" data-password-toggle="account-{{ $field }}" aria-controls="account-{{ $field }}" aria-pressed="false" aria-label="Mostrar {{ Str::lower($label) }}" title="Mostrar"><i class="bi bi-eye" aria-hidden="true"></i></button>
+                            </div>
+                            @if($help)<div class="form-text" id="account-{{ $field }}-help">{{ $help }}</div>@endif
+                        </div>
+                    @endforeach
+                </div>
+                <div class="d-flex justify-content-end mt-3"><button class="btn btn-gold"><i class="bi bi-check2-circle me-1"></i> Guardar cuenta</button></div>
+            </form>
+        </div>
+    </section>
 @endsection
+
+@push('scripts')
+<script>
+    // Ojo de cada contraseña: muestra u oculta lo escrito en ese campo.
+    document.querySelectorAll('[data-password-toggle]').forEach((btn) => {
+        const input = document.getElementById(btn.dataset.passwordToggle);
+        if (!input) return;
+        const label = btn.getAttribute('aria-label').replace(/^Mostrar /, '');
+        btn.addEventListener('click', () => {
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            btn.setAttribute('aria-pressed', String(show));
+            btn.setAttribute('aria-label', (show ? 'Ocultar ' : 'Mostrar ') + label);
+            btn.title = show ? 'Ocultar' : 'Mostrar';
+            btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+        });
+    });
+    // Al enviar, las contraseñas vuelven a ocultarse (el navegador no las guarda como texto visible).
+    document.querySelector('#cuenta-admin form')?.addEventListener('submit', (e) => {
+        e.currentTarget.querySelectorAll('input[id*="password"]').forEach((i) => { i.type = 'password'; });
+    });
+</script>
+@endpush
 
 @push('styles')
 <style>

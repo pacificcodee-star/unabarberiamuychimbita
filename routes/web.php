@@ -189,6 +189,7 @@ Route::middleware(['panel-desktop', 'auth'])->group(function () {
     Route::middleware('admin')->group(function () {
         Route::get('/site-settings', [SiteSettingController::class, 'edit'])->name('site-settings.edit');
         Route::put('/site-settings', [SiteSettingController::class, 'update'])->name('site-settings.update');
+        Route::put('/site-settings/cuenta', [SiteSettingController::class, 'updateAccount'])->middleware('throttle:10,10')->name('site-settings.account');
         Route::resource('services', ServiceController::class)->except(['show']);
         Route::resource('expenses', ExpenseController::class)->except(['show']);
         Route::post('/insumos/entregas', [SupplyController::class, 'storeDelivery'])->name('supplies.deliveries.store');
