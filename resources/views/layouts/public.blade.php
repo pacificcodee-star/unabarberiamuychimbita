@@ -430,8 +430,14 @@
     const KEY = 'cookie-consent';
     const GA4 = @json($ga4Id);
     const banner = document.getElementById('cookieBanner');
-    const read = () => { try { return localStorage.getItem(KEY); } catch (e) { return null; } };
-    const save = (v) => { try { localStorage.setItem(KEY, v); } catch (e) {} };
+    // La respuesta va en localStorage y en una cookie de un año: algunos navegadores del celular
+    // (los de WhatsApp o Instagram, modos de ahorro) borran uno de los dos y el aviso volvía a salir.
+    const fromCookie = () => (document.cookie.match(/(?:^|;\s*)cookie-consent=(accepted|rejected)/) || [])[1] || null;
+    const read = () => { let v = null; try { v = localStorage.getItem(KEY); } catch (e) {} return v || fromCookie(); };
+    const save = (v) => {
+        try { localStorage.setItem(KEY, v); } catch (e) {}
+        document.cookie = KEY + '=' + v + '; Max-Age=31536000; path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
+    };
 
     // Google Analytics 4: se carga solo con consentimiento. Sin ID en .env no se carga nunca.
     let gaLoaded = false;
@@ -456,6 +462,7 @@
         wait();
     };
     const choice = read();
+    if (choice) save(choice); // completa el lugar que falte y renueva el año
     if (choice === 'accepted') loadAnalytics();
     else if (!choice) show();
 
