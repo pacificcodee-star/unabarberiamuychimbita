@@ -207,7 +207,7 @@
                                         $waPhone = strlen($phoneDigits) === 10 ? '57'.$phoneDigits : $phoneDigits;
                                     @endphp
                                     @if($startMin >= $rangeMinutesStart && $startMin < $rangeMinutesEnd)
-                                        <a href="{{ $canEdit ? $editUrl : '#' }}" class="cal-event {{ $height < 56 ? 'is-compact' : ($height < 84 ? 'is-short' : '') }}" data-tone="{{ $statusDots[$appointment->status] ?? 'slate' }}" style="top: {{ $top + 2 }}px; height: {{ $height }}px; left: calc({{ $lane }} * 100% / {{ $laneCount }}); width: calc(100% / {{ $laneCount }} - {{ $laneCount > 1 ? 3 : 0 }}px);"
+                                        <a href="{{ $canEdit ? $editUrl : '#' }}" class="cal-event {{ $height < 56 ? 'is-compact' : ($height < 84 ? 'is-short' : ($height < 120 ? 'is-medium' : '')) }}" data-tone="{{ $statusDots[$appointment->status] ?? 'slate' }}" style="top: {{ $top + 2 }}px; height: {{ $height }}px; left: calc({{ $lane }} * 100% / {{ $laneCount }}); width: calc(100% / {{ $laneCount }} - {{ $laneCount > 1 ? 3 : 0 }}px);"
                                            data-appt-trigger
                                            data-tone-key="{{ $statusDots[$appointment->status] ?? 'slate' }}"
                                            data-range="{{ e($rangeLabel) }}"
@@ -379,15 +379,19 @@
     html.admin-dark .cal-event-barber { color: #111; }
     .cal-event.is-compact .cal-event-barber { top: 50%; transform: translateY(-50%); }
     .cal-event-time, .cal-event-title { padding-right: 18px; }
-    .cal-event-time { color: var(--tone); font-size: .68rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .cal-event-title { font-size: .82rem; font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .cal-event-sub { color: var(--ui-text-2); font-size: .7rem; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Cada línea conserva su alto completo (no se encoge ni se corta por abajo). */
+    .cal-event > span { flex-shrink: 0; }
+    .cal-event-time { color: var(--tone); font-size: .7rem; font-weight: 700; line-height: 1.4; white-space: normal; }
+    .cal-event.is-compact .cal-event-time, .cal-event.is-short .cal-event-time { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cal-event-title { margin-top: 1px; font-size: .84rem; font-weight: 800; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cal-event-sub { margin-top: 1px; color: var(--ui-text-2); font-size: .72rem; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .cal-event-status { align-self: flex-start; margin-top: auto; padding: 1px 7px; border-radius: 999px; background: var(--tone); color: #fff; font-size: .62rem; font-weight: 800; }
     html.admin-dark .cal-event-status { color: #111; }
     .cal-event.is-compact { justify-content: center; gap: 0; padding-top: 3px; padding-bottom: 3px; }
     .cal-event.is-compact .cal-event-title { order: -1; font-size: .78rem; }
     .cal-event.is-compact .cal-event-time { font-size: .64rem; }
     .cal-event.is-compact .cal-event-sub, .cal-event.is-compact .cal-event-status { display: none; }
+    .cal-event.is-medium .cal-event-status { display: none; }
     .cal-event.is-short { justify-content: center; }
     .cal-event.is-short .cal-event-title { order: -1; }
     .cal-event.is-short .cal-event-status, .cal-event.is-short .cal-event-sub { display: none; }
