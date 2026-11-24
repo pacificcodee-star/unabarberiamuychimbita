@@ -63,7 +63,7 @@
                     <span class="ios-composer-plus" aria-hidden="true"><i class="bi bi-plus-lg"></i></span>
                     <label for="wa-body" class="visually-hidden">Mensaje</label>
                     <input type="text" id="wa-body" name="body" maxlength="2000" autocomplete="off" placeholder="Mensaje" required>
-                    <button type="submit" class="ios-send" aria-label="Enviar mensaje"><i class="bi bi-send-fill"></i></button>
+                    <button type="submit" class="ios-send" aria-label="Enviar mensaje"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1.101 21.757 23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"/></svg></button>
                 </form>
                 <span class="ios-home" aria-hidden="true"></span>
             </div>
@@ -277,6 +277,7 @@
     .ios-send:hover { background: #1fb858; }
     .ios-send:active { transform: scale(.92); }
     .ios-send:focus-visible { outline: 2px solid #007aff; outline-offset: 2px; }
+    .ios-send svg { transform: translateX(1px); }
     .ios-home { position: absolute; left: 50%; bottom: 8px; width: 36%; height: 5px; transform: translateX(-50%); border-radius: 3px; background: #111; }
 
     /* Modo oscuro: WhatsApp oscuro de iOS */
