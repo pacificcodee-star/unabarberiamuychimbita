@@ -442,7 +442,7 @@ class SurveyService
 
     private function delay(): int
     {
-        return max(0, (int) config('encuestas.send_delay_minutes', 30));
+        return max(0, (int) config('encuestas.send_delay_minutes', 2));
     }
 
     private function expireDays(): int

@@ -11,7 +11,7 @@
 1. **Servicio terminado.** Cuando una cita pasa a *atendida* o un turno a *atendido* (por la
    automatización, por "llamar siguiente" o a mano en el panel) se crea **una** invitación para ese
    servicio. Nunca dos: hay una llave única por cita o turno.
-2. **Margen de corrección.** La invitación sale `SURVEY_SEND_DELAY_MINUTES` (30) minutos después.
+2. **Margen de corrección.** La invitación sale `SURVEY_SEND_DELAY_MINUTES` (2) minutos después.
    Si en ese tiempo el barbero cambia el estado (p. ej. el cliente no llegó), la invitación se cancela.
    Así la hora estimada del servicio no es la única prueba de que se atendió.
 3. **Aviso.** Se usa el mismo sistema de avisos de citas (`client_notifications`): notificación push
@@ -116,7 +116,7 @@ Hasta completar esos pasos, **WhatsApp no está integrado de forma oficial**.
 | Variable | Por defecto | Qué hace |
 |----------|-------------|----------|
 | `SURVEYS_ENABLED` | true | Activa el sistema |
-| `SURVEY_SEND_DELAY_MINUTES` | 30 | Margen antes de invitar |
+| `SURVEY_SEND_DELAY_MINUTES` | 2 | Margen antes de invitar |
 | `SURVEY_EXPIRE_DAYS` | 14 | Días para responder |
 | `SURVEY_WHATSAPP_ENABLED` | true | Encuesta dentro del chat de WhatsApp |
 | `SURVEY_WEB_ENABLED` | false | Encuesta en la página web y aviso del navegador |

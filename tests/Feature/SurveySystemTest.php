@@ -129,7 +129,7 @@ class SurveySystemTest extends TestCase
 
         $invitation = SurveyInvitation::firstOrFail();
         $this->assertSame('programada', $invitation->status);
-        $this->assertTrue($invitation->send_after->eq(now()->addMinutes(30)));
+        $this->assertTrue($invitation->send_after->eq(now()->addMinutes(2)), "La encuesta sale 2 minutos después de quedar atendido.");
         $this->assertSame(2, ClientNotification::where('type', 'survey_invite')->count()); // push + WhatsApp (tiene consentimiento)
 
         // Si el cliente abre el enlace antes del aviso, igual puede responder (el servicio ya terminó).
