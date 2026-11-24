@@ -193,9 +193,10 @@ class SurveyConversation
     {
         $session->loadMissing('review');
         $text = '¡Gracias por tu tiempo! 💈 Tus respuestas nos ayudan a mejorar.';
-        if ($session->review?->approved) {
+        // Solo se dice que aparece en la página si de verdad se muestra (aprobada, 4 o 5 estrellas).
+        if ($session->review?->approved && $session->review->rating >= \App\Models\Review::MIN_FEATURED_RATING) {
             $text .= "\n\nTu opinión ya aparece en nuestra página.";
-        } elseif ($session->review) {
+        } elseif ($session->review && ! $session->review->approved) {
             $text .= "\n\nRevisaremos tu comentario antes de publicarlo.";
         }
 

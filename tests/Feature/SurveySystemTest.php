@@ -185,11 +185,11 @@ class SurveySystemTest extends TestCase
     public function test_without_reviews_the_public_section_is_not_rendered(): void
     {
         $this->get('/')->assertOk()->assertDontSee('cx-proof', false);
-        $this->get(route('public.reviews'))->assertDontSee('rv-list-title', false);
+        $this->get(route('public.reviews'))->assertDontSee('class="rv-score"', false);
     }
 
     // 10. Opinión negativa → se conserva y se publica igual (misma moderación).
-    public function test_negative_reviews_are_kept_and_published_under_the_same_rules(): void
+    public function test_negative_reviews_are_kept_and_count_in_the_average_but_their_card_is_not_shown(): void
     {
         $appointment = $this->finishedAndSent();
         $this->answerWeb($appointment, 'experiencia', 1)->assertOk();
@@ -199,12 +199,14 @@ class SurveySystemTest extends TestCase
         $this->answerWeb($appointment, 'que_mejorar', 'Me dejaron el lado izquierdo disparejo.')->assertOk();
         $this->answerWeb($appointment, 'recomendaria', 'no')->assertOk();
         $this->answerWeb($appointment, 'comentario', 'El corte quedó disparejo y esperé mucho.')->assertOk();
-        $this->answerWeb($appointment, 'publicar', 'si_nombre')->assertJson(['published' => true]);
+        // Se aprueba con las mismas reglas, pero la tarjeta solo se muestra con 4 o 5 estrellas:
+        // al cliente no se le dice que ya aparece en la página.
+        $this->answerWeb($appointment, 'publicar', 'si_nombre')->assertJson(['published' => false]);
 
         $review = Review::firstOrFail();
         $this->assertSame(1, $review->rating);
         $this->assertTrue($review->approved);
-        $this->get(route('public.reviews'))->assertSee('El corte quedó disparejo y esperé mucho.');
+        $this->get(route('public.reviews'))->assertDontSee('El corte quedó disparejo y esperé mucho.');
         // El equipo recibe un aviso para reaccionar.
         $this->assertDatabaseHas('staff_notifications', ['type' => 'survey_attention']);
         // La respuesta interna ("qué mejorar") nunca se publica.

@@ -1005,7 +1005,8 @@ body::before { mix-blend-mode: normal; opacity: .03; transform: translateZ(0); }
 .wg.is-carousel .wg-card:not(.is-current):hover .wg-frame { box-shadow: 0 34px 70px rgba(0, 0, 0, .45), inset 0 0 0 2px rgba(255, 255, 255, .5); }
 
 /* Prueba social en el inicio */
-.cx-proof { padding: var(--section-y) 0; background: radial-gradient(60% 70% at 100% 0%, rgba(var(--accent-rgb), .1), transparent 60%), var(--bg); }
+/* position: relative para quedar encima de la foto fija de la sección anterior (.cx-scene-bg). */
+.cx-proof { position: relative; padding: var(--section-y) 0; background: radial-gradient(60% 70% at 100% 0%, rgba(var(--accent-rgb), .1), transparent 60%), var(--bg); }
 .cx-proof-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px 48px; margin-bottom: clamp(32px, 5vw, 64px); }
 .cx-proof-title { margin: 0; font-size: var(--fs-h2); }
 .cx-proof-score { display: grid; justify-items: end; gap: 4px; text-align: right; }

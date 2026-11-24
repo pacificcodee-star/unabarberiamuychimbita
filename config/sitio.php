@@ -50,8 +50,6 @@ return [
     'services_hero_description' => 'Servicios pensados para tu estilo, con precios claros y atención sin afán. Elige el tuyo y reserva con el barbero que prefieras.',
     'barbers_hero_title' => 'Conoce a quienes cuidan tu estilo.',
     'barbers_hero_description' => 'Un equipo atento a cada detalle para que disfrutes el proceso y te sientas bien con el resultado.',
-    'reviews_hero_title' => 'Lo que dicen quienes ya se sentaron en nuestra silla.',
-    'reviews_hero_description' => 'La mejor carta de presentación son nuestros clientes. Estas son algunas de sus experiencias.',
     'booking_hero_title' => 'Reserva tu cita o toma tu turno.',
     'booking_hero_description' => 'No necesitas iniciar sesión ni crear una cuenta. Elige al barbero, cuéntanos qué necesitas y listo.',
     'contact_hero_title' => 'Estamos cerca, listos para tu próximo corte.',

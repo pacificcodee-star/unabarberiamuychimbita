@@ -127,7 +127,8 @@
     {{-- Opiniones publicadas, en una fila que se desplaza sola.
          Si no hay ninguna aprobada, la sección completa no aparece. --}}
     @php
-        $proofReviews = \App\Models\Review::approved()->with('service')->latest()->take(12)->get();
+        // Tarjetas: solo 4 y 5 estrellas. Promedio y total: todas las opiniones publicadas.
+        $proofReviews = \App\Models\Review::featured()->with('service')->latest()->take(12)->get();
         $proofCount = \App\Models\Review::approved()->count();
         $proofAverage = $proofCount ? round((float) \App\Models\Review::approved()->avg('rating'), 1) : null;
     @endphp
@@ -137,7 +138,7 @@
                 <div class="cx-proof-head">
                     <div>
                         <div class="section-kicker">Reseñas</div>
-                        <h2 class="cx-proof-title" id="cx-proof-title">Lo que dicen en <em>la silla.</em></h2>
+                        <h2 class="cx-proof-title" id="cx-proof-title">Experiencias de nuestros <em>clientes.</em></h2>
                     </div>
                     <div class="cx-proof-score" role="img" aria-label="Calificación promedio {{ number_format($proofAverage, 1, ',', '') }} de 5, con {{ $proofCount }} reseñas">
                         <strong>{{ number_format($proofAverage, 1, ',', '') }}</strong>

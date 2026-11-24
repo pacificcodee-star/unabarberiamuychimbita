@@ -52,6 +52,19 @@ class Review extends Model
         return $query->where('approved', true)->whereNull('withdrawn_at');
     }
 
+    /** Calificación mínima para que la tarjeta de una opinión se muestre en la página pública. */
+    public const MIN_FEATURED_RATING = 4;
+
+    /**
+     * Opiniones aprobadas que se muestran como tarjetas (4 y 5 estrellas).
+     * El promedio y el total públicos se calculan con todas las aprobadas (approved), no solo con estas,
+     * para que la calificación que ve el cliente no quede inflada.
+     */
+    public function scopeFeatured($query)
+    {
+        return $query->approved()->where('rating', '>=', self::MIN_FEATURED_RATING);
+    }
+
     public function barber(): BelongsTo
     {
         return $this->belongsTo(User::class, 'barber_id');

@@ -18,6 +18,12 @@
    opinión se publica sola cuando pasa la moderación objetiva; si no, queda en revisión. La
    autorización queda registrada en `consent_records` (finalidad `publicacion_resena`).
 
+**En la página** (inicio y /resenas) solo se muestran las tarjetas de opiniones aprobadas con **4 o 5
+estrellas** (`Review::featured()`, `Review::MIN_FEATURED_RATING`). Las de menos estrellas siguen
+aprobadas, se ven en el panel y **cuentan en el promedio y el total** que muestra la página, para que la
+calificación no quede inflada. Al cliente solo se le dice "ya aparece en nuestra página" si su tarjeta
+se muestra.
+
 La invitación vence a los `SURVEY_EXPIRE_DAYS` (14) días. La página de seguimiento del cliente
 muestra un botón "Responder la encuesta" mientras esté abierta.
 

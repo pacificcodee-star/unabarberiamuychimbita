@@ -7,17 +7,13 @@
 @section('content')
     @include('public.partials.page-hero', [
         'crumb' => 'Reseñas',
-        'title' => $siteSettings['reviews_hero_title'],
-        'description' => $siteSettings['reviews_hero_description'],
+        'title' => 'Experiencias de nuestros clientes.',
     ])
 
     @if($reviews->isNotEmpty())
-        <section class="rv-section" aria-labelledby="rv-list-title">
+        <section class="rv-section" aria-label="Opiniones publicadas">
             <div class="container rv-head">
-                <div>
-                    <div class="section-kicker">Opiniones</div>
-                    <h2 class="rv-title" id="rv-list-title">Lo que dicen en <em>la silla.</em></h2>
-                </div>
+                <div class="section-kicker">Opiniones</div>
                 <div class="rv-score" role="img" aria-label="Calificación promedio {{ number_format($averageRating, 1, ',', '') }} de 5, con {{ $reviewCount }} {{ $reviewCount === 1 ? 'opinión' : 'opiniones' }}">
                     <strong>{{ number_format($averageRating, 1, ',', '') }}</strong>
                     <span class="rv-score-meta">
@@ -82,7 +78,7 @@
                         </div>
 
                         <button type="submit" class="btn btn-gold btn-lg rv-submit"><i class="bi bi-send" aria-hidden="true"></i> Enviar mi opinión</button>
-                        <p class="form-legal-note">Tu opinión se revisa antes de publicarse. Al enviarla aceptas la <a href="{{ route('legal.privacy') }}">política de privacidad</a>.</p>
+                        <p class="form-legal-note">Al enviarla aceptas la <a href="{{ route('legal.privacy') }}">política de privacidad</a>.</p>
                     </form>
                 @endif
             </div>

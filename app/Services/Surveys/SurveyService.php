@@ -422,7 +422,10 @@ class SurveyService
             'next' => $next['key'] ?? null,
             'answered' => count(array_filter($visible, fn ($q) => $answers->has($q['key']))),
             'total' => count($visible),
-            'published' => $session->status === 'completada' ? $session->review?->approved : null,
+            // "Ya aparece en la página" solo si de verdad se muestra: aprobada y de 4 o 5 estrellas.
+            'published' => $session->status === 'completada' && $session->review
+                ? $session->review->approved && $session->review->rating >= \App\Models\Review::MIN_FEATURED_RATING
+                : null,
             'review_status' => $session->review?->moderation_status,
         ];
     }
