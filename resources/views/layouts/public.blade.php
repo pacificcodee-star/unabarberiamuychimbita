@@ -25,6 +25,12 @@
         (function () {
             var order = ['/', '/servicios', '/barberos', '/mis-servicios', '/contacto', '/reservar'];
             var place = function (url) { try { return order.indexOf((new URL(url).pathname.replace(/\/+$/, '')) || '/'); } catch (e) { return -1; } };
+            if (document.documentElement.classList.contains('pt-enter')) {
+                var previous = place(document.referrer), current = place(location.href);
+                if (previous >= 0 && current >= 0 && previous !== current) {
+                    document.documentElement.classList.add(current > previous ? 'pt-forward' : 'pt-back');
+                }
+            }
             var mark = function (transition, from, to) {
                 if (!transition) return;
                 // Si el navegador anula la transición (p. ej. cambió el alto de la ventana), no es un error de la página.
