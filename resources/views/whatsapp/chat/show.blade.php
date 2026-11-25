@@ -58,7 +58,8 @@
                     </div>
                 </div>
 
-                <form method="POST" action="{{ route('whatsapp.chat.send', $conversation) }}" class="ios-composer" data-chat-send>
+                <p class="ios-sync-state" data-chat-sync-state role="status" hidden></p>
+                <form method="POST" action="{{ route('whatsapp.chat.send', $conversation) }}" class="ios-composer">
                     @csrf
                     <span class="ios-composer-plus" aria-hidden="true"><i class="bi bi-plus-lg"></i></span>
                     <label for="wa-body" class="visually-hidden">Mensaje</label>
@@ -259,6 +260,7 @@
     .ios-ticks { font-size: 15px; line-height: 1; }
     .ios-ticks.is-read { color: #53bdeb; }
     .ios-ticks.is-failed { color: #e0245e; font-size: 12px; }
+    .ios-sync-state { flex: none; margin: 0; padding: 6px 12px; background: #fff4c4; color: #52421e; text-align: center; font-size: 12px; }
 
     /* Barra para escribir */
     .ios-composer { display: flex; align-items: center; gap: 8px; padding: 8px 14px 30px; background: #f6f6f6; border-top: 1px solid rgba(0, 0, 0, .06); }
@@ -293,6 +295,7 @@
     html.admin-dark .ios-meta, html.admin-dark .ios-contact small, html.admin-dark .ios-media { color: #8696a0; }
     html.admin-dark .ios-day span, html.admin-dark .ios-empty { background: #182229; color: #8696a0; }
     html.admin-dark .ios-notice { background: #182229; color: #ffd279; }
+    html.admin-dark .ios-sync-state { background: #182229; color: #ffd279; }
     html.admin-dark .ios-composer input { background: #2a3942; border-color: transparent; color: #e9edef; }
     html.admin-dark .ios-home { background: #e9edef; }
 
@@ -305,9 +308,15 @@
         (function () {
             const thread = document.getElementById('wa-thread');
             const box = document.getElementById('wa-messages');
-            const url = @json(route('whatsapp.chat.messages', $conversation));
+            const url = @json(route('whatsapp.chat.messages', $conversation, false));
+            const syncState = document.querySelector('[data-chat-sync-state]');
+            const refreshInterval = 5000;
+            const requestTimeout = 8000;
             let last = parseInt(box.dataset.last || '0', 10);
-            let busy = false;
+            let timer;
+            let request = null;
+            let paused = false;
+            let stopped = false;
 
             const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
             const ticks = { read: ['is-read', 'bi-check2-all'], delivered: ['is-delivered', 'bi-check2-all'], sent: ['is-sent', 'bi-check2'], failed: ['is-failed', 'bi-exclamation-circle-fill'] };
@@ -346,52 +355,140 @@
                 document.querySelector('[data-chat-advisor-wait]').hidden = !data.advisor_wait_until;
             }
 
-            async function refresh() {
-                if (busy) return;
-                busy = true;
-                try {
-                    const res = await fetch(url + '?after=' + last, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
-                    if (!res.ok) return;
-                    const data = await res.json();
-                    refreshBotState(data);
-                    data.receipts.forEach((m) => {
-                        const receipt = box.querySelector('[data-chat-message="' + Number(m.id) + '"] .ios-ticks');
-                        if (!receipt) return;
-                        const [tickClass, tickIcon] = ticks[m.status_key] || ticks.sent;
-                        receipt.className = 'ios-ticks ' + tickClass;
-                        receipt.title = m.status;
-                        receipt.setAttribute('aria-label', m.status);
-                        receipt.querySelector('i').className = 'bi ' + tickIcon;
-                    });
-                    if (!data.messages.length) return;
-                    box.querySelector('[data-ios-empty]')?.remove();
-                    data.messages.forEach((m) => {
-                        last = Math.max(last, m.id);
-                        if (m.day && m.day !== lastDay()) {
-                            const sep = document.createElement('div');
-                            sep.className = 'ios-day';
-                            sep.dataset.day = m.day;
-                            sep.innerHTML = '<span>' + (m.day === today() ? 'Hoy' : esc(m.day)) + '</span>';
-                            box.appendChild(sep);
-                        }
-                        const out = m.direction === 'out';
-                        const text = m.type === 'text' && m.body ? '<span class="ios-text">' + esc(m.body) + '</span>' : '<em class="ios-text ios-media">[' + esc(m.type === 'text' ? 'sin texto' : m.type) + ']</em>';
-                        const [tickClass, tickIcon] = ticks[m.status_key] || ticks.sent;
-                        const meta = '<span class="ios-meta">' + esc(m.time || m.created_at) +
-                            (out ? ' <span class="ios-ticks ' + tickClass + '" title="' + esc(m.status) + '" aria-label="' + esc(m.status) + '"><i class="bi ' + tickIcon + '"></i></span>' : '') + '</span>';
-                        const row = document.createElement('div');
-                        row.className = 'ios-row ' + (out ? 'is-out' : 'is-in');
-                        row.dataset.chatMessage = m.id;
-                        row.innerHTML = '<div class="ios-bubble">' + text + meta + '</div>';
-                        box.appendChild(row);
-                    });
-                    box.dataset.last = last;
-                    toBottom();
-                } finally { busy = false; }
+            function appendMessages(messages) {
+                if (!messages.length) return;
+                let day = lastDay();
+                let next = last;
+                const batch = document.createDocumentFragment();
+
+                for (const m of messages) {
+                    const id = Number(m.id);
+                    if (!Number.isSafeInteger(id) || id <= next) continue;
+
+                    if (m.day && m.day !== day) {
+                        day = m.day;
+                        const sep = document.createElement('div');
+                        sep.className = 'ios-day';
+                        sep.dataset.day = day;
+                        sep.innerHTML = '<span>' + (day === today() ? 'Hoy' : esc(day)) + '</span>';
+                        batch.appendChild(sep);
+                    }
+                    const out = m.direction === 'out';
+                    const text = m.type === 'text' && m.body ? '<span class="ios-text">' + esc(m.body) + '</span>' : '<em class="ios-text ios-media">[' + esc(m.type === 'text' ? 'sin texto' : m.type) + ']</em>';
+                    const [tickClass, tickIcon] = ticks[m.status_key] || ticks.sent;
+                    const meta = '<span class="ios-meta">' + esc(m.time || m.created_at) +
+                        (out ? ' <span class="ios-ticks ' + tickClass + '" title="' + esc(m.status) + '" aria-label="' + esc(m.status) + '"><i class="bi ' + tickIcon + '"></i></span>' : '') + '</span>';
+                    const row = document.createElement('div');
+                    row.className = 'ios-row ' + (out ? 'is-out' : 'is-in');
+                    row.dataset.chatMessage = id;
+                    row.innerHTML = '<div class="ios-bubble">' + text + meta + '</div>';
+                    batch.appendChild(row);
+                    next = id;
+                }
+
+                if (next === last) return;
+                box.querySelector('[data-ios-empty]')?.remove();
+                box.appendChild(batch);
+                last = next;
+                box.dataset.last = last;
+                toBottom();
             }
 
-            setInterval(refresh, 5000);
-            document.querySelector('[data-chat-send]')?.addEventListener('submit', () => setTimeout(refresh, 400));
+            function refreshReceipts(receipts) {
+                for (const m of receipts) {
+                    const receipt = box.querySelector('[data-chat-message="' + Number(m.id) + '"] .ios-ticks');
+                    if (!receipt) continue;
+                    const [tickClass, tickIcon] = ticks[m.status_key] || ticks.sent;
+                    receipt.className = 'ios-ticks ' + tickClass;
+                    receipt.title = m.status;
+                    receipt.setAttribute('aria-label', m.status);
+                    const icon = receipt.querySelector('i');
+                    if (icon) icon.className = 'bi ' + tickIcon;
+                }
+            }
+
+            function showSyncState(message = '') {
+                if (syncState.textContent !== message) syncState.textContent = message;
+                syncState.hidden = !message;
+            }
+
+            const unavailable = {
+                401: 'Tu sesión venció. Vuelve a iniciar sesión en el panel.',
+                403: 'Tu sesión ya no tiene acceso a esta conversación.',
+                404: 'Esta conversación ya no está disponible en la bandeja.',
+            };
+
+            async function refresh() {
+                if (request || paused || stopped || document.hidden) return;
+
+                const controller = new AbortController();
+                request = controller;
+                const timeout = setTimeout(() => controller.abort(), requestTimeout);
+                try {
+                    const res = await fetch(url + '?after=' + last, {
+                        headers: { Accept: 'application/json' },
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        signal: controller.signal,
+                    });
+                    if (request !== controller) return;
+                    if (unavailable[res.status] && res.headers.get('Content-Type')?.includes('application/json')) {
+                        stopped = true;
+                        showSyncState(unavailable[res.status]);
+                        return;
+                    }
+                    if (!res.ok) throw new Error('Chat: ' + res.status);
+
+                    const data = await res.json();
+                    if (request !== controller) return;
+                    if (!Array.isArray(data.messages) || !Array.isArray(data.receipts)) throw new Error('Respuesta inválida del chat');
+
+                    showSyncState();
+                    appendMessages(data.messages);
+                    refreshReceipts(data.receipts);
+                    refreshBotState(data);
+                } catch (error) {
+                    if (request === controller && !document.hidden) {
+                        showSyncState('Reconectando el chat…');
+                    }
+                } finally {
+                    clearTimeout(timeout);
+                    if (request === controller) {
+                        request = null;
+                        if (!stopped && !paused && !document.hidden) timer = setTimeout(refresh, refreshInterval);
+                    }
+                }
+            }
+
+            function suspendRefresh() {
+                clearTimeout(timer);
+                const previous = request;
+                request = null;
+                previous?.abort();
+            }
+
+            function refreshNow() {
+                clearTimeout(timer);
+                refresh();
+            }
+
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) suspendRefresh();
+                else refreshNow();
+            });
+            window.addEventListener('online', refreshNow);
+            window.addEventListener('pagehide', () => {
+                paused = true;
+                suspendRefresh();
+            });
+            window.addEventListener('pageshow', (event) => {
+                if (event.persisted) {
+                    paused = false;
+                    stopped = false;
+                    refreshNow();
+                }
+            });
+            refreshNow();
         })();
     </script>
 @endpush

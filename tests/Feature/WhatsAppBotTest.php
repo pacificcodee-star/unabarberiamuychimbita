@@ -566,6 +566,49 @@ class WhatsAppBotTest extends TestCase
         $this->actingAs($barber)->get($url)->assertForbidden();
     }
 
+    public function test_el_hilo_abierto_recibe_mensajes_nuevos_despues_de_consultas_vacias(): void
+    {
+        config(['services.evolution.bot_enabled' => false, 'services.evolution.send_gap_ms' => 0]);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $conversation = WhatsAppConversation::create(['phone' => '573001234567', 'jid' => '573001234567@s.whatsapp.net']);
+
+        WhatsAppMessage::insert(array_map(fn ($number) => [
+            'conversation_id' => $conversation->id,
+            'direction' => WhatsAppMessage::DIRECTION_IN,
+            'type' => 'text',
+            'body' => sprintf('Historial %03d', $number),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], range(1, 205)));
+        $after = (int) $conversation->messages()->max('id');
+
+        $this->actingAs($admin)->get(route('whatsapp.chat.show', $conversation))
+            ->assertOk()
+            ->assertSee('data-last="'.$after.'"', false)
+            ->assertSee('Historial 205')
+            ->assertDontSee('Historial 005');
+
+        for ($round = 1; $round <= 8; $round++) {
+            $feed = route('whatsapp.chat.messages', ['conversation' => $conversation, 'after' => $after]);
+            $this->getJson($feed)->assertOk()->assertJsonCount(0, 'messages');
+
+            $incoming = "Mensaje del cliente $round";
+            $reply = "Respuesta del equipo $round";
+            $this->escribir($incoming)->assertOk();
+            $this->post(route('whatsapp.chat.send', $conversation), ['body' => $reply])->assertRedirect();
+
+            $update = $this->getJson($feed)->assertOk()
+                ->assertHeader('Cache-Control', 'no-store, private')
+                ->assertJsonCount(2, 'messages')
+                ->assertJsonPath('messages.0.body', $incoming)
+                ->assertJsonPath('messages.0.direction', 'in')
+                ->assertJsonPath('messages.1.body', $reply)
+                ->assertJsonPath('messages.1.direction', 'out');
+            $after = $update->json('messages.1.id');
+            $update->assertJsonPath('receipts.0.id', $after);
+        }
+    }
+
     public function test_el_equipo_puede_eliminar_un_chat_de_la_bandeja(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
