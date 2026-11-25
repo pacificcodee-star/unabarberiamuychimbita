@@ -56,7 +56,7 @@ class WhatsAppChatController extends Controller
             return redirect()->route('whatsapp.chat.index');
         }
 
-        $chat->load(['messages' => fn ($query) => $query->latest()->limit(200)])->load('lastMessage');
+        $chat->load(['messages' => fn ($query) => $query->latest('id')->limit(200)])->load('lastMessage');
         $chat->markAsRead();
 
         return view('whatsapp.chat.show', [
@@ -102,7 +102,7 @@ class WhatsAppChatController extends Controller
             ]),
             'bot_active' => $conversation->bot_active,
             'advisor_wait_until' => $conversation->advisor_wait_until?->toIso8601String(),
-        ]);
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     /** Envía un mensaje del equipo (izquierda → derecha en el hilo). */
