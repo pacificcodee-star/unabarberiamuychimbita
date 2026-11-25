@@ -609,6 +609,47 @@ class WhatsAppBotTest extends TestCase
         }
     }
 
+    public function test_el_canal_en_vivo_es_privado_y_solo_firma_el_chat_solicitado(): void
+    {
+        config(['reverb.chat_enabled' => true]);
+        $chat = WhatsAppConversation::create(['phone' => '573001234567', 'jid' => '573001234567@s.whatsapp.net']);
+        $url = route('whatsapp.chat.live.auth', $chat);
+        $channel = "private-whatsapp.chat.{$chat->id}";
+        $credentials = ['socket_id' => '1234.5678', 'channel_name' => $channel];
+
+        $this->postJson($url, $credentials)->assertUnauthorized();
+        $this->actingAs(User::factory()->create(['role' => 'barbero', 'active' => true]))
+            ->postJson($url, $credentials)->assertForbidden();
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $this->actingAs($admin)->postJson($url, [...$credentials, 'channel_name' => 'private-whatsapp.chat.0'])
+            ->assertUnprocessable();
+
+        $app = config('reverb.apps.apps.0');
+        $signature = hash_hmac('sha256', "1234.5678:$channel", $app['secret']);
+        $this->postJson($url, $credentials)->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertExactJson(['auth' => $app['key'].':'.$signature]);
+    }
+
+    public function test_el_equipo_envia_desde_el_hilo_sin_redirigir_y_muestra_fallos(): void
+    {
+        config(['services.evolution.send_gap_ms' => 0]);
+        Http::swap(new Factory);
+        Http::fakeSequence('evolution.test/*')
+            ->push(['key' => ['id' => 'RESPUESTA-PANEL']], 201)
+            ->pushStatus(400);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $chat = WhatsAppConversation::create(['phone' => '573001234567', 'jid' => '573001234567@s.whatsapp.net']);
+
+        $this->actingAs($admin)->postJson(route('whatsapp.chat.send', $chat), ['body' => 'Respuesta desde el hilo'])
+            ->assertOk();
+        $this->postJson(route('whatsapp.chat.send', $chat), ['body' => 'Mensaje fallido'])
+            ->assertStatus(502);
+        $this->assertDatabaseHas('whatsapp_messages', ['body' => 'Respuesta desde el hilo', 'status' => 'sent']);
+        $this->assertDatabaseHas('whatsapp_messages', ['body' => 'Mensaje fallido', 'status' => 'failed']);
+        Http::assertSentCount(2);
+    }
+
     public function test_el_equipo_puede_eliminar_un_chat_de_la_bandeja(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'active' => true]);

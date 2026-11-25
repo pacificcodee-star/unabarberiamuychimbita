@@ -34,6 +34,15 @@ www.{$APP_HOST} {
 
 {$APP_HOST} {
 	root * /var/www/html/public
+	@whatsappSocket {
+		method GET
+		path /whatsapp-live/app/*
+		header Upgrade websocket
+	}
+	handle @whatsappSocket {
+		uri strip_prefix /whatsapp-live
+		reverse_proxy 127.0.0.1:8091
+	}
 	# Nunca ejecutar PHP subido: solo public/index.php pasa a PHP.
 	# Imágenes en WebP: si existe foto.png.webp (php artisan barberia:webp) y el navegador acepta WebP,
 	# se entrega esa copia liviana en lugar del PNG/JPG. Rutas, base de datos y vistas no cambian.
