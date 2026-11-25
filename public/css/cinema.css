@@ -155,6 +155,9 @@ h1.is-split.in-view .sw > span, h2.is-split.in-view .sw > span { animation: none
 /* Antes de que arranque el guion, los textos animados no se muestran (evita el parpadeo). Si GSAP falla: cx-static. */
 html.js:not(.cx-ready):not(.cx-static) .cx-hero [data-cx-line],
 html.js:not(.cx-ready):not(.cx-static) .cx-hero [data-cx-in] { visibility: hidden; }
+@media (max-width: 767.98px) {
+    html.js.pt-enter:not(.cx-ready):not(.cx-static) .cx-hero :is([data-cx-line], [data-cx-in]) { visibility: visible; }
+}
 
 .cx-hero {
     --ft: 21%; --fr: 4.2%; --fb: 11%; --fl: 55%; --shade: 0; --open: 1;
@@ -765,14 +768,14 @@ html:active-view-transition-type(nav-back)::view-transition-new(root) { animatio
 @media (prefers-reduced-motion: reduce) {
     ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
-/* Celular: el contenido de la página nueva entra con un fundido de 200 ms.
+/* Celular: el contenido de la página nueva ya es visible al comenzar el fundido breve.
    Solo opacidad, sin desplazamiento: un transform en <main> justo cuando ScrollTrigger mide las
    posiciones al cargar podría descuadrar unos píxeles las animaciones de scroll.
    Es una animación de la propia página (no de View Transitions): se puede tocar desde el primer cuadro,
    y la barra inferior y el encabezado no se animan (están fuera de <main>).
    Solo al llegar desde otra página del sitio (clase pt-enter, la pone el <head> del layout). */
 @media (max-width: 767.98px) and (prefers-reduced-motion: no-preference) {
-    html.pt-enter #main-content { animation: pt-m-in 200ms cubic-bezier(.22, 1, .36, 1) backwards; }
+    html.pt-enter #main-content { animation: pt-phone-in 150ms cubic-bezier(.22, 1, .36, 1) backwards; }
 }
 @media (min-width: 768px) and (max-width: 1099.98px) and (prefers-reduced-motion: no-preference) {
     html.pt-enter { overflow-x: clip; }
@@ -781,6 +784,7 @@ html:active-view-transition-type(nav-back)::view-transition-new(root) { animatio
     html.pt-enter.pt-back #main-content { animation-name: pt-in-left; }
 }
 @keyframes pt-m-in { from { opacity: 0; } }
+@keyframes pt-phone-in { from { opacity: .74; } }
 
 /* =========================================================================
    20. LETRAS CON PROFUNDIDAD SOBRE LAS IMÁGENES
@@ -1509,18 +1513,6 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
     }
     .mnav.is-navigating .mnav__item.is-active::before { animation: mnav-select 140ms var(--ease-out); }
     @keyframes mnav-select { from { opacity: .76; transform: scale(.97); } }
-    /* Barrita de carga: confirma el toque mientras llega la página (mobile-bottom-nav.js). */
-    .mnav.is-navigating::after {
-        content: ''; position: absolute; z-index: 2; left: 22px; right: 22px; top: 1px; height: 2px;
-        border-radius: 2px; pointer-events: none;
-        background: linear-gradient(90deg, transparent, var(--gold), transparent) no-repeat;
-        background-size: 45% 100%;
-        animation: mnav-loading .8s linear infinite;
-    }
-    @keyframes mnav-loading {
-        from { background-position: -80% 0; }
-        to { background-position: 180% 0; }
-    }
     .mnav__cell:last-child .mnav__label { white-space: normal; text-align: center; }
     /* Seis pestañas: "Mis servicios" entra completo, sin puntos suspensivos, con la letra apenas menor. */
     .mnav__track:has(> .mnav__cell:nth-child(6)) .mnav__item { padding-inline: 0; }
@@ -1563,7 +1555,6 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
     @media (prefers-reduced-motion: reduce) {
         .mnav__item { transition: none; }
         .mnav.is-navigating .mnav__item.is-active::before { animation: none; }
-        .mnav.is-navigating::after { animation: none; background-position: 50% 0; }
     }
 }
 

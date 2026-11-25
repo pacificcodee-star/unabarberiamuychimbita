@@ -7,10 +7,8 @@
     const items = Array.from(nav.querySelectorAll('.mnav__item'));
     const current = items.find((item) => item.hasAttribute('data-mnav-current'));
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-    // Da tiempo a que un segundo toque reemplace al primero antes de que Safari cambie de documento.
-    const TAP_WINDOW = 180;
     let pending = null;
-    let timer = null;
+    let frame = null;
     let loading = false;
     let navigationSignal = null;
 
@@ -24,8 +22,8 @@
     };
 
     const clearQueue = () => {
-        clearTimeout(timer);
-        timer = null;
+        if (frame !== null) cancelAnimationFrame(frame);
+        frame = null;
     };
 
     const reset = () => {
@@ -61,10 +59,12 @@
         clearQueue();
         select(item);
 
-        // Si ya salió una petición, el nuevo destino la reemplaza inmediatamente.
-        // Esperar aquí permitiría que la primera página se abriera y descartara el segundo toque.
+        // Agrupa toques de un mismo cuadro. Una petición en curso se reemplaza en el acto.
         if (loading) load(item);
-        else timer = setTimeout(() => load(item), TAP_WINDOW);
+        else frame = requestAnimationFrame(() => {
+            frame = null;
+            load(item);
+        });
     });
 
     const follow = (url) => {

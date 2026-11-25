@@ -193,28 +193,31 @@
         const frame = hero.querySelector('[data-cx-hero-frame]');
         const image = hero.querySelector('.cx-hero-img');
         const title = hero.querySelector('[data-cx-hero-title]');
-        const lines = hero.querySelectorAll('[data-cx-line]');
         const extras = hero.querySelectorAll('[data-cx-in]');
+        const returningOnPhone = root.classList.contains('pt-enter') && window.matchMedia('(max-width: 767.98px)').matches;
 
         // Entrada: el fotograma se descubre, el titular sube línea por línea y luego llega el resto.
         if (title) title.setAttribute('aria-label', title.textContent.replace(/\s+/g, ' ').trim());
         if (title) title.setAttribute('data-echo', title.textContent.replace(/\s+/g, ' ').trim().split(/[,.]/)[0]);
-        const heroChars = [...lines].flatMap((line) => splitDeep(line));
-        lines.forEach((line) => { line.removeAttribute('aria-label'); line.setAttribute('aria-hidden', 'true'); });
-        depthHide(heroChars, 'back');
-        gsap.set(extras, { autoAlpha: 0, y: 26 });
-        gsap.set(frame, { '--open': 0 });
-        const intro = gsap.timeline({ paused: true, defaults: { ease: 'expo.out' } })
-            .to(frame, { '--open': 1, duration: 1.7, ease: 'expo.inOut' }, 0)
-            .add(depthShow(heroChars, { duration: 1.5, order: 'start' }), 0.25)
-            .to(extras, { autoAlpha: 1, y: 0, duration: 1.1, stagger: 0.09 }, 0.75);
-        whenLoaderDone(() => {
-            intro.play();
-            // Seguro: si el navegador no entregó fotogramas (pestaña recién mostrada, ahorro de energía),
-            // la portada nunca se queda vacía: se despierta el reloj y, si sigue quieta, se muestra completa.
-            gsap.ticker.wake();
-            setTimeout(() => { if (intro.progress() < 0.05) { intro.progress(1); gsap.set(heroChars, { clearProps: 'all' }); } }, 3200);
-        });
+        // Al volver a Inicio en un teléfono basta el fundido de página: la portada ya debe ser legible.
+        if (!returningOnPhone) {
+            const lines = hero.querySelectorAll('[data-cx-line]');
+            const heroChars = [...lines].flatMap((line) => splitDeep(line));
+            lines.forEach((line) => { line.removeAttribute('aria-label'); line.setAttribute('aria-hidden', 'true'); });
+            depthHide(heroChars, 'back');
+            gsap.set(extras, { autoAlpha: 0, y: 26 });
+            gsap.set(frame, { '--open': 0 });
+            const intro = gsap.timeline({ paused: true, defaults: { ease: 'expo.out' } })
+                .to(frame, { '--open': 1, duration: 1.7, ease: 'expo.inOut' }, 0)
+                .add(depthShow(heroChars, { duration: 1.5, order: 'start' }), 0.25)
+                .to(extras, { autoAlpha: 1, y: 0, duration: 1.1, stagger: 0.09 }, 0.75);
+            whenLoaderDone(() => {
+                intro.play();
+                gsap.ticker.wake();
+                // Muestra la portada si el navegador no entrega fotogramas al arrancar.
+                setTimeout(() => { if (intro.progress() < 0.05) { intro.progress(1); gsap.set(heroChars, { clearProps: 'all' }); } }, 3200);
+            });
+        }
         document.addEventListener('visibilitychange', () => { if (!document.hidden) gsap.ticker.wake(); });
 
         // Escritorio: la portada queda fija y el fotograma crece hasta ocupar toda la pantalla.
