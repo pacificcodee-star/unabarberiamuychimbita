@@ -42,8 +42,7 @@ class SurveyController extends Controller
     }
 
     /**
-     * Enlace inválido, recortado (p. ej. al copiarlo de WhatsApp) o encuesta cancelada: nunca la página
-     * de error genérica («Ese corte no está en la carta»), sino un aviso con el diseño de la encuesta.
+     * Muestra un aviso dentro de la encuesta cuando el enlace es inválido o la encuesta fue cancelada.
      * Se mantiene el código 404 para que los buscadores no lo indexen.
      */
     public function unavailable()

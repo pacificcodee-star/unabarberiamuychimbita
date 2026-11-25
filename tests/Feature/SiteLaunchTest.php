@@ -35,6 +35,8 @@ class SiteLaunchTest extends TestCase
         }
         // El panel sigue disponible para quien conoce la dirección.
         $this->get('/login')->assertOk();
+
+        $this->get('/barberos/login')->assertMovedPermanently()->assertRedirect(route('public.barbers'));
     }
 
     public function test_legal_owner_data_comes_from_config(): void
@@ -77,9 +79,9 @@ class SiteLaunchTest extends TestCase
     public function test_custom_404_page(): void
     {
         $this->get('/esta-pagina-no-existe')->assertNotFound()
-            ->assertSee('Este corte no está en', false)
-            ->assertSee('noindex, follow', false)
-            ->assertSee(route('public.booking'), false);
+            ->assertSee('Página no encontrada')
+            ->assertSee('<meta name="robots" content="noindex">', false)
+            ->assertSee('href="/">Ir al inicio', false);
     }
 
     public function test_https_is_forced_when_enabled(): void

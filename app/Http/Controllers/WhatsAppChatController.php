@@ -46,14 +46,22 @@ class WhatsAppChatController extends Controller
         ]);
     }
 
-    public function show(WhatsAppConversation $conversation)
+    public function show(Request $request, string $conversation)
     {
-        $conversation->load(['messages' => fn ($query) => $query->latest()->limit(200)])->load('lastMessage');
-        $conversation->markAsRead();
+        $chat = ctype_digit($conversation) ? WhatsAppConversation::query()->find($conversation) : null;
+
+        if (! $chat) {
+            abort_if($request->expectsJson(), 404);
+
+            return redirect()->route('whatsapp.chat.index');
+        }
+
+        $chat->load(['messages' => fn ($query) => $query->latest()->limit(200)])->load('lastMessage');
+        $chat->markAsRead();
 
         return view('whatsapp.chat.show', [
-            'conversation' => $conversation,
-            'messages' => $conversation->messages->sortBy('id')->values(),
+            'conversation' => $chat,
+            'messages' => $chat->messages->sortBy('id')->values(),
         ]);
     }
 

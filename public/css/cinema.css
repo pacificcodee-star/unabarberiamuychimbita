@@ -2153,14 +2153,6 @@ body.legal-modal-open { overflow: hidden; }
 .form-legal-note a:hover { color: var(--gold); }
 .hp-field { position: absolute !important; left: -10000px !important; width: 1px; height: 1px; overflow: hidden; }
 
-.err-page { min-height: 72vh; display: grid; align-items: center; padding: calc(var(--section-y) * .8) 0; }
-.err-code { font-family: var(--font-display); font-size: var(--fs-mega); line-height: .9; color: var(--gold); margin: 0 0 12px; font-weight: 380; }
-.err-page h1 { font-size: var(--fs-h2); font-weight: 420; margin-bottom: 16px; }
-.err-page p { max-width: 560px; color: var(--text-muted); font-size: var(--fs-lead); margin-bottom: 28px; }
-.err-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; }
-.err-links { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 36px; padding: 0; list-style: none; }
-.err-links a { display: inline-flex; min-height: 44px; align-items: center; color: var(--text-muted); text-decoration: underline; text-underline-offset: 3px; }
-.err-links a:hover { color: var(--gold); }
 /* Contraste: el día elegido en reservar es dorado; su etiqueta ("Hoy") va en tinta, no en blanco (2.4:1 → 8:1). */
 .booking-layout .date-chip.is-selected small { color: var(--ink); }
 /* Si un script de animación falló (error-guard.js): todo el contenido visible, en su posición final. */

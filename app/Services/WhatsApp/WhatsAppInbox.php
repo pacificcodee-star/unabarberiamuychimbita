@@ -219,7 +219,7 @@ class WhatsAppInbox
                 'whatsapp_message',
                 'WhatsApp: '.($conversation->client_name ?: $conversation->phone),
                 Str::limit($preview, 200, ''),
-                route('whatsapp.chat.show', $conversation),
+                route('whatsapp.chat.show', $conversation, false),
             );
         }
 

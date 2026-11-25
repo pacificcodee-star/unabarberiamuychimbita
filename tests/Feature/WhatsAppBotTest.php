@@ -417,6 +417,16 @@ class WhatsAppBotTest extends TestCase
         $this->actingAs($admin)->get(route('whatsapp.chat.show', $conversation))->assertOk();
     }
 
+    public function test_los_enlaces_de_chats_privados_requieren_acceso_al_panel(): void
+    {
+        $url = route('whatsapp.chat.show', 76);
+
+        $this->get($url)->assertRedirect(route('login'));
+
+        $barber = User::factory()->create(['role' => 'barbero', 'active' => true]);
+        $this->actingAs($barber)->get($url)->assertForbidden();
+    }
+
     public function test_el_equipo_puede_eliminar_un_chat_de_la_bandeja(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
@@ -425,6 +435,8 @@ class WhatsAppBotTest extends TestCase
         $this->escribir('hola', '573001111222@s.whatsapp.net')->assertOk();
         $conversation = WhatsAppConversation::query()->firstOrFail();
         $this->assertGreaterThan(1, $conversation->messages()->count());
+        $chatUrl = route('whatsapp.chat.show', $conversation, false);
+        $this->assertDatabaseHas('staff_notifications', ['type' => 'whatsapp_message', 'url' => $chatUrl]);
 
         $this->actingAs($admin)
             ->delete(route('whatsapp.chat.destroy', $conversation))
@@ -433,6 +445,9 @@ class WhatsAppBotTest extends TestCase
 
         $this->assertDatabaseCount('whatsapp_conversations', 0);
         $this->assertDatabaseCount('whatsapp_messages', 0);
+
+        $this->get($chatUrl)->assertRedirect(route('whatsapp.chat.index'));
+        $this->getJson($chatUrl)->assertNotFound();
 
         // Si vuelve a escribir, aparece como chat nuevo y el bot empieza desde el menú.
         $this->escribir('hola', '573001111222@s.whatsapp.net')->assertOk();
