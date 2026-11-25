@@ -9,6 +9,16 @@
 @php
     $contactName = $conversation->client_name ?: 'Cliente sin nombre';
     $initial = mb_strtoupper(mb_substr($conversation->client_name ?: $conversation->phone, 0, 1));
+    $vite = app(\Illuminate\Foundation\Vite::class);
+    $live = config('reverb.chat_enabled') && ($vite->isRunningHot() || is_file(public_path('build/manifest.json')))
+        ? [
+            'module' => $vite->asset('resources/js/whatsapp-live.js'),
+            'key' => config('reverb.apps.apps.0.key'),
+            'channel' => \App\Services\WhatsApp\WhatsAppLive::channel($conversation->id),
+            'authUrl' => route('whatsapp.chat.live.auth', $conversation, false),
+            'csrfToken' => csrf_token(),
+        ]
+        : null;
 @endphp
 
 @section('content')
@@ -59,7 +69,8 @@
                 </div>
 
                 <p class="ios-sync-state" data-chat-sync-state role="status" hidden></p>
-                <form method="POST" action="{{ route('whatsapp.chat.send', $conversation) }}" class="ios-composer">
+                <p class="ios-sync-state" data-chat-send-state role="status" hidden></p>
+                <form method="POST" action="{{ route('whatsapp.chat.send', $conversation) }}" class="ios-composer" data-chat-send>
                     @csrf
                     <span class="ios-composer-plus" aria-hidden="true"><i class="bi bi-plus-lg"></i></span>
                     <label for="wa-body" class="visually-hidden">Mensaje</label>
@@ -278,6 +289,7 @@
     .ios-composer input:focus { border-color: #25d366; box-shadow: 0 0 0 3px rgba(37, 211, 102, .18); }
     .ios-send { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: #25d366; color: #fff; font-size: 15px; cursor: pointer; transition: transform .15s ease, background-color .15s ease; }
     .ios-send:hover { background: #1fb858; }
+    .ios-send:disabled { opacity: .55; cursor: wait; }
     .ios-send:active { transform: scale(.92); }
     .ios-send:focus-visible { outline: 2px solid #007aff; outline-offset: 2px; }
     .ios-send svg { transform: translateX(1px); }
@@ -309,14 +321,18 @@
             const thread = document.getElementById('wa-thread');
             const box = document.getElementById('wa-messages');
             const url = @json(route('whatsapp.chat.messages', $conversation, false));
+            const live = @json($live);
             const syncState = document.querySelector('[data-chat-sync-state]');
-            const refreshInterval = 5000;
             const requestTimeout = 8000;
             let last = parseInt(box.dataset.last || '0', 10);
             let timer;
             let request = null;
+            let refreshRequested = false;
             let paused = false;
             let stopped = false;
+            let liveConnected = false;
+            let liveGeneration = 0;
+            let disconnectLive;
 
             const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
             const ticks = { read: ['is-read', 'bi-check2-all'], delivered: ['is-delivered', 'bi-check2-all'], sent: ['is-sent', 'bi-check2'], failed: ['is-failed', 'bi-exclamation-circle-fill'] };
@@ -407,9 +423,9 @@
                 }
             }
 
-            function showSyncState(message = '') {
-                if (syncState.textContent !== message) syncState.textContent = message;
-                syncState.hidden = !message;
+            function showStatus(element, message = '') {
+                if (element.textContent !== message) element.textContent = message;
+                element.hidden = !message;
             }
 
             const unavailable = {
@@ -423,6 +439,7 @@
 
                 const controller = new AbortController();
                 request = controller;
+                refreshRequested = false;
                 const timeout = setTimeout(() => controller.abort(), requestTimeout);
                 try {
                     const res = await fetch(url + '?after=' + last, {
@@ -434,7 +451,8 @@
                     if (request !== controller) return;
                     if (unavailable[res.status] && res.headers.get('Content-Type')?.includes('application/json')) {
                         stopped = true;
-                        showSyncState(unavailable[res.status]);
+                        closeLive();
+                        showStatus(syncState, unavailable[res.status]);
                         return;
                     }
                     if (!res.ok) throw new Error('Chat: ' + res.status);
@@ -443,19 +461,22 @@
                     if (request !== controller) return;
                     if (!Array.isArray(data.messages) || !Array.isArray(data.receipts)) throw new Error('Respuesta inválida del chat');
 
-                    showSyncState();
+                    showStatus(syncState);
                     appendMessages(data.messages);
                     refreshReceipts(data.receipts);
                     refreshBotState(data);
                 } catch (error) {
                     if (request === controller && !document.hidden) {
-                        showSyncState('Reconectando el chat…');
+                        showStatus(syncState, 'Reconectando el chat…');
                     }
                 } finally {
                     clearTimeout(timeout);
                     if (request === controller) {
                         request = null;
-                        if (!stopped && !paused && !document.hidden) timer = setTimeout(refresh, refreshInterval);
+                        if (!stopped && !paused && !document.hidden) {
+                            // Una señal durante la consulta puede corresponder a un mensaje posterior a su respuesta.
+                            timer = setTimeout(refresh, refreshRequested ? 0 : (liveConnected ? 30000 : 2500));
+                        }
                     }
                 }
             }
@@ -469,8 +490,72 @@
 
             function refreshNow() {
                 clearTimeout(timer);
-                refresh();
+                if (request) refreshRequested = true;
+                else refresh();
             }
+
+            async function openLive() {
+                if (!live) return;
+                const generation = ++liveGeneration;
+                try {
+                    const { connectWhatsAppLive } = await import(live.module);
+                    if (generation !== liveGeneration) return;
+                    disconnectLive = connectWhatsAppLive(live, refreshNow, (connected) => {
+                        if (generation !== liveGeneration || liveConnected === connected) return;
+                        liveConnected = connected;
+                        // Al suscribirse, recupera también lo que llegó antes de establecer el canal.
+                        refreshNow();
+                    });
+                } catch (error) {
+                    console.warn('Canal en vivo de WhatsApp no disponible', error);
+                }
+            }
+
+            function closeLive() {
+                ++liveGeneration;
+                liveConnected = false;
+                disconnectLive?.();
+                disconnectLive = null;
+            }
+
+            const form = document.querySelector('[data-chat-send]');
+            const input = form.elements.namedItem('body');
+            const sendButton = form.querySelector('button[type="submit"]');
+            const sendState = document.querySelector('[data-chat-send-state]');
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                if (sendButton.disabled) return;
+
+                const draft = input.value;
+                const data = new FormData(form);
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 45000);
+                sendButton.disabled = true;
+                showStatus(sendState, 'Enviando…');
+                try {
+                    const res = await fetch(form.action, {
+                        method: 'POST',
+                        headers: { Accept: 'application/json' },
+                        credentials: 'same-origin',
+                        body: data,
+                        signal: controller.signal,
+                    });
+                    const result = await res.json();
+                    if (res.ok) {
+                        if (input.value === draft) input.value = '';
+                        showStatus(sendState);
+                    } else {
+                        const expired = res.status === 401 || res.status === 419;
+                        showStatus(sendState, expired ? unavailable[401] : (result.message || 'No se pudo enviar el mensaje.'));
+                    }
+                } catch {
+                    showStatus(sendState, 'No se pudo confirmar el envío. Revisa el chat antes de volver a enviarlo.');
+                } finally {
+                    clearTimeout(timeout);
+                    sendButton.disabled = false;
+                    refreshNow();
+                }
+            });
 
             document.addEventListener('visibilitychange', () => {
                 if (document.hidden) suspendRefresh();
@@ -480,15 +565,18 @@
             window.addEventListener('pagehide', () => {
                 paused = true;
                 suspendRefresh();
+                closeLive();
             });
             window.addEventListener('pageshow', (event) => {
                 if (event.persisted) {
                     paused = false;
                     stopped = false;
                     refreshNow();
+                    openLive();
                 }
             });
             refreshNow();
+            openLive();
         })();
     </script>
 @endpush

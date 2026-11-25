@@ -252,6 +252,8 @@ Route::middleware(['panel-desktop', 'auth'])->group(function () {
         Route::get('/whatsapp/chat', [WhatsAppChatController::class, 'index'])->name('whatsapp.chat.index');
         Route::get('/whatsapp/chat/{conversation}', [WhatsAppChatController::class, 'show'])->name('whatsapp.chat.show');
         Route::get('/whatsapp/chat/{conversation}/messages', [WhatsAppChatController::class, 'messages'])->name('whatsapp.chat.messages');
+        Route::post('/whatsapp/chat/{conversation}/live/auth', [WhatsAppChatController::class, 'authorizeLive'])
+            ->middleware('throttle:30,1,whatsapp-live')->name('whatsapp.chat.live.auth');
         Route::post('/whatsapp/chat/{conversation}/send', [WhatsAppChatController::class, 'send'])->name('whatsapp.chat.send');
         Route::post('/whatsapp/chat/{conversation}/bot', [WhatsAppChatController::class, 'toggleBot'])->name('whatsapp.chat.bot');
         Route::delete('/whatsapp/chat/{conversation}', [WhatsAppChatController::class, 'destroy'])->name('whatsapp.chat.destroy');

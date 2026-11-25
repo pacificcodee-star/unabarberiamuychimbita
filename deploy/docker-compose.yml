@@ -35,6 +35,9 @@ x-app-env: &app-env
   EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_APIKEY}
   WHATSAPP_BOT_ENABLED: "true"
   WHATSAPP_DEFAULT_COUNTRY: "57"
+  WHATSAPP_LIVE_ENABLED: "true"
+  WHATSAPP_LIVE_HOST: web
+  REVERB_SERVER_HOST: "0.0.0.0"
   # Caché de páginas públicas (App\Support\PageCache): segundos que se usa una copia.
   PAGE_CACHE_TTL: ${PAGE_CACHE_TTL:-60}
   PHP_FPM_MAX_CHILDREN: ${PHP_FPM_MAX_CHILDREN:-}

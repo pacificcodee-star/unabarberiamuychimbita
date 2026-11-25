@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\WhatsApp\WhatsAppLive;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -38,6 +39,11 @@ class WhatsAppMessage extends Model
         return [
             'raw' => 'array',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::created(fn (self $message) => app(WhatsAppLive::class)->changed($message->conversation_id));
     }
 
     public function conversation(): BelongsTo

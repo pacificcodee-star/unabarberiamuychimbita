@@ -343,7 +343,12 @@ class WhatsAppInbox
             ->where('direction', WhatsAppMessage::DIRECTION_OUT);
         $previous = array_filter(array_keys(WhatsAppMessage::STATUSES), fn ($state) => $this->canUpdateStatus($state, $status));
 
-        return (bool) (clone $query)->whereIn('status', $previous)->update(['status' => $status]) || $query->exists();
+        $updated = (clone $query)->whereIn('status', $previous)->update(['status' => $status]);
+        if ($updated && config('reverb.chat_enabled') && ($conversationId = $query->value('conversation_id'))) {
+            app(WhatsAppLive::class)->changed($conversationId);
+        }
+
+        return $updated || $query->exists();
     }
 
     private function canUpdateStatus(?string $before, string $after): bool
