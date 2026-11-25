@@ -742,11 +742,9 @@ h1 em, h2 em, .section-title em, .is-split .sw-em, .cx-hero-title em, .purpose-t
 /* ---------- 19.9 Transiciones entre páginas (con dirección y por pasos) ---------- */
 /* Inicio → Servicios → Barberos → Contacto: avanzar desliza hacia la izquierda; regresar, hacia la derecha.
    Primero sale la página actual y enseguida entra la nueva. El menú no se mueve.
-   Solo desde 768 px (computador y tableta). En el celular no se usa View Transitions: mientras dura,
-   la página no recibe toques (un segundo toque en la barra se perdía), Chrome tiene que fotografiar la
-   página anterior antes de cambiar y la anulaba cuando la barra de direcciones cambiaba de alto.
-   En el celular la página nueva aparece con un fundido breve propio (más abajo, .pt-enter). */
-@media (min-width: 768px) {
+   Las capturas nativas se usan en el diseño de escritorio. En el diseño con barra inferior,
+   se anima el contenido de la página nueva y la barra queda disponible durante la transición. */
+@media (min-width: 1100px) {
     @view-transition { navigation: auto; }
 }
 .site-nav { view-transition-name: site-nav; }
@@ -775,6 +773,12 @@ html:active-view-transition-type(nav-back)::view-transition-new(root) { animatio
    Solo al llegar desde otra página del sitio (clase pt-enter, la pone el <head> del layout). */
 @media (max-width: 767.98px) and (prefers-reduced-motion: no-preference) {
     html.pt-enter #main-content { animation: pt-m-in 200ms cubic-bezier(.22, 1, .36, 1) backwards; }
+}
+@media (min-width: 768px) and (max-width: 1099.98px) and (prefers-reduced-motion: no-preference) {
+    html.pt-enter { overflow-x: clip; }
+    html.pt-enter #main-content { animation: pt-m-in .26s var(--ease-out) .04s backwards; }
+    html.pt-enter.pt-forward #main-content { animation-name: pt-in-right; }
+    html.pt-enter.pt-back #main-content { animation-name: pt-in-left; }
 }
 @keyframes pt-m-in { from { opacity: 0; } }
 
@@ -1479,14 +1483,10 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
         overflow: hidden;
         border: 1px solid rgba(var(--text-rgb), .14);
         border-radius: 999px;
-        /* Fondo casi opaco a propósito: al cambiar de página la barra se copia como imagen aparte
-           (view-transition-name) y esa copia no lleva el desenfoque de fondo. Con .66 la barra se veía
-           transparente, sin diseño, durante el cambio; con .9 se ve igual antes, durante y después. */
         background: linear-gradient(180deg, rgba(var(--bg-rgb), .86), rgba(var(--bg-rgb), .94));
         -webkit-backdrop-filter: blur(18px) saturate(160%);
         backdrop-filter: blur(18px) saturate(160%);
         box-shadow: 0 18px 40px rgba(0, 0, 0, .42), 0 2px 8px rgba(0, 0, 0, .22), inset 0 1px 0 rgba(255, 255, 255, .12);
-        view-transition-name: mnav;
     }
     .mnav::before {
         content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
@@ -1497,24 +1497,18 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
         position: relative; z-index: 1;
         display: flex; align-items: stretch;
         margin: 0; padding: 0; list-style: none;
-        /* Un solo ritmo para el óvalo, el texto y el ícono: se mueven y se iluminan juntos. */
-        --mnav-dur: 220ms;
-        --mnav-ease: cubic-bezier(.22, 1, .36, 1); /* ease-out: arranca enseguida y frena suave, sin rebote */
     }
-    .mnav__indicator {
-        position: absolute; z-index: 0; left: 0; top: 0; bottom: 0; width: calc(100% / var(--mnav-count, 5));
+    /* El fondo pertenece a la misma pestaña que colorea el texto y el ícono. */
+    .mnav__item.is-active::before {
+        content: ''; position: absolute; z-index: -1; inset: 0;
         border-radius: 999px;
         border: 1px solid rgba(var(--accent-rgb), .28);
         background: linear-gradient(180deg, rgba(var(--accent-rgb), .22), rgba(var(--accent-rgb), .09));
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 6px 16px rgba(0, 0, 0, .24);
-        /* Posición = índice de la pestaña (--mnav-index, lo pone el servidor y mobile-bottom-nav.js).
-           Solo cambia transform: no recalcula medidas en cada cuadro y no se deforma. */
-        transform: translate3d(calc(var(--mnav-index, 0) * 100%), 0, 0);
-        transition: transform var(--mnav-dur) var(--mnav-ease), opacity 160ms ease-out;
-        will-change: transform;
         pointer-events: none;
     }
-    .mnav__track.is-instant .mnav__indicator { transition: none; }
+    .mnav.is-navigating .mnav__item.is-active::before { animation: mnav-select 140ms var(--ease-out); }
+    @keyframes mnav-select { from { opacity: .76; transform: scale(.97); } }
     /* Barrita de carga: confirma el toque mientras llega la página (mobile-bottom-nav.js). */
     .mnav.is-navigating::after {
         content: ''; position: absolute; z-index: 2; left: 22px; right: 22px; top: 1px; height: 2px;
@@ -1527,19 +1521,19 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
         from { background-position: -80% 0; }
         to { background-position: 180% 0; }
     }
-    .mnav__track.is-idle .mnav__indicator { opacity: 0; }
     .mnav__cell:last-child .mnav__label { white-space: normal; text-align: center; }
     /* Seis pestañas: "Mis servicios" entra completo, sin puntos suspensivos, con la letra apenas menor. */
-    .mnav__track:has(> .mnav__cell:nth-child(7)) .mnav__item { padding-inline: 0; }
-    .mnav__track:has(> .mnav__cell:nth-child(7)) .mnav__label { font-size: .56rem; }
+    .mnav__track:has(> .mnav__cell:nth-child(6)) .mnav__item { padding-inline: 0; }
+    .mnav__track:has(> .mnav__cell:nth-child(6)) .mnav__label { font-size: .56rem; }
     .mnav__cell { position: relative; z-index: 1; flex: 1 1 0; min-width: 0; display: flex; }
     .mnav__item {
+        position: relative; isolation: isolate;
         display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center;
         gap: 3px; min-width: 0; min-height: 54px; padding: 4px 2px;
         color: rgba(var(--text-rgb), .68); text-decoration: none;
         -webkit-tap-highlight-color: transparent;
         touch-action: manipulation; /* el toque se atiende de una vez, sin esperar un posible doble toque */
-        transition: color var(--mnav-dur) var(--mnav-ease), transform var(--dur-fast) var(--ease-out);
+        transition: transform var(--dur-fast) var(--ease-out);
     }
     /* Sin :hover en pantallas táctiles: en el celular el "hover" se queda pegado en la pestaña tocada y la
        pintaba de dorado por su cuenta, aunque el óvalo siguiera en otra. El resaltado sale solo de .is-active. */
@@ -1549,16 +1543,12 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
     .mnav__icon {
         display: grid; place-items: center; width: 34px; height: 30px;
         color: rgba(var(--text-rgb), .72);
-        transition: transform var(--mnav-dur) var(--mnav-ease), color var(--mnav-dur) var(--mnav-ease), background-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
     }
     .mnav__icon i { font-size: 1.12rem; line-height: 1; }
     .mnav__item.is-active .mnav__icon { transform: translateY(-2px); color: var(--gold); }
     @media (hover: hover) {
         .mnav__item:hover { color: var(--text); }
-        .mnav__item:hover .mnav__icon { transform: translateY(-2px); color: var(--gold); }
     }
-    /* "Reservar" se ve igual que los demás íconos: sin círculo propio.
-       Solo lleva el resaltado común (.mnav__indicator) cuando es la pestaña activa. */
     .mnav__label {
         display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         font-family: var(--font-body); font-size: .62rem; font-weight: 600; letter-spacing: .01em; line-height: 1.1;
@@ -1571,16 +1561,12 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
     body:has(.pwa-prompt.is-visible) .whatsapp-float { bottom: calc(var(--mnav-clear) + 184px); }
 
     @media (prefers-reduced-motion: reduce) {
-        .mnav__indicator, .mnav__item, .mnav__icon { transition: none; }
+        .mnav__item { transition: none; }
+        .mnav.is-navigating .mnav__item.is-active::before { animation: none; }
         .mnav.is-navigating::after { animation: none; background-position: 50% 0; }
     }
 }
 
-/* La barra inferior no se anima ni se superpone consigo misma al cambiar de página: se ve solo la nueva,
-   fija en su sitio, para que su diseño no "parpadee" ni se pierda. */
-::view-transition-group(mnav) { animation-duration: 0s; }
-::view-transition-old(mnav) { display: none; }
-::view-transition-new(mnav) { animation: none; opacity: 1; }
 @media print { .mnav { display: none !important; } }
 
 /* 23.14 Barberos — fondo negro con estilo:

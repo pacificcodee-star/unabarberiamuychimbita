@@ -1,6 +1,6 @@
 {{-- Navegación inferior flotante: solo móvil, reutiliza las rutas públicas del encabezado.
      La pestaña de la página abierta se decide aquí (servidor) y queda marcada con data-mnav-current y
-     aria-current; el óvalo dorado toma su posición de --mnav-index desde el primer cuadro. --}}
+     aria-current. El mismo enlace activo dibuja el óvalo desde el primer cuadro. --}}
 @php
     $mnavItems = $navItems ?? [];
     array_splice($mnavItems, 2, 0, [['route' => 'public.booking', 'label' => 'Reservar', 'icon' => 'bi-calendar2-check']]);
@@ -15,8 +15,7 @@
 @endphp
 
 <nav class="mnav" id="mobileBottomNav" aria-label="Navegación móvil">
-    <ul style="--mnav-count: {{ count($mnavItems) }}; --mnav-index: {{ max($mnavActive, 0) }}" class="mnav__track{{ $mnavActive < 0 ? ' is-idle' : '' }}">
-        <li class="mnav__indicator" aria-hidden="true"></li>
+    <ul class="mnav__track">
         @foreach($mnavItems as $mnavIndex => $mnavItem)
             @php
                 $mnavIsActive = $mnavIndex === $mnavActive;
