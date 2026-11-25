@@ -14,6 +14,7 @@ class GuestCredential extends Model
         'expires_at',
         'revoked_at',
         'last_used_at',
+        'whatsapp_phone',
     ];
 
     protected function casts(): array

@@ -264,13 +264,18 @@ class ClientNotifier
         $wasActive = in_array($from, ['pendiente', 'confirmada'], true);
         $start = $appointment->startsAt();
         $moved = isset($before['starts_at']) && ! $start->equalTo($before['starts_at']);
+        if (($by === 'staff' && $moved) || (in_array($to, ['pendiente', 'cancelada'], true) && $to !== $from)) {
+            AttendanceConfirmation::forget($appointment);
+        }
         $ttl = (int) config('notificaciones.ttl_minutes.change', 120);
         $only = $by === 'bot' ? ['push'] : null;
         $stamp = now()->format('YmdHis');
         $short = AppointmentMessages::short($appointment); // resumen de una línea para el aviso del navegador
 
         if (! $active) {
-            $this->cancelPending($appointment);
+            // La encuesta no se toca aquí: al quedar atendida se acaba de programar y debe salir
+            // después del "Gracias por tu visita". Si la cita deja de estar atendida, SurveyService la cancela.
+            $this->cancelPending($appointment, except: ['survey_invite']);
 
             if ($to === 'cancelada' && $from !== 'cancelada') {
                 $this->queue($appointment, 'appt_cancelled', 'Cita cancelada', $this->cancellationBody($appointment),
@@ -490,11 +495,12 @@ class ClientNotifier
     }
 
     /** Cancela los avisos que aún no han salido (todos, o solo los tipos indicados). */
-    public function cancelPending(Model $subject, ?array $types = null): void
+    public function cancelPending(Model $subject, ?array $types = null, array $except = []): void
     {
         $subject->clientNotifications()
             ->whereIn('status', [ClientNotification::PENDING, ClientNotification::SENDING])
             ->when($types, fn ($query) => $query->whereIn('type', $types))
+            ->when($except, fn ($query) => $query->whereNotIn('type', $except))
             ->update(['status' => ClientNotification::CANCELLED, 'updated_at' => now()]);
     }
 

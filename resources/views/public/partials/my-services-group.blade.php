@@ -52,6 +52,9 @@
                                 @if($subject->barber)
                                     <li><i class="bi bi-person" aria-hidden="true"></i> {{ $subject->barber->name }}</li>
                                 @endif
+                                @if(filled($subject->client_name))
+                                    <li><i class="bi bi-person-badge" aria-hidden="true"></i> Cliente: {{ $subject->client_name }}</li>
+                                @endif
                                 @if($turn && ! $history && \App\Support\AttendanceConfirmation::confirmed($subject))
                                     <li><i class="bi bi-check2-circle" aria-hidden="true"></i> Asistencia confirmada</li>
                                 @endif
@@ -70,6 +73,10 @@
                                 <span>Te llamamos cerca de las {{ $estimate['call_at']->format('g:i a') }}</span>
                             </div>
                         </div>
+                    @endif
+
+                    @if($timeline = $timelines[$type][$subject->id] ?? null)
+                        @include('public.partials.my-services-timeline', ['timeline' => $timeline, 'gradientId' => "msv-{$type}-{$subject->id}"])
                     @endif
 
                     @php $actions = \App\Services\ClientBookingActions::actions($subject); @endphp

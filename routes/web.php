@@ -16,7 +16,6 @@ use App\Http\Controllers\LandingController;
 use App\Http\Controllers\MyServicesController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\PublicBookingController;
-use App\Http\Controllers\PublicReviewController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\ServiceController;
@@ -73,7 +72,6 @@ Route::get('/servicios', [LandingController::class, 'services'])->middleware('pu
 Route::get('/barberos', [LandingController::class, 'barbers'])->middleware('public-fresh')->name('public.barbers');
 Route::get('/barberos/login', fn () => redirect()->route('public.barbers', [], 301));
 Route::get('/resenas', [LandingController::class, 'reviews'])->middleware('public-fresh')->name('public.reviews');
-Route::post('/resenas', [PublicReviewController::class, 'store'])->middleware('throttle:5,10,public.reviews.store')->name('public.reviews.store');
 Route::get('/contacto', [LandingController::class, 'contact'])->middleware('public-fresh')->name('public.contact');
 Route::get('/reservar', [PublicBookingController::class, 'index'])->middleware('public-fresh')->name('public.booking');
 // Huella del contenido: la página abierta la consulta para refrescarse sola tras un cambio en el panel.
@@ -105,7 +103,10 @@ Route::redirect('/mis-servicios/recuperar/{rest?}', '/mis-servicios')->where('re
 
 Route::prefix('mis-servicios')->name('my-services.')->controller(MyServicesController::class)->group(function () {
     Route::get('/', 'index')->middleware('throttle:90,1,my-services.index')->name('index');
-    Route::post('/vincular', 'link')->middleware('throttle:10,1,my-services.link')->name('link');
+    Route::get('/whatsapp/conectar/{token}', 'openWhatsAppLink')->where('token', '[A-Za-z0-9]{48}')
+        ->middleware('throttle:20,10,my-services.whatsapp.open')->name('whatsapp.open');
+    Route::get('/whatsapp/conectar', 'confirmWhatsAppLink')->middleware('throttle:20,10,my-services.whatsapp.confirm')->name('whatsapp.confirm');
+    Route::post('/whatsapp/conectar', 'finishWhatsAppLink')->middleware('throttle:15,10,my-services.whatsapp.finish')->name('whatsapp.finish');
     Route::get('/acceso/{type}/{token}', 'access')->whereIn('type', ['cita', 'turno'])
         ->middleware(['signed', 'throttle:20,1,my-services.access'])->name('access');
     Route::post('/{type}/{id}/{action}', 'update')->whereNumber('id')->whereIn('type', ['cita', 'turno'])
@@ -139,8 +140,12 @@ Route::post('/push/renovar', [TrackController::class, 'renew'])->middleware('thr
 
 // Webhook de Evolution API: entra todo lo que escriben los clientes (sin sesión y sin CSRF,
 // protegido con la apikey que Evolution envía en cada evento).
+// El límite es alto a propósito: Evolution manda un evento por mensaje Y otro por cada cambio de
+// estado de lo que enviamos. Con 120/min, una ráfaga de clientes (o el simple ajetreo de la
+// barbería) agotaba el cupo, la app respondía 429 y Evolution reintentaba el aviso más tarde:
+// por eso los mensajes "se demoraban en cargar" al número del cliente.
 Route::post('/webhook/evolution', EvolutionWebhookController::class)
-    ->middleware('throttle:120,1,webhook.evolution')
+    ->middleware('throttle:600,1,webhook.evolution')
     ->name('webhook.evolution');
 
 Route::middleware('panel-desktop')->group(function () {
@@ -190,6 +195,7 @@ Route::middleware(['panel-desktop', 'auth'])->group(function () {
     Route::middleware('admin')->group(function () {
         Route::get('/site-settings', [SiteSettingController::class, 'edit'])->name('site-settings.edit');
         Route::put('/site-settings', [SiteSettingController::class, 'update'])->name('site-settings.update');
+        Route::put('/site-settings/cuenta', [SiteSettingController::class, 'updateAccount'])->middleware('throttle:10,10')->name('site-settings.account');
         Route::resource('services', ServiceController::class)->except(['show']);
         Route::resource('expenses', ExpenseController::class)->except(['show']);
         Route::post('/insumos/entregas', [SupplyController::class, 'storeDelivery'])->name('supplies.deliveries.store');
@@ -208,6 +214,7 @@ Route::middleware(['panel-desktop', 'auth'])->group(function () {
         Route::post('/encuestas/preguntas/{question}/mover', [SurveyAdminController::class, 'moveQuestion'])->name('surveys.questions.move');
         Route::get('/encuestas/opiniones', [SurveyAdminController::class, 'reviews'])->name('surveys.reviews');
         Route::post('/encuestas/opiniones/{review}', [SurveyAdminController::class, 'moderate'])->name('surveys.reviews.moderate');
+        Route::delete('/encuestas/opiniones/{review}', [SurveyAdminController::class, 'destroyReview'])->name('surveys.reviews.destroy');
 
         Route::get('/disponibilidad', [AvailabilityController::class, 'index'])->name('availability.index');
         Route::post('/disponibilidad', [AvailabilityController::class, 'store'])->name('availability.store');

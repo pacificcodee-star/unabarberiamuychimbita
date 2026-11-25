@@ -1,11 +1,17 @@
 # Encuestas de satisfacción y opiniones verificadas
 
+> **Modo actual: solo WhatsApp.** La invitación la envía el bot por WhatsApp cuando la cita o el turno
+> queda atendido, y la encuesta se responde dentro del chat (`SURVEY_WHATSAPP_ENABLED=true`). La encuesta
+> web está apagada (`SURVEY_WEB_ENABLED=false`): el enlace `/encuesta/...` muestra un aviso, no hay aviso
+> del navegador, y sin autorización de WhatsApp no se crea invitación. La página no tiene formulario de
+> opiniones: todas llegan por la encuesta.
+
 ## Cómo funciona
 
 1. **Servicio terminado.** Cuando una cita pasa a *atendida* o un turno a *atendido* (por la
    automatización, por "llamar siguiente" o a mano en el panel) se crea **una** invitación para ese
    servicio. Nunca dos: hay una llave única por cita o turno.
-2. **Margen de corrección.** La invitación sale `SURVEY_SEND_DELAY_MINUTES` (30) minutos después.
+2. **Margen de corrección.** La invitación sale `SURVEY_SEND_DELAY_MINUTES` (2) minutos después.
    Si en ese tiempo el barbero cambia el estado (p. ej. el cliente no llegó), la invitación se cancela.
    Así la hora estimada del servicio no es la única prueba de que se atendió.
 3. **Aviso.** Se usa el mismo sistema de avisos de citas (`client_notifications`): notificación push
@@ -17,6 +23,12 @@
 5. **Publicación.** Al terminar, si el cliente escribió un comentario **y** autorizó publicarlo, la
    opinión se publica sola cuando pasa la moderación objetiva; si no, queda en revisión. La
    autorización queda registrada en `consent_records` (finalidad `publicacion_resena`).
+
+**En la página** (inicio y /resenas) solo se muestran las tarjetas de opiniones aprobadas con **4 o 5
+estrellas** (`Review::featured()`, `Review::MIN_FEATURED_RATING`). Las de menos estrellas siguen
+aprobadas, se ven en el panel y **cuentan en el promedio y el total** que muestra la página, para que la
+calificación no quede inflada. Al cliente solo se le dice "ya aparece en nuestra página" si su tarjeta
+se muestra.
 
 La invitación vence a los `SURVEY_EXPIRE_DAYS` (14) días. La página de seguimiento del cliente
 muestra un botón "Responder la encuesta" mientras esté abierta.
@@ -104,9 +116,10 @@ Hasta completar esos pasos, **WhatsApp no está integrado de forma oficial**.
 | Variable | Por defecto | Qué hace |
 |----------|-------------|----------|
 | `SURVEYS_ENABLED` | true | Activa el sistema |
-| `SURVEY_SEND_DELAY_MINUTES` | 30 | Margen antes de invitar |
+| `SURVEY_SEND_DELAY_MINUTES` | 2 | Margen antes de invitar |
 | `SURVEY_EXPIRE_DAYS` | 14 | Días para responder |
-| `SURVEY_WHATSAPP_ENABLED` | false | Encuesta dentro del chat de WhatsApp |
+| `SURVEY_WHATSAPP_ENABLED` | true | Encuesta dentro del chat de WhatsApp |
+| `SURVEY_WEB_ENABLED` | false | Encuesta en la página web y aviso del navegador |
 | `SURVEY_AUTO_PUBLISH` | true | Publicar sola si pasa la moderación (false = todo pasa por el panel) |
 | `SURVEY_MIN_SAMPLE` | 5 | Mínimo para comparar barberos o servicios |
 | `SURVEY_RETENTION_INCOMPLETE_DAYS` | 180 | Encuestas sin terminar se borran pasado este plazo |

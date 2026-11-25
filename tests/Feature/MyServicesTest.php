@@ -59,7 +59,7 @@ class MyServicesTest extends TestCase
         $action = "/mis-servicios/cita/{$appointment->id}/";
         $this->get('/mis-servicios')->assertSee('data-action="confirmar"', false)->assertSee('Volver');
         $this->postJson($action.'confirmar')->assertOk();
-        $this->assertTrue(AttendanceConfirmation::confirmed($appointment));
+        $this->assertTrue(AttendanceConfirmation::confirmed($appointment->refresh()));
         $this->assertSame('confirmada', $appointment->fresh()->status);
         $this->postJson($action.'confirmar')->assertUnprocessable();
         $this->assertSame(1, StaffNotification::where('type', 'client_confirmed')->count());
@@ -95,22 +95,81 @@ class MyServicesTest extends TestCase
             ->assertDontSee('/mis-servicios/recuperar');
     }
 
-    public function test_the_saved_track_link_can_relink_the_device_after_the_cookie_is_lost(): void
+    public function test_appointment_timeline_uses_the_scheduled_start_and_records_automatic_completion(): void
     {
-        $barber = $this->barber('citas');
-        $appointment = Appointment::reserveSlot([
-            'barber_id' => $barber->id, 'client_name' => 'Sofía', 'client_phone' => '3001234567',
-            'appointment_date' => '2026-11-19', 'appointment_time' => '14:00', 'status' => 'pendiente',
-        ]);
+        $appointment = $this->book($this->barber('citas'), 'cita');
+        $appointment->update(['status' => 'confirmada']);
+        AttendanceConfirmation::mark($appointment);
 
-        $this->postJson('/mis-servicios/vincular', ['type' => 'cita', 'token' => 'no-existe'])->assertNotFound();
-        $response = $this->postJson('/mis-servicios/vincular', ['type' => 'cita', 'token' => $appointment->public_token])
-            ->assertOk()->assertJson(['ok' => true]);
-        $device = $response->getCookie('mis_servicios');
-        $this->assertNotNull($device);
+        $this->travelTo($appointment->startsAt()->subMinute());
+        $this->get('/mis-servicios')->assertOk()
+            ->assertSee('Cliente: Ana')
+            ->assertSee('data-timeline-fill', false)
+            ->assertSee('aria-valuenow="0"', false)
+            ->assertSee('10:30 am');
 
-        $this->withCookie('mis_servicios', $device->getValue());
-        $this->get('/mis-servicios')->assertOk()->assertSee('2:00 pm');
+        $this->travelTo($appointment->startsAt()->addMinutes(12));
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()
+            ->assertSee('aria-valuenow="40"', false)
+            ->assertSee('12 de 30 min')
+            ->assertSee('18 min restantes');
+
+        $this->travelTo($appointment->startsAt()->addMinutes(32));
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()
+            ->assertSee('Pendiente de cierre')->assertDontSee('Citas anteriores');
+        $this->assertSame(1, app(\App\Services\AttendanceAutomation::class)->finishConfirmedAppointments());
+        $this->get('/mis-servicios')->assertOk()
+            ->assertSee('aria-valuenow="100"', false)
+            ->assertSee('10:32 am')
+            ->assertSee('Finalizado');
+    }
+
+    public function test_called_turn_timeline_starts_after_the_arrival_window_and_keeps_recorded_hours(): void
+    {
+        config(['notificaciones.turn_grace_minutes' => 10]);
+        $turn = $this->book($this->barber('llegada'), 'turno');
+        $queue = app(TurnQueueService::class);
+        $this->assertSame('llamado', $turn->status);
+        $this->get('/mis-servicios')->assertOk()
+            ->assertSee('Cliente: Ana')
+            ->assertSee('10:10 am')
+            ->assertSee('10:40 am')
+            ->assertSee('aria-valuenow="0"', false);
+
+        $this->travel(12)->minutes();
+        $queue->advance($turn->barber_id);
+        $this->assertSame('10:10', $turn->fresh()->started_at->format('H:i'));
+        $this->get('/mis-servicios')->assertOk()->assertSee('2 de 30 min');
+
+        $this->travel(29)->minutes();
+        $queue->advance($turn->barber_id);
+        $this->get('/mis-servicios')->assertOk()
+            ->assertSee('10:10 am')
+            ->assertSee('10:41 am')
+            ->assertSee('aria-valuenow="100"', false);
+    }
+
+    public function test_web_and_pwa_keep_finished_services_with_the_cookie_after_the_session_closes(): void
+    {
+        $appointment = $this->book($this->barber('citas'), 'cita');
+        $turn = $this->book($this->barber('llegada'), 'turno');
+        $this->assertSame($appointment->guest_visitor_id, $turn->guest_visitor_id);
+        $appointment->update(['status' => 'atendida']);
+        $turn->update(['status' => 'atendido']);
+
+        $this->flushSession();
+        $this->travel(60)->days();
+        $this->get('/?source=pwa')->assertSee('Mis servicios');
+        $history = $this->get('/mis-servicios')->assertOk()
+            ->assertSee('data-service-tab="historial" aria-selected="true"', false)
+            ->assertSeeInOrder(['Citas anteriores', 'Atendida', 'Turnos anteriores', 'Finalizado']);
+        $this->assertStringContainsString('no-store', $history->headers->get('Cache-Control'));
+
+        $this->withCookie('mis_servicios', '');
+        $this->postJson('/mis-servicios/vincular', ['type' => 'cita', 'token' => $appointment->public_token])->assertNotFound();
+        $this->get('/mis-servicios')->assertOk()->assertDontSee('Citas anteriores')->assertDontSee('Turnos anteriores');
+        $this->assertNotNull($appointment->fresh());
+        $this->assertNotNull($turn->fresh());
     }
 
     public function test_checking_a_lost_booking_response_relinks_the_device(): void

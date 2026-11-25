@@ -77,8 +77,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 html {
     scroll-behavior: smooth; -webkit-text-size-adjust: 100%;
-    /* Sin rebote en los extremos: al llegar al final no queda ninguna franja donde
-       pueda asomar el fondo decorativo por debajo del pie, tampoco en el celular. */
+    /* Si el navegador muestra el borde del documento, conserva el color del pie. */
     overscroll-behavior-y: none;
     background-color: var(--surface-3);
 }
@@ -133,6 +132,25 @@ main:focus { outline: none; }
    así la foto de fondo no asoma por debajo del footer. */
 main#main-content { flex: 1 0 auto; }
 .site-footer { flex-shrink: 0; }
+
+/* Recorta la foto fija en el borde de cada página para que no se pinte debajo del pie. */
+.page-photo-background {
+    position: relative;
+    isolation: isolate;
+    clip-path: inset(0);
+}
+.page-photo-background::before {
+    content: '';
+    position: fixed;
+    inset: 0 0 auto;
+    height: 100vh;
+    height: 100lvh;
+    z-index: -1;
+    pointer-events: none;
+    background: url('../images/mis-servicios-fondo.webp') center / cover no-repeat, #efe8dc;
+    transform: scaleX(var(--page-photo-direction, 1)) scale(1.04);
+    filter: blur(3px);
+}
 
 /* ---------- 3. Tipografía de sección ---------- */
 .section { padding: var(--section-y) 0; position: relative; }
@@ -620,7 +638,7 @@ textarea.form-control { min-height: 96px; }
 /* Pie de página sobre la superficie del tema, con filete de latón.
    Todo el texto pasa a blanco y los enlaces llevan subrayado en hover
    para no depender solo del color. */
-.site-footer { position: relative; z-index: 1; --footer-bg: var(--surface); padding: clamp(22px, 2.6vw, 32px) 0 calc(14px + env(safe-area-inset-bottom)); background: var(--footer-bg); border-top: 1px solid rgba(var(--accent-rgb), .28); color: #fff; /* El color del pie continúa hacia abajo: la foto de fondo nunca asoma por debajo, en ningún navegador ni tamaño. */ box-shadow: 0 100vmax 0 100vmax var(--footer-bg); }
+.site-footer { position: relative; z-index: 1; --footer-bg: var(--surface); padding: clamp(22px, 2.6vw, 32px) 0 calc(14px + env(safe-area-inset-bottom)); background: var(--footer-bg); border-top: 1px solid rgba(var(--accent-rgb), .28); color: #fff; }
 
 /* Con los enlaces legales a la vista, los avisos flotantes se apartan para no taparlos.
    Vuelven al subir. La clase la pone js/footer-guard.js en el layout compartido. */

@@ -11,19 +11,12 @@
 @endsection
 
 @section('content')
-    @if(session('success'))
-        <div class="alert alert-success"><i class="bi bi-check-circle me-1"></i>{{ session('success') }}</div>
-    @endif
-    @if(session('error'))
-        <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i>{{ session('error') }}</div>
-    @endif
-
     <div class="row g-3">
         {{-- Estado y QR --}}
         <div class="col-lg-6">
-            <div class="card mb-3">
+            <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-whatsapp me-1 text-success"></i> Conexión de WhatsApp</span>
+                    <span><i class="bi bi-whatsapp"></i> Conexión de WhatsApp</span>
                     <span id="wa-state-badge" class="badge-soft {{ ($state ?? '') === 'open' ? 'green' : 'red' }}">
                         @if(($state ?? '') === 'open') Conectado
                         @elseif(($state ?? '') === 'connecting') Escaneando QR
@@ -40,13 +33,14 @@
                             <code>EVOLUTION_URL</code> y <code>EVOLUTION_APIKEY</code>.
                         </div>
                     @else
-                        <div id="wa-qr-box" class="text-center" @if(($state ?? '') !== 'open') style="display:none" @endif>
-                            <img id="wa-qr" alt="Código QR de WhatsApp" class="img-fluid rounded border" style="max-width: 260px; background:#fff">
+                        {{-- El recuadro del QR solo aparece cuando llega un código para escanear (lo muestra el script). --}}
+                        <div id="wa-qr-box" class="text-center" style="display:none">
+                            <img id="wa-qr" alt="" class="img-fluid rounded border p-2" style="max-width: 260px; background:#fff">
                             <div id="wa-pairing" class="mt-2 fw-semibold"></div>
                         </div>
 
                         <div id="wa-connected" class="text-center" @if(($state ?? '') !== 'open') style="display:none" @endif>
-                            <div class="display-5 my-2">💈</div>
+                            <div class="kpi-icon is-success mx-auto my-2"><i class="bi bi-whatsapp" aria-hidden="true"></i></div>
                             <p class="mb-1">El WhatsApp de la barbería está <strong>conectado</strong>.</p>
                             <p class="small text-muted mb-0">Los avisos y el bot ya funcionan con este número.</p>
                         </div>
@@ -165,6 +159,7 @@
 
                 function showQr(data) {
                     qrImg.src = data.qr.startsWith('data:') ? data.qr : 'data:image/png;base64,' + data.qr;
+                    qrImg.alt = 'Código QR de WhatsApp';
                     qrBox.style.display = '';
                     if (connected) connected.style.display = 'none';
                     pairing.textContent = data.pairing_code ? 'Código de emparejamiento: ' + data.pairing_code : '';

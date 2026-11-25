@@ -96,7 +96,7 @@
                                     </td>
                                     <td class="text-end fw-semibold subtotal">{{ format_money(0) }}</td>
                                     <td class="text-end">
-                                        <button type="button" class="btn btn-sm btn-outline-danger remove-item" title="Quitar">
+                                        <button type="button" class="btn btn-sm btn-outline-danger remove-item btn-icon" title="Quitar" aria-label="Quitar">
                                             <i class="bi bi-x-lg"></i>
                                         </button>
                                     </td>
@@ -109,7 +109,7 @@
             </div>
 
             <div class="col-lg-4">
-                <div class="card position-sticky" style="top: 20px;">
+                <div class="card sticky-panel">
                     <div class="card-header"><i class="bi bi-calculator me-1 text-warning"></i> Resumen</div>
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -148,7 +148,7 @@
             </td>
             <td class="text-end fw-semibold subtotal">{{ format_money(0) }}</td>
             <td class="text-end">
-                <button type="button" class="btn btn-sm btn-outline-danger remove-item" title="Quitar">
+                <button type="button" class="btn btn-sm btn-outline-danger remove-item btn-icon" title="Quitar" aria-label="Quitar">
                     <i class="bi bi-x-lg"></i>
                 </button>
             </td>

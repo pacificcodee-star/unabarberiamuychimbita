@@ -10,7 +10,7 @@
 
 @push('styles')
 <style>
-    .service-thumb { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; border-radius: 10px; background: #f6e6e3; color: #a02e25; overflow: hidden; }
+    .service-thumb { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; border-radius: var(--ui-radius); border: 1px solid var(--ui-border); background: var(--ui-surface-2); color: var(--ui-text-3); overflow: hidden; }
     .service-thumb img { width: 100%; height: 100%; object-fit: contain; padding: 3px; }
 </style>
 @endpush
@@ -63,12 +63,12 @@
                                         <i class="bi bi-image" aria-hidden="true"></i>
                                     @endif
                                 </span>
-                                <span class="fw-semibold">{{ $service->name }}</span>
+                                <span class="fw-semibold text-nowrap">{{ $service->name }}</span>
                             </div>
                         </td>
                         <td><span class="badge-soft gold">{{ $service->categoryLabel() }}</span></td>
-                        <td class="text-muted small">{{ $service->description ?: '—' }}</td>
-                        <td>{{ $service->duration_minutes }} min</td>
+                        <td class="text-muted small"><span class="cell-clamp" title="{{ $service->description }}">{{ $service->description ?: '—' }}</span></td>
+                        <td class="text-nowrap">{{ $service->duration_minutes }} min</td>
                         <td class="text-end fw-semibold">{{ format_money($service->price) }}</td>
                         <td class="text-end">{{ (int) ($stats[$service->id]->qty ?? 0) }}</td>
                         <td class="text-end">{{ format_money((float) ($stats[$service->id]->total ?? 0)) }}</td>
@@ -78,13 +78,13 @@
                             </span>
                         </td>
                         <td class="text-end text-nowrap">
-                            <a href="{{ route('services.edit', $service) }}" class="btn btn-sm btn-outline-dark">
+                            <a href="{{ route('services.edit', $service) }}" class="btn btn-sm btn-outline-dark btn-icon" aria-label="Editar" title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </a>
                             <form method="POST" action="{{ route('services.destroy', $service) }}" class="d-inline" onsubmit="return confirm('¿Eliminar o desactivar este servicio?');">
                                 @csrf
                                 @method('DELETE')
-                                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-danger btn-icon" aria-label="Eliminar" title="Eliminar"><i class="bi bi-trash"></i></button>
                             </form>
                         </td>
                     </tr>

@@ -169,7 +169,7 @@
     @stack('styles')
     @include('partials.speculation-rules')
 </head>
-<body data-content-version="{{ $contentVersion ?? '' }}" data-device-known="{{ $deviceKnown ? '1' : '0' }}">
+<body data-content-version="{{ $contentVersion ?? '' }}">
 {{-- Pantalla de carga: contador gigante con franjas de barbero que sube hasta 100 y se abre como puertas --}}
 <div class="pl" id="pageLoader" role="status" aria-live="polite" aria-label="Cargando la página">
     <div class="pl-door pl-door--top" aria-hidden="true"></div>
@@ -413,25 +413,30 @@
     </a>
 @endif
 
-{{-- Aviso de cookies: las necesarias siempre; la analítica solo si el visitante acepta. --}}
+{{-- Aviso de cookies: solo aparece si hay analítica, que es lo único que necesita permiso.
+     Las cookies necesarias no lo piden; están explicadas en /cookies, enlazado en el pie. --}}
+@if($ga4Id)
 <div class="cookie-banner" id="cookieBanner" role="region" aria-label="Aviso de cookies" hidden>
-    <p>Usamos cookies necesarias para que el sitio funcione{{ $ga4Id ? ' y, si aceptas, cookies de analítica para saber qué páginas se usan más' : '' }}. <a href="{{ route('legal.cookies') }}">Más información</a></p>
+    <p>Usamos cookies necesarias para que el sitio funcione y, si aceptas, cookies de analítica para saber qué páginas se usan más. <a href="{{ route('legal.cookies') }}">Más información</a></p>
     <div class="cookie-banner-actions">
-        @if($ga4Id)
-            <button type="button" class="cookie-btn cookie-btn--ghost" data-cookie-choice="rejected">Solo necesarias</button>
-            <button type="button" class="cookie-btn" data-cookie-choice="accepted">Aceptar</button>
-        @else
-            <button type="button" class="cookie-btn" data-cookie-choice="rejected">Entendido</button>
-        @endif
+        <button type="button" class="cookie-btn cookie-btn--ghost" data-cookie-choice="rejected">Solo necesarias</button>
+        <button type="button" class="cookie-btn" data-cookie-choice="accepted">Aceptar</button>
     </div>
 </div>
+@endif
 <script>
 (() => {
     const KEY = 'cookie-consent';
     const GA4 = @json($ga4Id);
     const banner = document.getElementById('cookieBanner');
-    const read = () => { try { return localStorage.getItem(KEY); } catch (e) { return null; } };
-    const save = (v) => { try { localStorage.setItem(KEY, v); } catch (e) {} };
+    // La respuesta va en localStorage y en una cookie de un año: algunos navegadores del celular
+    // (los de WhatsApp o Instagram, modos de ahorro) borran uno de los dos y el aviso volvía a salir.
+    const fromCookie = () => (document.cookie.match(/(?:^|;\s*)cookie-consent=(accepted|rejected)/) || [])[1] || null;
+    const read = () => { let v = null; try { v = localStorage.getItem(KEY); } catch (e) {} return v || fromCookie(); };
+    const save = (v) => {
+        try { localStorage.setItem(KEY, v); } catch (e) {}
+        document.cookie = KEY + '=' + v + '; Max-Age=31536000; path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
+    };
 
     // Google Analytics 4: se carga solo con consentimiento. Sin ID en .env no se carga nunca.
     let gaLoaded = false;
@@ -455,11 +460,12 @@
         const wait = () => document.documentElement.classList.contains('is-loading') ? setTimeout(wait, 300) : (banner.hidden = false);
         wait();
     };
-    const choice = read();
+    const choice = banner ? read() : null;
+    if (choice) save(choice); // completa el lugar que falte y renueva el año
     if (choice === 'accepted') loadAnalytics();
-    else if (!choice) show();
+    else if (banner && !choice) show();
 
-    banner.querySelectorAll('[data-cookie-choice]').forEach((btn) => btn.addEventListener('click', () => {
+    banner?.querySelectorAll('[data-cookie-choice]').forEach((btn) => btn.addEventListener('click', () => {
         const value = btn.dataset.cookieChoice;
         save(value);
         banner.hidden = true;
@@ -480,7 +486,7 @@
         else if (href.startsWith('tel:')) window.trackEvent('phone_click', { link_url: location.pathname });
     });
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('[data-cookie-settings]')) return;
+        if (!banner || !e.target.closest('[data-cookie-settings]')) return;
         banner.hidden = false;
         banner.querySelector('[data-cookie-choice]')?.focus();
     });
@@ -846,7 +852,6 @@
 {{-- Refresco automático: los cambios hechos en el panel se ven sin recargar a mano. --}}
 <script src="{{ asset('js/live-content.js') }}?v={{ file_exists(public_path('js/live-content.js')) ? filemtime(public_path('js/live-content.js')) : '1' }}" defer></script>
 {{-- Vuelve a vincular el dispositivo con sus reservas si la cookie de «Mis servicios» se perdió. --}}
-<script src="{{ asset('js/device-recovery.js') }}?v={{ file_exists(public_path('js/device-recovery.js')) ? filemtime(public_path('js/device-recovery.js')) : '1' }}" defer></script>
 {{-- Con los enlaces legales a la vista, aparta los avisos flotantes para que no tapen el pie. --}}
 <script src="{{ asset('js/footer-guard.js') }}?v={{ file_exists(public_path('js/footer-guard.js')) ? filemtime(public_path('js/footer-guard.js')) : '1' }}" defer></script>
 </body>

@@ -7,6 +7,7 @@ x-app-env: &app-env
   APP_KEY: ${APP_KEY}
   APP_DEBUG: "false"
   APP_URL: https://${APP_HOST}
+  TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
   APP_TIMEZONE: America/Bogota
   APP_LOCALE: es
   APP_FALLBACK_LOCALE: es
@@ -27,6 +28,7 @@ x-app-env: &app-env
   FILESYSTEM_DISK: local
   MAIL_MAILER: log
   WHATSAPP_DRIVER: evolution
+  EVOLUTION_QUEUE_INCOMING: "true"
   EVOLUTION_URL: http://evolution:8080
   EVOLUTION_APIKEY: ${EVOLUTION_APIKEY}
   EVOLUTION_INSTANCE: barberia
@@ -39,6 +41,11 @@ x-app-env: &app-env
   VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
   VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
   VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:no-reply@example.com}
+  # Google: verificación de Search Console, ficha del negocio y analítica (opcionales).
+  GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
+  GOOGLE_BUSINESS_URL: ${GOOGLE_BUSINESS_URL:-}
+  GOOGLE_REVIEW_URL: ${GOOGLE_REVIEW_URL:-}
+  ANALYTICS_GA4_ID: ${ANALYTICS_GA4_ID:-}
 
 x-app-build: &app-build
   context: ..
@@ -122,7 +129,7 @@ services:
       start_period: 30s
 
   evolution:
-    image: evoapicloud/evolution-api:v2.3.1
+    image: evoapicloud/evolution-api:v2.3.8
     restart: unless-stopped
     environment:
       SERVER_URL: https://${WA_HOST}

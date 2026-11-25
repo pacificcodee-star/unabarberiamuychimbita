@@ -79,6 +79,10 @@ class WhatsAppChatController extends Controller
             $conversation->markAsRead();
         }
 
+        $conversation->refresh();
+        $receipts = $conversation->messages()->where('direction', WhatsAppMessage::DIRECTION_OUT)
+            ->latest('id')->limit(30)->get(['id', 'status']);
+
         return response()->json([
             'messages' => $messages->map(fn (WhatsAppMessage $message) => [
                 'id' => $message->id,
@@ -88,8 +92,16 @@ class WhatsAppChatController extends Controller
                 'status' => $message->statusLabel(),
                 'sender_name' => $message->sender_name,
                 'created_at' => $message->created_at?->format('d/m/Y H:i'),
+                'status_key' => $message->status,
+                'time' => $message->created_at?->format('H:i'),
+                'day' => $message->created_at?->format('d/m/Y'),
             ]),
-            'unread' => $conversation->fresh()?->unread_count ?? 0,
+            'unread' => $conversation->unread_count,
+            'receipts' => $receipts->map(fn (WhatsAppMessage $message) => [
+                'id' => $message->id, 'status' => $message->statusLabel(), 'status_key' => $message->status,
+            ]),
+            'bot_active' => $conversation->bot_active,
+            'advisor_wait_until' => $conversation->advisor_wait_until?->toIso8601String(),
         ]);
     }
 
@@ -103,7 +115,11 @@ class WhatsAppChatController extends Controller
             'body.max' => 'El mensaje no puede pasar de 2000 caracteres.',
         ]);
 
+        $sentAt = now();
         $sent = $this->inbox->send($conversation, trim($validated['body']));
+        if ($sent) {
+            $conversation->advisorReplied($sentAt);
+        }
 
         return back()->with(
             $sent ? 'success' : 'error',
@@ -132,7 +148,7 @@ class WhatsAppChatController extends Controller
     /** Pausa o reanuda el bot automático para este chat (útil cuando responde el equipo). */
     public function toggleBot(WhatsAppConversation $conversation): RedirectResponse
     {
-        $conversation->update(['bot_active' => ! $conversation->bot_active]);
+        $conversation->update(['bot_active' => ! $conversation->bot_active, 'advisor_wait_until' => null]);
 
         return back()->with(
             'success',

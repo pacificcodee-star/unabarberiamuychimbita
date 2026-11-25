@@ -703,11 +703,6 @@ h1 em, h2 em, .section-title em, .is-split .sw-em, .cx-hero-title em, .purpose-t
 .social-brand a, .ct-social.social-brand a { display: grid; place-items: center; width: 46px; height: 46px; border: 0; border-radius: 50%; background: #fff; color: var(--ink); transition: transform var(--dur-ui) var(--ease-out), box-shadow var(--dur-ui) ease; }
 .social-brand a:hover, .ct-social.social-brand a:hover { background: #fff; color: var(--ink); transform: translateY(-3px); box-shadow: 0 12px 24px rgba(0, 0, 0, .3); }
 .social-brand img { width: 24px; height: 24px; object-fit: contain; }
-.social-brand .is-mail { background: var(--surface-3); color: var(--text); }
-.social-brand .is-mail:hover { background: var(--brand-red); color: #fff; }
-/* En el pie rojo el correo también va en blanco, para que no quede rojo sobre rojo. */
-.site-footer .social-brand .is-mail,
-.site-footer .social-brand .is-mail:hover { background: #fff; color: var(--footer-bg); }
 /* Botón flotante de WhatsApp: círculo con brillo, anillo de atención y estados claros. */
 .whatsapp-float,
 .whatsapp-float:hover,
@@ -981,8 +976,6 @@ body::before { mix-blend-mode: normal; opacity: .03; transform: translateZ(0); }
 .wg.is-carousel .wg-card:not(.is-current):not(.is-far) .wg-frame { opacity: calc(1 - var(--abs) * .08); }
 .wg-blur { filter: blur(18px) saturate(1.15) brightness(.62); }
 .wg.is-carousel .wg-card.is-far .wg-blur { display: none; }
-/* Secciones fuera de pantalla: el navegador no las dibuja hasta que se acercan (las que se fijan con el scroll no llevan esto). */
-.site-footer { content-visibility: auto; contain-intrinsic-size: auto 280px; }
 
 /* ---------- 22.1 Animaciones decorativas en bucle: corren unas veces y se detienen ----------
    El punto rojo que late y la línea de "Desliza para explorar" repintaban la portada completa en cada
@@ -1010,7 +1003,8 @@ body::before { mix-blend-mode: normal; opacity: .03; transform: translateZ(0); }
 .wg.is-carousel .wg-card:not(.is-current):hover .wg-frame { box-shadow: 0 34px 70px rgba(0, 0, 0, .45), inset 0 0 0 2px rgba(255, 255, 255, .5); }
 
 /* Prueba social en el inicio */
-.cx-proof { padding: var(--section-y) 0; background: radial-gradient(60% 70% at 100% 0%, rgba(var(--accent-rgb), .1), transparent 60%), var(--bg); }
+/* position: relative para quedar encima de la foto fija de la sección anterior (.cx-scene-bg). */
+.cx-proof { position: relative; padding: var(--section-y) 0; background: radial-gradient(60% 70% at 100% 0%, rgba(var(--accent-rgb), .1), transparent 60%), var(--bg); }
 .cx-proof-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px 48px; margin-bottom: clamp(32px, 5vw, 64px); }
 .cx-proof-title { margin: 0; font-size: var(--fs-h2); }
 .cx-proof-score { display: grid; justify-items: end; gap: 4px; text-align: right; }
@@ -1745,7 +1739,6 @@ html.js:not(.cx-ready):not(.cx-static) main :is(.purpose-label h3, .rv-title, .c
     --fs-price: clamp(1.6rem, 1.2rem + 1.2vw, 2.2rem);
     --measure: 62ch;
 }
-html, body { background-color: var(--bg); }
 
 /* ---------- Jerarquía ---------- */
 /* H1 de páginas internas */

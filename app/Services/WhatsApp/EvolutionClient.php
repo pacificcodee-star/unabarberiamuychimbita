@@ -2,9 +2,12 @@
 
 namespace App\Services\WhatsApp;
 
+use App\Support\WhatsAppLid;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -274,29 +277,47 @@ class EvolutionClient
     /** Envía un mensaje de texto. $number sin "+" ni espacios, ej: 573001234567. */
     public function sendText(string $number, string $text): bool
     {
+        return $this->sendTextReceipt($number, $text) !== null;
+    }
+
+    public function sendTextReceipt(string $number, string $text, ?string $lid = null): ?array
+    {
         if (! $this->isConfigured() || $number === '' || trim($text) === '') {
-            return false;
+            return null;
         }
 
         $response = $this->request('POST', '/message/sendText/'.$this->instance(), [], [
-            'number' => $number,
+            'number' => $lid ?? $number,
             'text' => $text,
-        ]);
+        ], chatSend: true);
 
         if ($response === null) {
-            return false;
+            return null;
         }
 
         // Si WhatsApp atiende este número con su identificador nuevo (@lid), se recuerda la pareja: así se
         // reconoce la respuesta del cliente aunque llegue solo con el @lid (App\Support\WhatsAppLid).
         $sentKey = is_array($response['key'] ?? null) ? $response['key'] : [];
-        foreach ([$sentKey['remoteJid'] ?? null, $sentKey['remoteJidAlt'] ?? null, $sentKey['senderLid'] ?? null] as $jid) {
-            \App\Support\WhatsAppLid::remember(is_string($jid) ? $jid : null, $number);
+        if (is_string($sentKey['id'] ?? null) && $sentKey['id'] !== '') {
+            Cache::put($this->sentKey($sentKey['id']), true, now()->addHour());
+        }
+        foreach ([$sentKey['remoteJid'] ?? null, $sentKey['remoteJidAlt'] ?? null] as $jid) {
+            WhatsAppLid::remember(is_string($jid) ? $jid : null, $number);
         }
 
         Log::info('WhatsApp (Evolution) enviado', ['to' => \App\Support\Pii::phone($number)]);
 
-        return true;
+        return $response;
+    }
+
+    public function wasSentByApi(string $id): bool
+    {
+        return Cache::has($this->sentKey($id));
+    }
+
+    private function sentKey(string $id): string
+    {
+        return 'whatsapp:sent:'.hash('sha256', $id);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -307,7 +328,7 @@ class EvolutionClient
      * Hace una petición a la API. Devuelve el JSON como array o null si algo falló.
      * Cualquier error queda en el log: nunca interrumpe la reserva ni la fila de turnos.
      */
-    public function request(string $method, string $path, array $query = [], array $body = []): ?array
+    public function request(string $method, string $path, array $query = [], array $body = [], bool $chatSend = false): ?array
     {
         if (! $this->isConfigured()) {
             Log::info('Evolution API no configurada', ['path' => $path]);
@@ -316,11 +337,20 @@ class EvolutionClient
         }
 
         $url = $this->baseUrl().$path;
-        $timeout = (int) config('services.evolution.timeout', 20);
+        $timeout = max(1, (int) config('services.evolution.'.($chatSend ? 'chat_timeout' : 'timeout'), $chatSend ? 8 : 20));
 
         try {
+            $http = $this->withAuth($timeout);
+            if ($chatSend) {
+                // Solo reintenta si el proveedor rechazó explícitamente por límite, sin reintentar un
+                // timeout ambiguo que podría corresponder a un mensaje que sí llegó.
+                $http->connectTimeout(min(3, $timeout))->retry(2, 1000, function ($error) {
+                    return $error instanceof RequestException && $error->response->status() === 429
+                        && in_array(trim($error->response->header('Retry-After')), ['', '0', '1'], true);
+                }, throw: false);
+            }
             /** @var Response $response */
-            $response = $this->withAuth($timeout)->$method($url, $method === 'GET' ? $query : $body);
+            $response = $http->$method($url, $method === 'GET' ? $query : $body);
         } catch (\Throwable $e) {
             Log::error('Evolution API sin respuesta', ['path' => $path, 'error' => $e->getMessage()]);
 

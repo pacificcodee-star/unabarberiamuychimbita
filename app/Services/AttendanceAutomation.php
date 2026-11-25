@@ -7,6 +7,7 @@ use App\Models\ClientNotification;
 use App\Models\StaffNotification;
 use App\Models\Turn;
 use App\Support\AttendanceConfirmation;
+use App\Support\ReservationStatusHistory;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -156,8 +157,7 @@ class AttendanceAutomation
                 continue; // solo las que el cliente confirmó (o se confirmaron solas al agendar sobre la hora)
             }
 
-            $minutes = (int) ($appointment->service?->duration_minutes ?: config('notificaciones.default_service_minutes', 30));
-            $endsAt = $appointment->startsAt()->addMinutes(max(1, $minutes));
+            $endsAt = $appointment->startsAt()->addMinutes($appointment->durationMinutes());
 
             if (now()->lt($endsAt)) {
                 continue;
@@ -176,6 +176,7 @@ class AttendanceAutomation
                 }
 
                 $appointment->refresh();
+                ReservationStatusHistory::record($appointment, 'confirmada');
                 $this->recorder->sync($appointment, $appointment->payment_method);
                 // Se marcó con una actualización directa (sin eventos): se programa la encuesta a mano.
                 app(\App\Services\Surveys\SurveyService::class)->statusChanged($appointment, 'confirmada');

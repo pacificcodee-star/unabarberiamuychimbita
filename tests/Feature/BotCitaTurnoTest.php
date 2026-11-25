@@ -3,9 +3,16 @@
 namespace Tests\Feature;
 
 use App\Models\Appointment;
+use App\Models\ClientNotification;
+use App\Models\ConsentRecord;
 use App\Models\Service;
+use App\Models\SiteSetting;
+use App\Models\StaffNotification;
 use App\Models\Turn;
 use App\Models\User;
+use App\Services\TurnQueueService;
+use App\Services\WhatsApp\WhatsappBotService;
+use App\Support\ClientServiceAccess;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -63,6 +70,113 @@ class BotCitaTurnoTest extends TestCase
 
         $this->assertStringContainsString('1. 📅 Agendar una cita', $menu);
         $this->assertStringContainsString('2. 🎟️ Tomar un turno', $menu);
+    }
+
+    public function test_confirmar_en_whatsapp_actualiza_la_cita_de_la_pwa_y_la_pasa_al_historial(): void
+    {
+        $booking = $this->post(route('public.booking.appointment'), [
+            'barber_id' => $this->deCita->id,
+            'service_id' => Service::firstOrFail()->id,
+            'client_name' => 'Ana desde la PWA',
+            'client_phone' => '300 123 4567',
+            'payment_method' => 'efectivo',
+            'whatsapp_consent' => 1,
+            'appointment_date' => '2026-11-19',
+            'appointment_time' => '10:00',
+        ])->assertRedirect(route('my-services.index'));
+        $this->withCookie('mis_servicios', $booking->getCookie('mis_servicios')->getValue());
+        $this->get('/mis-servicios')->assertSee('Pendiente')->assertSee('data-action="confirmar"', false);
+
+        $this->assertStringContainsString('quedó *confirmada*', $this->escribir('sí'));
+        $this->assertNotNull(Appointment::firstOrFail()->attendance_confirmed_at);
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()
+            ->assertSee('Confirmada')->assertDontSee('data-action="confirmar"', false);
+
+        $this->flushSession();
+        $this->get('/?source=pwa')->assertSee('Mis servicios');
+        $this->get('/mis-servicios')->assertSee('Ana desde la PWA')->assertSee('Confirmada');
+
+        $this->travelTo(Carbon::parse('2026-11-19 10:31:00'));
+        $this->assertSame(1, app(\App\Services\AttendanceAutomation::class)->finishConfirmedAppointments());
+        $this->get('/mis-servicios')->assertSeeInOrder(['Historial', 'Citas anteriores', 'Atendida', 'Ana desde la PWA']);
+    }
+
+    public function test_historial_de_whatsapp_disponible_solo_en_dispositivos_vinculados(): void
+    {
+        $service = Service::firstOrFail();
+        $web = $this->post(route('public.booking.appointment'), [
+            'barber_id' => $this->deCita->id, 'service_id' => $service->id,
+            'client_name' => 'Reserva de la PWA', 'client_phone' => '300 123 4567',
+            'payment_method' => 'efectivo', 'appointment_date' => '2026-11-19', 'appointment_time' => '10:00',
+        ])->assertRedirect(route('my-services.index'));
+        $original = $web->getCookie('mis_servicios')->getValue();
+        $this->withCookie('mis_servicios', $original);
+
+        $past = ['barber_id' => $this->deCita->id, 'service_id' => $service->id,
+            'client_phone' => '573001234567', 'appointment_date' => '2026-11-17', 'status' => 'atendida'];
+        $legacy = Appointment::create($past + ['client_name' => 'Cita antigua del bot', 'appointment_time' => '10:00']);
+        ConsentRecord::grant($legacy, 'tratamiento_reserva', 'whatsapp_bot');
+        Appointment::create($past + ['client_name' => 'Cita ajena sin vincular', 'appointment_time' => '11:00']);
+        $this->get('/')->assertDontSee('historial-whatsapp', false);
+        $this->get('/mis-servicios')->assertDontSee('Cita antigua del bot')->assertSee('Reserva de la PWA')
+            ->assertDontSee('Abrir WhatsApp')->assertDontSee('Actualizar mi historial')
+            ->assertDontSee('Envía el mensaje preparado')->assertDontSee('Vincular historial de WhatsApp');
+
+        $confirm = route('my-services.whatsapp.confirm');
+        $finish = route('my-services.whatsapp.finish');
+        $this->get($confirm)->assertNotFound();
+        $this->post($finish)->assertNotFound();
+        $link = $this->enlaceDeHistorial();
+        $this->get($link)->assertRedirect($confirm);
+        $this->get($confirm)->assertOk()->assertSee('Vincular este dispositivo')->assertSee('4567')->assertDontSee('573001234567');
+        $this->assertDatabaseCount('guest_credentials', 1);
+        $this->get('/mis-servicios')->assertDontSee('Cita antigua del bot');
+        $linked = $this->post($finish)->assertRedirect(route('my-services.index'));
+        $this->get($link)->assertNotFound();
+        $this->withCookie('mis_servicios', $linked->getCookie('mis_servicios')->getValue());
+        $this->get('/mis-servicios')->assertSee('Cita antigua del bot')->assertDontSee('Cita ajena sin vincular')
+            ->assertDontSee('Actualizar mi historial');
+
+        $this->escribir(WhatsappBotService::TURN_REQUEST);
+        $this->escribir('Ana turno WhatsApp');
+        $this->escribir('1');
+        $this->escribir('1');
+        $this->escribir('sí');
+        $turn = Turn::firstOrFail();
+        $this->assertSame('573001234567', $turn->history_whatsapp_phone);
+        $turn->update(['status' => 'atendido']);
+        $this->flushSession();
+        $this->get('/mis-servicios')->assertSee('Cita antigua del bot')->assertSee('Ana turno WhatsApp')->assertSee('Turnos anteriores');
+
+        $this->withCookie('mis_servicios', $original);
+        $this->get('/mis-servicios')->assertDontSee('Cita antigua del bot')->assertSee('Reserva de la PWA');
+        $this->withCookie('mis_servicios', '');
+        $this->get('/mis-servicios')->assertDontSee('Cita antigua del bot')->assertDontSee('Reserva de la PWA');
+
+        $this->get($this->enlaceDeHistorial())->assertRedirect($confirm);
+        $other = $this->post($finish)->assertRedirect(route('my-services.index'));
+        $this->withCookie('mis_servicios', $other->getCookie('mis_servicios')->getValue());
+        $this->get('/mis-servicios')->assertSee('Cita antigua del bot')->assertSee('Reserva de la PWA')
+            ->assertSee('Ana turno WhatsApp')->assertDontSee('Cita ajena sin vincular');
+    }
+
+    public function test_el_enlace_privado_del_historial_vence_sin_vincular_el_dispositivo(): void
+    {
+        $link = $this->enlaceDeHistorial();
+        $this->get($link)->assertRedirect(route('my-services.whatsapp.confirm'));
+        $this->travel(11)->minutes();
+
+        $this->get($link)->assertNotFound();
+        $this->post(route('my-services.whatsapp.finish'))->assertNotFound()->assertCookieMissing('mis_servicios');
+    }
+
+    private function enlaceDeHistorial(): string
+    {
+        $reply = $this->escribir('Vincular historial');
+        $this->assertStringContainsString('enlace privado', $reply);
+        $this->assertSame(1, preg_match('~https?://\S+/whatsapp/conectar/[A-Za-z0-9]{48}$~', $reply, $link));
+
+        return $link[0];
     }
 
     public function test_agendar_cita_solo_muestra_barberos_de_cita(): void
@@ -137,6 +251,8 @@ class BotCitaTurnoTest extends TestCase
         $cita = Appointment::firstOrFail();
 
         $this->assertGreaterThan(30, now()->diffInMinutes($cita->startsAt(), false));
+        $this->assertSame('573001234567', $cita->history_whatsapp_phone);
+        $this->assertNotNull($cita->attendance_confirmed_at);
         $this->assertStringContainsString('30 minutos antes', $listo);
         $this->assertStringContainsString('👤 *Cliente:* Miguel Torres', $listo);
     }
@@ -151,42 +267,122 @@ class BotCitaTurnoTest extends TestCase
         $this->assertStringContainsString('Carlos Turno', $barberos);
         $this->assertStringNotContainsString('Andres Cita', $barberos);
 
-        $this->escribir('1'); // barbero
+        $preview = $this->escribir('1'); // barbero
+        $this->assertStringContainsString('Responde *SÍ* o *1*', $preview);
+        $this->assertDatabaseCount('turns', 0);
+        $this->assertDatabaseMissing('staff_notifications', ['type' => 'turn_new']);
 
+        $this->escribir('1'); // confirmar
         $this->assertSame(1, Turn::where('barber_id', $this->deTurno->id)->count());
         $this->assertSame(0, Appointment::count());
     }
 
-    public function test_turno_llamado_de_una_vez_no_promete_aviso_de_15_minutos(): void
+    public function test_turnos_de_la_web_y_whatsapp_comparten_cola_y_avisan_al_confirmar_y_al_llamar(): void
+    {
+        $this->post(route('public.booking.turn'), [
+            'barber_id' => $this->deTurno->id,
+            'service_id' => Service::firstOrFail()->id,
+            'client_name' => 'Cliente de la web',
+            'client_phone' => '310 123 4567',
+            'payment_method' => 'efectivo',
+        ])->assertRedirect(route('my-services.index'));
+
+        $this->assertStringContainsString('tomar tu turno', $this->escribir(WhatsappBotService::TURN_REQUEST));
+        $this->escribir('Ana Gomez');
+        $this->escribir('1');
+        $this->escribir('1');
+        $this->assertDatabaseCount('turns', 1);
+        $this->escribir('sí');
+
+        $turn = Turn::where('client_name', 'Ana Gomez')->firstOrFail();
+        $this->assertSame(2, $turn->turn_number);
+        $this->assertSame('esperando', $turn->status);
+        $this->assertDatabaseHas('staff_notifications', [
+            'type' => 'turn_new',
+            'title' => 'Nuevo turno #2 confirmado (WhatsApp): Ana Gomez',
+            'url' => route('turns.index', [], false),
+        ]);
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'quedó registrado correctamente')
+            && ! str_contains((string) $request['text'], 'http'));
+
+        $this->escribir('sí'); // no duplica el turno ni el aviso al equipo
+        $this->assertDatabaseCount('turns', 2);
+        $this->assertSame(1, StaffNotification::where('type', 'turn_new')->where('title', 'like', '%(WhatsApp)%')->count());
+
+        Turn::where('turn_number', 1)->firstOrFail()->update([
+            'status' => 'atendiendo',
+            'started_at' => now()->subMinutes(30),
+        ]);
+        app(TurnQueueService::class)->advance($this->deTurno->id);
+
+        $this->assertSame('llamado', $turn->fresh()->status);
+        $this->assertDatabaseHas('client_notifications', [
+            'notifiable_id' => $turn->id, 'type' => 'turn_called', 'channel' => 'whatsapp', 'status' => ClientNotification::SENT,
+        ]);
+        Http::assertSent(fn ($request) => $request['number'] === '573001234567'
+            && str_contains((string) $request['text'], '¡Llegó tu turno!'));
+    }
+
+    public function test_el_bot_puede_consultar_en_el_mismo_numero_un_turno_hecho_en_la_web(): void
+    {
+        $this->post(route('public.booking.turn'), [
+            'barber_id' => $this->deTurno->id,
+            'service_id' => Service::firstOrFail()->id,
+            'client_name' => 'Ana Gomez',
+            'client_phone' => '300 123 4567',
+            'payment_method' => 'efectivo',
+        ])->assertRedirect(route('my-services.index'));
+
+        $turn = Turn::firstOrFail();
+        $reply = $this->escribir('mi turno');
+
+        $this->assertStringContainsString('Estado: *Llamado*', $reply);
+        $this->assertStringContainsString(ClientServiceAccess::recoveryUrl($turn), $reply);
+        $this->assertDatabaseCount('turns', 1);
+    }
+
+    public function test_la_web_abre_whatsapp_con_los_comandos_para_turno_y_asesor(): void
+    {
+        SiteSetting::create(['data' => ['whatsapp' => '573006789012']]);
+        $url = 'https://wa.me/573006789012?text=';
+        $advisor = $url.rawurlencode(WhatsappBotService::ADVISOR_REQUEST);
+
+        $this->get(route('public.booking', ['tipo' => 'turno']))->assertOk()
+            ->assertSee($url.rawurlencode(WhatsappBotService::TURN_REQUEST))
+            ->assertSee($advisor);
+        $this->get(route('public.contact'))->assertOk()->assertSee($advisor);
+    }
+
+    public function test_turno_con_barbero_libre_recibe_confirmacion_antes_del_llamado(): void
     {
         // Barbero libre: al tomar el turno la fila lo llama de inmediato ("¡Llegó tu turno!").
         $this->escribir('hola');
         $this->escribir('2');
         $this->escribir('Ana Gomez');
         $this->escribir('1');
-        $listo = $this->escribir('1');
+        $this->escribir('1');
+        $before = count(Http::recorded());
+        $this->escribir('1');
 
         $this->assertSame('llamado', Turn::firstOrFail()->status);
-        $this->assertStringNotContainsString('Seguimiento', $listo);
-        $this->assertStringNotContainsString('/seguimiento', $listo);
-        $this->assertStringContainsString('👤 Cliente: *Ana Gomez*', $listo);
-        $this->assertStringNotContainsString('15 minutos antes', $listo);
-        $this->assertStringNotContainsString('A nombre de', $listo);
+        $messages = Http::recorded()->slice($before)->map(fn ($pair) => (string) $pair[0]['text'])->values();
+        $this->assertStringContainsString('👤 Cliente: *Ana Gomez*', $messages[0]);
+        $this->assertStringNotContainsString('http', $messages[0]);
+        $this->assertStringContainsString('¡Llegó tu turno!', $messages[1]);
     }
 
-    public function test_turno_en_espera_si_avisa_15_minutos_antes(): void
+    public function test_turno_no_se_guarda_si_el_horario_vence_antes_de_confirmar(): void
     {
-        // Ya hay alguien en la fila: el turno nuevo queda esperando.
-        app(\App\Services\TurnService::class)->createFor($this->deTurno, ['client_name' => 'Primero']);
-
+        $this->travelTo(Carbon::parse('2026-11-18 19:29:00'));
         $this->escribir('hola');
         $this->escribir('2');
         $this->escribir('Ana Gomez');
         $this->escribir('1');
-        $listo = $this->escribir('1');
+        $this->escribir('1');
 
-        $this->assertStringContainsString('👤 Cliente: *Ana Gomez*', $listo);
-        $this->assertStringContainsString('15 minutos antes', $listo);
+        $this->travelTo(Carbon::parse('2026-11-18 19:31:00'));
+        $this->assertStringContainsString('se reciben hasta las 7:30 p. m.', $this->escribir('sí'));
+        $this->assertDatabaseCount('turns', 0);
     }
 
     public function test_cancelar_busca_la_reserva_por_nombre_aunque_se_hiciera_con_otro_telefono(): void

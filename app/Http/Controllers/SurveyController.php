@@ -18,6 +18,10 @@ class SurveyController extends Controller
 
     public function show(string $type, string $token)
     {
+        // La encuesta se responde solo por WhatsApp mientras la versión web esté apagada.
+        if (! config('encuestas.web')) {
+            return $this->unavailable();
+        }
         $invitation = $this->surveys->invitationFor($type, $token);
         if (! $invitation) {
             return $this->unavailable();
@@ -74,6 +78,7 @@ class SurveyController extends Controller
 
     private function invitation(string $type, string $token): SurveyInvitation
     {
+        abort_unless(config('encuestas.web'), 404);
         $invitation = $this->surveys->invitationFor($type, $token);
         abort_unless($invitation, 404);
 

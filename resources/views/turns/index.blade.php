@@ -6,7 +6,7 @@
     <form method="POST" action="{{ route('turns.call-next') }}" class="d-flex align-items-center gap-2">
         @csrf
         @if(auth()->user()->isAdmin())
-            <select name="barber_id" class="form-select form-select-sm" style="min-width: 190px;" required>
+            <select name="barber_id" class="form-select topbar-select" aria-label="Barbero para llamar" required>
                 <option value="">Barbero para llamar</option>
                 @foreach($barbers->where('attention_mode', 'llegada') as $barber)
                     <option value="{{ $barber->id }}" @selected(request('barber_id') == $barber->id)>{{ $barber->name }}</option>
@@ -57,15 +57,11 @@
         </div>
     </div>
 
-    <div class="row g-2 mb-3" data-booking-region="counts">
+    <div class="status-strip" data-booking-region="counts">
         @foreach(\App\Models\Turn::STATUSES as $key => $label)
-            <div class="col-6 col-lg-3">
-                <div class="card py-2 px-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="small text-muted">{{ $label }}</span>
-                        <span class="badge-soft {{ $key === 'cancelado' ? 'red' : ($key === 'atendido' ? 'green' : ($key === 'atendiendo' ? 'blue' : 'gold')) }}">{{ $counts[$key] }}</span>
-                    </div>
-                </div>
+            <div class="status-chip">
+                <span>{{ $label }}</span>
+                <span class="badge-soft {{ $key === 'cancelado' ? 'red' : ($key === 'atendido' ? 'green' : ($key === 'atendiendo' ? 'blue' : 'gold')) }}">{{ $counts[$key] }}</span>
             </div>
         @endforeach
     </div>
@@ -110,15 +106,15 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-auto">
-                    <button class="btn btn-dark"><i class="bi bi-plus-lg me-1"></i> Dar turno</button>
+                <div class="col-md-2 d-grid">
+                    <button class="btn btn-gold"><i class="bi bi-plus-lg"></i> Dar turno</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div class="card mb-2"><div class="card-body py-2 small fw-semibold"><i class="bi bi-list-ol text-warning me-1"></i> Turnos por orden de llegada</div></div>
     <div class="card">
+        <div class="card-header"><i class="bi bi-list-ol"></i> Turnos por orden de llegada</div>
         <div class="table-responsive">
             <table class="table mb-0">
                 <thead>
@@ -135,8 +131,8 @@
                 <tbody data-booking-region="queue">
                 @forelse($turns as $turn)
                     <tr>
-                        <td class="fw-bold fs-5">#{{ $turn->turn_number }}</td>
-                        <td>{{ $turn->created_at->format('h:i A') }}</td>
+                        <td><span class="agenda-time">#{{ $turn->turn_number }}</span></td>
+                        <td class="text-nowrap">{{ $turn->created_at->format('h:i A') }}</td>
                         <td>
                             <div class="fw-semibold">{{ $turn->client_name }}</div>
                             <div class="small text-muted">{{ $turn->client_phone ?: 'Sin teléfono' }}</div>
@@ -166,7 +162,7 @@
                                 <form method="POST" action="{{ route('turns.status', $turn) }}">
                                     @csrf
                                     @method('PATCH')
-                                    <select name="status" class="form-select form-select-sm" onchange="attendedChange(this)" style="min-width: 130px;">
+                                    <select name="status" class="form-select form-select-sm" onchange="attendedChange(this)" style="min-width: 140px;">
                                         @foreach(\App\Models\Turn::STATUSES as $key => $label)
                                             <option value="{{ $key }}" @selected($turn->status === $key)>{{ $label }}</option>
                                         @endforeach
@@ -183,13 +179,13 @@
                                     @csrf
                                     @method('PATCH')
                                     <input type="hidden" name="status" value="atendiendo">
-                                    <button class="btn btn-sm btn-outline-dark" title="Llamar este turno"><i class="bi bi-megaphone"></i></button>
+                                    <button class="btn btn-sm btn-outline-dark btn-icon" title="Llamar este turno"><i class="bi bi-megaphone"></i></button>
                                 </form>
                             @endif
                             <form method="POST" action="{{ route('turns.destroy', $turn) }}" class="d-inline" onsubmit="return confirm('{{ $turn->sale_id ? '¿Eliminar este turno? También se borrará el ingreso que generó.' : '¿Eliminar este turno?' }}');">
                                 @csrf
                                 @method('DELETE')
-                                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                <button class="btn btn-sm btn-outline-danger btn-icon" aria-label="Eliminar" title="Eliminar"><i class="bi bi-trash"></i></button>
                             </form>
                         </td>
                     </tr>

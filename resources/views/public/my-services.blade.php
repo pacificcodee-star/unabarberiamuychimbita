@@ -10,17 +10,17 @@
             ->filter(fn ($day) => \App\Models\SiteSetting::isClosedOn($day, $siteSettings ?? []))
             ->map(fn ($day) => $day->toDateString())->values();
     @endphp
-    <div class="my-services-page">
+    <div class="my-services-page page-photo-background">
         @include('public.partials.page-hero', ['crumb' => 'Mis servicios', 'title' => 'Mis servicios', 'ghost' => false,
             'description' => 'Consulta tus reservas, confirma tu asistencia o elige un nuevo horario.'])
-    <div class="container service-manager" data-services data-slots="{{ route('public.booking.slots') }}">
+    <div class="container service-manager" data-services data-clock="{{ $now->timestamp * 1000 }}" data-slots="{{ route('public.booking.slots') }}">
         @if(session('status'))
             <p class="service-alert" role="status">{{ session('status') }}</p>
         @endif
         <p id="service-feedback" role="status" tabindex="-1"></p>
         <div class="service-tabs" role="tablist" aria-label="Servicios activos e historial">
-            <button type="button" role="tab" id="tab-activos" data-service-tab="activos" aria-selected="true" tabindex="0">Activos</button>
-            <button type="button" role="tab" id="tab-historial" data-service-tab="historial" aria-selected="false" tabindex="-1">Historial</button>
+            <button type="button" role="tab" id="tab-activos" data-service-tab="activos" aria-selected="{{ $defaultTab === 'activos' ? 'true' : 'false' }}" tabindex="{{ $defaultTab === 'activos' ? 0 : -1 }}">Activos</button>
+            <button type="button" role="tab" id="tab-historial" data-service-tab="historial" aria-selected="{{ $defaultTab === 'historial' ? 'true' : 'false' }}" tabindex="{{ $defaultTab === 'historial' ? 0 : -1 }}">Historial</button>
         </div>
         <div id="service-list">@include('public.partials.my-services-list')</div>
         <dialog id="service-dialog" aria-labelledby="service-dialog-title">
@@ -79,28 +79,8 @@
     --gold: #8a6a12;
     --gold-line: rgba(138, 106, 18, .34);
     --brand-red-text: #a23b34;
-    position: relative;
-    isolation: isolate;
     background: #efe8dc;
     color: var(--text);
-}
-/* Foto de la barbería de fondo, fija detrás del contenido y sin velo: se ve a todo color. */
-.my-services-page::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100vh;
-    height: 100lvh;
-    z-index: -1;
-    pointer-events: none;
-    background:
-        url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat,
-        #efe8dc;
-    /* Desenfoque suave: la foto se ve, pero no compite con el texto. El leve zoom evita los bordes difusos. */
-    transform: scale(1.04);
-    filter: blur(3px);
 }
 .my-services-page .page-hero { background: transparent !important; }
 /* Sobre la foto: la ruta y las pestañas llevan su propia cápsula crema para leerse. */
@@ -178,6 +158,27 @@
 .msv-queue span { color: var(--text-muted); font-size: .85rem; }
 .msv-queue.is-next-up { background: rgba(47, 138, 91, .10); border-color: rgba(47, 138, 91, .35); }
 .msv-queue.is-next-up > i { color: #2f8a5b; }
+.msv-timeline {
+    display: grid; grid-template-columns: 1fr minmax(0, 1.25fr) 1fr; align-items: center; gap: .3rem;
+    border-top: 1px solid var(--line); padding-top: .65rem; font-variant-numeric: tabular-nums;
+}
+.msv-timeline-time { display: grid; align-content: center; gap: .12rem; color: var(--text-muted); font-size: .75rem; }
+.msv-timeline-time:last-child { text-align: right; }
+.msv-timeline-time time { font-size: .94rem; font-weight: 750; color: var(--text); white-space: nowrap; }
+.msv-timeline-time small, .msv-timeline-caption small { font-size: .68rem; color: var(--text-muted); }
+.msv-timeline-progress { position: relative; width: min(100%, 9rem); min-height: 4rem; margin-inline: auto; text-align: center; }
+.msv-timeline-progress svg { display: block; width: 100%; }
+.msv-timeline-track { stroke: #bfaf97; }
+.msv-timeline-fill { transition: stroke-dashoffset .8s linear; }
+.msv-timeline-dot { stroke: #fdf5e3; stroke-width: 1.4; }
+.msv-timeline-caption { position: absolute; inset: 54% .15rem auto; display: grid; line-height: 1.2; font-size: .76rem; }
+.msv-timeline-caption small[hidden] { display: none; }
+@container msv (max-width: 19rem) {
+    .msv-timeline-time time { font-size: .83rem; }
+    .msv-timeline-time, .msv-timeline-caption { font-size: .72rem; }
+    .msv-timeline-time small, .msv-timeline-caption small { font-size: .63rem; }
+}
+@media (prefers-reduced-motion: reduce) { .msv-timeline-fill { transition: none; } }
 .service-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .service-actions .btn { min-height: 44px; display: inline-flex; align-items: center; gap: .4rem; }
 /* Confirmar (verde), reprogramar (gris) y cancelar (rojo): píldoras compactas en una fila al pie de la

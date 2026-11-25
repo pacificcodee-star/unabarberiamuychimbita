@@ -5,13 +5,18 @@
 @section('robots', 'noindex, nofollow')
 
 @section('content')
-    <div class="survey-page">
+    <div class="survey-page page-photo-background">
     @if(!empty($unavailable))
     <section class="sv" aria-labelledby="sv-title">
         <div class="container sv-wrap">
             <header class="sv-head"><div class="section-kicker">Tu opinión</div></header>
-            <h1 class="sv-title" id="sv-title">Esta encuesta no está disponible</h1>
-            <p class="sv-help">Puede que el servicio no se haya completado o que el enlace esté incompleto. Si quieres contarnos cómo te fue, escríbenos por WhatsApp; con gusto te leemos.</p>
+            @if(config('encuestas.web'))
+                <h1 class="sv-title" id="sv-title">Esta encuesta no está disponible</h1>
+                <p class="sv-help">Puede que el servicio no se haya completado o que el enlace esté incompleto. Si quieres contarnos cómo te fue, escríbenos por WhatsApp; con gusto te leemos.</p>
+            @else
+                <h1 class="sv-title" id="sv-title">Cuéntanos tu experiencia por WhatsApp</h1>
+                <p class="sv-help">La encuesta se responde en el chat de WhatsApp: cuando tu cita o turno queda atendido, te escribimos para que nos cuentes cómo te fue.</p>
+            @endif
             <div class="sv-actions">
                 <a class="xbtn btn-booking-blue" href="{{ route('public.booking') }}"><span>Reservar</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                 <a class="xlink" href="{{ route('landing') }}">Ir al inicio</a>
@@ -80,21 +85,8 @@
     --gold: #8a6a12;
     --gold-line: rgba(138, 106, 18, .45);
     --gold-soft: rgba(201, 162, 39, .16);
-    position: relative;
-    isolation: isolate;
     background: var(--bg);
     color: var(--text);
-}
-.survey-page::before {
-    content: '';
-    position: fixed;
-    inset: 0 0 auto;
-    height: 100lvh;
-    z-index: -1;
-    pointer-events: none;
-    background: url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat, var(--bg);
-    transform: scale(1.04);
-    filter: blur(3px);
 }
 .survey-page .sv { min-height: 100svh; padding: calc(var(--header-space) + clamp(20px, 4vw, 48px)) 0 clamp(40px, 7vw, 88px); }
 .survey-page .sv-wrap {

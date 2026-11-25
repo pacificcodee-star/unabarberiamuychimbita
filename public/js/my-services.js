@@ -14,16 +14,42 @@
     const message = form.querySelector('[role=status]');
     const feedback = root.querySelector('#service-feedback');
     const tabs = Array.from(root.querySelectorAll('[data-service-tab]'));
-    let activeTab = 'activos';
+    let activeTab = tabs.find(tab => tab.getAttribute('aria-selected') === 'true')?.dataset.serviceTab || 'activos';
+    let lastList = list.innerHTML.trim();
+    const clockOffset = Number(root.dataset.clock) - Date.now();
     let trigger;
     let saving = false;
     let listRequest = 0;
     let slotRequest = 0;
 
+    function updateTimelines() {
+        const now = Date.now() + clockOffset;
+        for (const timeline of list.querySelectorAll('[data-service-timeline][data-start]')) {
+            const start = Number(timeline.dataset.start);
+            const duration = Number(timeline.dataset.duration);
+            const elapsed = Math.max(0, Math.min((now - start) / 1000, duration * 60));
+            const progress = 100 * elapsed / (duration * 60);
+            const minutes = Math.floor(elapsed / 60);
+            const remaining = duration - minutes;
+            const fill = timeline.querySelector('[data-timeline-fill]');
+            const dot = timeline.querySelector('[data-timeline-dot]');
+            const angle = Math.PI * (1 + progress / 100);
+            fill.setAttribute('stroke-dashoffset', 100 - progress);
+            fill.setAttribute('opacity', progress > 0 ? 1 : 0);
+            dot.setAttribute('cx', 60 + 52 * Math.cos(angle));
+            dot.setAttribute('cy', 59 + 52 * Math.sin(angle));
+            dot.setAttribute('opacity', progress > 0 ? 1 : 0);
+            timeline.querySelector('[role=progressbar]').setAttribute('aria-valuenow', Math.round(progress));
+            timeline.querySelector('[data-timeline-label]').textContent = now >= start ? `${minutes} de ${duration} min` : `${duration} min`;
+            const detail = timeline.querySelector('[data-timeline-detail]');
+            detail.hidden = now < start;
+            detail.textContent = remaining ? `${remaining} min restantes` : 'Pendiente de cierre';
+        }
+    }
+
     function showTab(name) {
         if (!tabs.some(tab => tab.dataset.serviceTab === name)) name = 'activos';
         activeTab = name;
-        try { sessionStorage.setItem('ubmc-mis-tab', name); } catch (e) {}
         tabs.forEach(tab => {
             const selected = tab.dataset.serviceTab === name;
             tab.setAttribute('aria-selected', String(selected));
@@ -48,12 +74,6 @@
         });
     });
 
-    // Al volver o tras una actualización automática se conserva la pestaña que estaba abierta.
-    try {
-        const savedTab = sessionStorage.getItem('ubmc-mis-tab');
-        if (savedTab) showTab(savedTab);
-    } catch (e) {}
-
     async function refresh(force = false) {
         if (document.hidden || (dialog.open && !force)) return;
         const request = ++listRequest;
@@ -66,9 +86,13 @@
             content.innerHTML = html;
             if (!content.content.querySelector('.service-panel')) throw Error();
             const focusedUrl = document.activeElement?.dataset.url;
-            if (list.innerHTML.trim() !== content.innerHTML.trim()) {
+            if (lastList !== content.innerHTML.trim()) {
+                const finishedLastActive = list.querySelector('[data-has-active]')
+                    && !content.content.querySelector('[data-has-active]');
+                lastList = content.innerHTML.trim();
                 list.replaceChildren(content.content);
-                showTab(activeTab);
+                showTab(finishedLastActive ? 'historial' : activeTab);
+                updateTimelines();
                 if (focusedUrl) Array.from(list.querySelectorAll('[data-url]')).find(el => el.dataset.url === focusedUrl)?.focus();
             }
         } catch {
@@ -319,7 +343,15 @@
         else if (!schedule.disabled) loadTimes(true);
     }
     window.addEventListener('storage', event => { if (event.key === 'ubmc-service-change') sync(); });
+    window.addEventListener('pageshow', event => { if (event.persisted) sync(); });
+    window.addEventListener('focus', sync);
+    window.addEventListener('online', sync);
     navigator.serviceWorker?.addEventListener('message', event => { if (event.data === 'booking-change') sync(); });
     setInterval(sync, 5000);
-    document.addEventListener('visibilitychange', sync);
+    setInterval(() => { if (!document.hidden) updateTimelines(); }, 1000);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) updateTimelines();
+        sync();
+    });
+    updateTimelines();
 })();

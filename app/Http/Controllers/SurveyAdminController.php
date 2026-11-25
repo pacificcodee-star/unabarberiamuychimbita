@@ -233,4 +233,18 @@ class SurveyAdminController extends Controller
             'retirar' => 'Opinión retirada y autorización revocada.',
         });
     }
+
+    /**
+     * Elimina la opinión para siempre (sale del sitio, del promedio y de la lista de opiniones).
+     * Las respuestas de la encuesta se conservan para las estadísticas, y la constancia de la
+     * autorización queda en consent_records, marcada como revocada.
+     */
+    public function destroyReview(Review $review)
+    {
+        AuditLog::record('opinion.eliminar', $review);
+        ConsentRecord::revoke('publicacion_resena', 'review', [$review->id], 'eliminada_por_el_equipo');
+        $review->delete();
+
+        return redirect()->route('surveys.reviews')->with('success', 'Opinión eliminada.');
+    }
 }

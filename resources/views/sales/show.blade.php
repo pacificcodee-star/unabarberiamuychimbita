@@ -52,7 +52,7 @@
                                             <form method="POST" action="{{ route('sales.items.return', [$sale, $item]) }}" class="d-inline-flex gap-1 justify-content-end" onsubmit="return confirm('¿Registrar devolución de este producto y regresar stock?');">
                                                 @csrf
                                                 <input type="number" name="quantity" min="1" max="{{ $item->returnableQuantity() }}" value="1" class="form-control form-control-sm" style="width:80px;" title="Cantidad a devolver">
-                                                <button class="btn btn-sm btn-outline-warning" title="Devolver al stock"><i class="bi bi-arrow-counterclockwise"></i></button>
+                                                <button class="btn btn-sm btn-outline-warning btn-icon" title="Devolver al stock"><i class="bi bi-arrow-counterclockwise"></i></button>
                                             </form>
                                         @elseif($item->pos_product_id)
                                             <span class="badge-soft green">Devuelto</span>
@@ -68,6 +68,7 @@
                         <tr>
                             <td colspan="3" class="text-end text-muted">Total</td>
                             <td class="text-end fs-5 fw-bold">{{ format_money($sale->total) }}</td>
+                            @if(auth()->user()->isAdmin())<td></td>@endif
                         </tr>
                         </tfoot>
                     </table>

@@ -97,6 +97,16 @@ Evolution API (Northflank) ──POST /webhook/evolution──► EvolutionWebho
         ◄────────────── POST /message/sendText/{instancia} ◄─────────────┘
 ```
 
+Con varios clientes escribiendo a la vez:
+
+- El webhook contesta `200` de inmediato (`dispatchAfterResponse`): el bot trabaja después y
+  Evolution no reintenta el evento ni duplica respuestas.
+- Cada conversación se atiende de a un mensaje (`Cache::lock` por conversación); conversaciones
+  distintas siguen en paralelo.
+- La respuesta del bot sale **antes** que los avisos, y entre dos mensajes al mismo número se deja
+  `EVOLUTION_SEND_GAP_MS` de espacio. Así no aparecen dos mensajes en el mismo segundo (lo que
+  provoca el "Esperando el mensaje" en el teléfono del cliente).
+
 En el otro sentido, los avisos salen solos cuando el equipo mueve la agenda:
 
 - `barberia:tick` (cada minuto) → `ClientNotifier::processDue()` → `WhatsAppService::sendText()`
@@ -171,6 +181,7 @@ antes de pulsar **Conectar webhook automático**.
 | Los avisos salen como "simulados" en el log | Falta URL o apikey | `php artisan config:clear` y revisa el `.env`. |
 | Llega todo bien pero nada automático | Sin cron / scheduler | `* * * * * php artisan schedule:run` (ver `docs/NOTIFICACIONES.md`). |
 | El webhook no recibe nada | `APP_URL` incorrecta en producción | Corrige `APP_URL` y vuelve a dar de alta el webhook. |
+| El cliente ve "Esperando el mensaje. Esto puede tomar tiempo." | Salieron dos mensajes al mismo número en el mismo segundo, o el webhook tardó y Evolution repitió el evento | Deja `EVOLUTION_SEND_GAP_MS=1200` (espacio entre mensajes) y no pongas un `throttle` bajo en `/webhook/evolution`: la app debe contestar 200 enseguida. |
 
 Todo lo que falla queda en `storage/logs/laravel.log` (buscar `Evolution API` o `WhatsApp`).
 

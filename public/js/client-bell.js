@@ -36,8 +36,7 @@
     };
 
     /* Avisos borrados con la papelera: por reserva se guarda el último aviso borrado y solo se muestran los
-       que lleguen después. No se borra nada del servidor ni la reserva guardada (la siguen usando los avisos
-       push y la recuperación del dispositivo). */
+       que lleguen después. La campana conserva el enlace de la reserva para consultar sus avisos. */
     const clearedOf = () => read('ubmc-bell-cleared', {});
     const visible = () => {
         const cleared = clearedOf();

@@ -97,6 +97,36 @@ class SiteSetting extends Model
         return $value === '' || str_contains($value, 'cerrad');
     }
 
+    /**
+     * Horario de un día para el formulario del panel: ['closed' => bool, 'open' => 'HH:MM', 'close' => 'HH:MM'].
+     * Toma la primera y la última hora escritas en el texto ("9:00 a. m. - 8:00 p. m.").
+     */
+    public static function dayRange(?string $text): array
+    {
+        if (self::isClosedText($text)) {
+            return ['closed' => true, 'open' => '', 'close' => ''];
+        }
+        $times = \App\Support\TurnSchedule::parseTimes((string) $text);
+
+        return [
+            'closed' => false,
+            'open' => $times[0] ?? '',
+            'close' => count($times) > 1 ? $times[count($times) - 1] : '',
+        ];
+    }
+
+    /** Texto del horario de un día a partir de las horas del panel: "9:00 a. m. - 8:00 p. m.". */
+    public static function rangeText(string $open, string $close): string
+    {
+        $label = function (string $time): string {
+            [$h, $m] = array_map('intval', explode(':', $time));
+
+            return (($h % 12) ?: 12).':'.sprintf('%02d', $m).' '.($h >= 12 ? 'p. m.' : 'a. m.');
+        };
+
+        return $label($open).' - '.$label($close);
+    }
+
     /** Horario de los 7 días: [['key','label','short','iso','value','closed','today'], ...]. */
     public static function weekHours(array $settings): array
     {

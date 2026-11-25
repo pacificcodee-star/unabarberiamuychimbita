@@ -31,7 +31,45 @@ class SurveySystemTest extends TestCase
     {
         parent::setUp();
         $this->travelTo(Carbon::parse('2026-11-18 15:00:00'));
-        config(['encuestas.whatsapp' => true]);
+        // Estas pruebas recorren el motor de la encuesta también por la web. En producción la web está
+        // apagada (solo WhatsApp); ese modo se prueba aparte en los tests "only_whatsapp".
+        config([
+            'encuestas.whatsapp' => true,
+            'encuestas.web' => true,
+            'encuestas.send_delay_minutes' => 2,
+        ]);
+    }
+
+    public function test_only_whatsapp_the_invitation_goes_by_whatsapp_and_asks_inside_the_chat(): void
+    {
+        config(['encuestas.web' => false]);
+        $appointment = $this->appointment();
+        $appointment->update(['status' => 'atendida']);
+
+        $this->assertSame(1, SurveyInvitation::count());
+        $invite = ClientNotification::where('type', 'survey_invite')->get();
+        $this->assertSame(['whatsapp'], $invite->pluck('channel')->all(), 'Sin aviso del navegador: solo WhatsApp.');
+        $this->assertStringContainsString('del *1 al 5*', $invite->first()->body);
+        $this->assertStringNotContainsString('/encuesta/', $invite->first()->body, 'Sin enlace a la encuesta web.');
+    }
+
+    public function test_only_whatsapp_no_invitation_without_whatsapp_consent(): void
+    {
+        config(['encuestas.web' => false]);
+        $this->appointment(['whatsapp_consent' => false])->update(['status' => 'atendida']);
+
+        $this->assertSame(0, SurveyInvitation::count());
+        $this->assertSame(0, ClientNotification::where('type', 'survey_invite')->count());
+    }
+
+    public function test_only_whatsapp_the_web_survey_link_shows_a_whatsapp_notice(): void
+    {
+        $appointment = $this->finishedAndSent();
+        config(['encuestas.web' => false]);
+
+        $this->get($this->url($appointment))->assertNotFound()->assertSee('Cuéntanos tu experiencia por WhatsApp');
+        $this->postJson(route('survey.answer', ['type' => 'cita', 'token' => $appointment->public_token]), ['question' => 'experiencia', 'value' => 5])
+            ->assertNotFound();
     }
 
     private function appointment(array $extra = []): Appointment
@@ -95,7 +133,7 @@ class SurveySystemTest extends TestCase
 
         $invitation = SurveyInvitation::firstOrFail();
         $this->assertSame('programada', $invitation->status);
-        $this->assertTrue($invitation->send_after->eq(now()->addMinutes(30)));
+        $this->assertTrue($invitation->send_after->eq(now()->addMinutes(2)), "La encuesta sale 2 minutos después de quedar atendido.");
         $this->assertSame(2, ClientNotification::where('type', 'survey_invite')->count()); // push + WhatsApp (tiene consentimiento)
 
         // Si el cliente abre el enlace antes del aviso, igual puede responder (el servicio ya terminó).
@@ -185,11 +223,11 @@ class SurveySystemTest extends TestCase
     public function test_without_reviews_the_public_section_is_not_rendered(): void
     {
         $this->get('/')->assertOk()->assertDontSee('cx-proof', false);
-        $this->get(route('public.reviews'))->assertDontSee('rv-list-title', false);
+        $this->get(route('public.reviews'))->assertDontSee('class="rv-score"', false);
     }
 
     // 10. Opinión negativa → se conserva y se publica igual (misma moderación).
-    public function test_negative_reviews_are_kept_and_published_under_the_same_rules(): void
+    public function test_negative_reviews_are_kept_and_count_in_the_average_but_their_card_is_not_shown(): void
     {
         $appointment = $this->finishedAndSent();
         $this->answerWeb($appointment, 'experiencia', 1)->assertOk();
@@ -199,12 +237,14 @@ class SurveySystemTest extends TestCase
         $this->answerWeb($appointment, 'que_mejorar', 'Me dejaron el lado izquierdo disparejo.')->assertOk();
         $this->answerWeb($appointment, 'recomendaria', 'no')->assertOk();
         $this->answerWeb($appointment, 'comentario', 'El corte quedó disparejo y esperé mucho.')->assertOk();
-        $this->answerWeb($appointment, 'publicar', 'si_nombre')->assertJson(['published' => true]);
+        // Se aprueba con las mismas reglas, pero la tarjeta solo se muestra con 4 o 5 estrellas:
+        // al cliente no se le dice que ya aparece en la página.
+        $this->answerWeb($appointment, 'publicar', 'si_nombre')->assertJson(['published' => false]);
 
         $review = Review::firstOrFail();
         $this->assertSame(1, $review->rating);
         $this->assertTrue($review->approved);
-        $this->get(route('public.reviews'))->assertSee('El corte quedó disparejo y esperé mucho.');
+        $this->get(route('public.reviews'))->assertDontSee('El corte quedó disparejo y esperé mucho.');
         // El equipo recibe un aviso para reaccionar.
         $this->assertDatabaseHas('staff_notifications', ['type' => 'survey_attention']);
         // La respuesta interna ("qué mejorar") nunca se publica.
@@ -236,6 +276,86 @@ class SurveySystemTest extends TestCase
         $this->assertFalse($review->fresh()->approved);
         $this->assertNotNull(ConsentRecord::where('subject_type', 'review')->first()->revoked_at);
         $this->actingAs($admin)->post(route('surveys.reviews.moderate', $review), ['action' => 'publicar'])->assertSessionHas('error');
+    }
+
+    public function test_admin_can_delete_a_published_review(): void
+    {
+        $appointment = $this->finishedAndSent();
+        $this->fullHappyPath($appointment);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $review = Review::firstOrFail();
+        $this->assertTrue($review->approved);
+
+        $this->actingAs($admin)->get(route('surveys.reviews'))->assertOk()->assertSee(route('surveys.reviews.destroy', $review), false);
+        $this->actingAs($admin)->delete(route('surveys.reviews.destroy', $review))
+            ->assertRedirect(route('surveys.reviews'))->assertSessionHas('success', 'Opinión eliminada.');
+
+        $this->assertNull(Review::find($review->id));
+        // Las respuestas de la encuesta se conservan; la autorización queda como revocada.
+        $this->assertSame(1, \App\Models\SurveySession::count());
+        $this->assertNotNull(ConsentRecord::where('subject_type', 'review')->where('subject_id', $review->id)->first()->revoked_at);
+        $this->get(route('public.reviews'))->assertDontSee('class="rv-score"', false);
+    }
+
+    public function test_marking_attended_from_the_panel_sends_thanks_and_keeps_the_survey_after_it(): void
+    {
+        $this->whatsappConfig();
+        config(['encuestas.web' => false]);
+        $appointment = $this->appointment(['status' => 'confirmada']);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+
+        $this->actingAs($admin)->patch(route('appointments.status', $appointment), ['status' => 'atendida', 'payment_method' => 'efectivo']);
+
+        $this->assertSame('atendida', $appointment->fresh()->status);
+        $thanks = ClientNotification::where('type', 'service_thanks')->where('channel', 'whatsapp')->firstOrFail();
+        $survey = ClientNotification::where('type', 'survey_invite')->where('channel', 'whatsapp')->firstOrFail();
+        // El "Gracias por tu visita" no cancela la encuesta, y la encuesta sale después.
+        $this->assertNotSame(ClientNotification::CANCELLED, $survey->status);
+        $this->assertTrue($survey->scheduled_for->gt($thanks->scheduled_for));
+
+        $this->travel(3)->minutes();
+        app(\App\Services\ClientNotifier::class)->processDue();
+        $this->assertSame(ClientNotification::SENT, $survey->fresh()->status);
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'del *1 al 5*'));
+    }
+
+    public function test_deleting_the_appointment_removes_its_survey_from_results(): void
+    {
+        $appointment = $this->finishedAndSent();
+        $this->fullHappyPath($appointment);
+        $this->assertSame(1, SurveySession::count());
+
+        $appointment->delete();
+
+        $this->assertSame(0, SurveyInvitation::count());
+        $this->assertSame(0, SurveySession::count());
+        $this->assertSame(0, \App\Models\SurveyAnswer::count());
+    }
+
+    public function test_surveys_whose_appointment_or_turn_was_removed_are_purged(): void
+    {
+        $appointment = $this->finishedAndSent();
+        $this->fullHappyPath($appointment);
+        // Borrada sin pasar por el modelo (p. ej. desde la base de datos): queda huérfana.
+        \Illuminate\Support\Facades\DB::table('appointments')->where('id', $appointment->id)->delete();
+        $this->assertSame(1, SurveyInvitation::count());
+
+        app(SurveyService::class)->tick();
+
+        $this->assertSame(0, SurveyInvitation::count());
+        $this->assertSame(0, SurveySession::count());
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $this->actingAs($admin)->get(route('surveys.index'))->assertOk();
+    }
+
+    public function test_barbers_cannot_delete_reviews(): void
+    {
+        $appointment = $this->finishedAndSent();
+        $this->fullHappyPath($appointment);
+        $barber = User::factory()->create(['role' => 'barbero', 'active' => true]);
+
+        $this->actingAs($barber)->delete(route('surveys.reviews.destroy', Review::firstOrFail()))->assertForbidden();
+        $this->assertSame(1, Review::count());
     }
 
     // 6 y 15. Interrupción → conserva el progreso; lo confirmado no se pierde.
@@ -402,6 +522,9 @@ class SurveySystemTest extends TestCase
         $this->assertSame('atencion', $session->answerFor('lo_mejor')->value);
         $this->assertSame('encuesta_whatsapp', Review::firstOrFail()->source);
         $this->assertTrue(Review::first()->approved);
+        // La opinión respondida por WhatsApp sale en la página (inicio y /resenas) como servicio verificado.
+        $this->get(route('public.reviews'))->assertSee('Muy buen servicio, volveré.')->assertSee('Servicio verificado');
+        $this->get('/')->assertSee('Muy buen servicio, volveré.');
 
         // La web muestra la misma encuesta ya respondida.
         $this->getJson($this->url($appointment, 'survey.state'))->assertJson(['status' => 'completada']);

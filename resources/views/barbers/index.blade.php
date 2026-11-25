@@ -49,7 +49,7 @@
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 @if($user->photo_path)
-                                    <img src="{{ asset('storage/'.$user->photo_path) }}" alt="Foto de {{ $user->name }}" class="admin-barber-thumb" width="40" height="40" style="width:40px;height:40px;min-width:40px;border-radius:50%;object-fit:cover;object-position:center top;border:2px solid #e3c27a;background:#211f1a" loading="lazy">
+                                    <img src="{{ asset('storage/'.$user->photo_path) }}" alt="Foto de {{ $user->name }}" class="admin-barber-thumb" width="40" height="40" style="width:40px;height:40px;min-width:40px;border-radius:50%;object-fit:cover;object-position:center top;border:2px solid var(--c-violet-soft);background:var(--ui-surface-3)" loading="lazy">
                                 @else
                                     <div class="avatar" style="width: 40px; height: 40px; min-width: 40px; font-size: .85rem;">{{ strtoupper(substr($user->name, 0, 1)) }}</div>
                                 @endif
@@ -78,12 +78,12 @@
                                     <i class="bi {{ $user->active ? 'bi-person-slash' : 'bi-person-check' }}"></i>
                                 </button>
                             </form>
-                            <a href="{{ route('barbers.edit', $user) }}" class="btn btn-sm btn-outline-dark" title="Editar"><i class="bi bi-pencil"></i></a>
+                            <a href="{{ route('barbers.edit', $user) }}" class="btn btn-sm btn-outline-dark btn-icon" title="Editar" aria-label="Editar"><i class="bi bi-pencil"></i></a>
                             @if($user->id !== auth()->id())
                                 <form method="POST" action="{{ route('barbers.destroy', $user) }}" class="d-inline" onsubmit="return confirm('¿Eliminar o desactivar este barbero?');">
                                     @csrf
                                     @method('DELETE')
-                                    <button class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button>
+                                    <button class="btn btn-sm btn-outline-danger btn-icon" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash"></i></button>
                                 </form>
                             @endif
                         </td>

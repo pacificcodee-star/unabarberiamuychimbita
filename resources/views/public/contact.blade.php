@@ -1,7 +1,8 @@
 @extends('layouts.public')
 
-@section('title', 'Contacto · '.($siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita'))
-@section('meta_description', $siteSettings['contact_hero_description'] ?? $siteSettings['footer_description'])
+@php $seo = \App\Support\Seo::page('contact', $siteSettings); @endphp
+@section('title', $seo['title'])
+@section('meta_description', $seo['description'])
 
 @php
     $fullAddress = trim($siteSettings['address'].', '.($siteSettings['city'] ?? ''), ', ');
@@ -16,7 +17,7 @@
 @endphp
 
 @section('content')
-    <div class="contact-page">
+    <div class="contact-page page-photo-background">
     {{-- Encabezado editorial --}}
     <section class="ct-hero" aria-labelledby="ct-title">
         @if($contactBg)<div class="ct-hero-bg" aria-hidden="true"><img src="{{ $contactBg }}" alt="" width="1920" height="1080" fetchpriority="high" decoding="async"></div>@endif
@@ -88,13 +89,15 @@
                                 <i class="bi bi-arrow-up-right ct-channel-arrow" aria-hidden="true"></i>
                             </a>
                         </li>
-                        <li class="reveal">
-                            <a class="ct-channel ct-channel--wa" href="https://wa.me/{{ $siteSettings['whatsapp'] }}?text={{ rawurlencode('Hola, quiero información para un corte') }}" target="_blank" rel="noopener">
-                                <span class="ct-channel-icon"><img src="{{ asset('images/contacto/whatsapp.svg') }}" alt="" width="26" height="26"></span>
-                                <span class="ct-channel-text"><small>WhatsApp</small><strong>Escríbenos ahora</strong></span>
-                                <i class="bi bi-arrow-up-right ct-channel-arrow" aria-hidden="true"></i>
-                            </a>
-                        </li>
+                        @if(!empty($siteSettings['whatsapp']))
+                            <li class="reveal">
+                                <a class="ct-channel ct-channel--wa" href="https://wa.me/{{ $siteSettings['whatsapp'] }}?text={{ rawurlencode(\App\Services\WhatsApp\WhatsappBotService::ADVISOR_REQUEST) }}" target="_blank" rel="noopener">
+                                    <span class="ct-channel-icon"><img src="{{ asset('images/contacto/whatsapp.svg') }}" alt="" width="26" height="26"></span>
+                                    <span class="ct-channel-text"><small>WhatsApp</small><strong>Hablar con un asesor</strong></span>
+                                    <i class="bi bi-arrow-up-right ct-channel-arrow" aria-hidden="true"></i>
+                                </a>
+                            </li>
+                        @endif
                     </ul>
                 </div>
             </div>
@@ -126,24 +129,8 @@
 
 @push('styles')
 <style>
-/* Foto de la barbería de fondo, fija detrás del contenido y sin velo: se ve a todo color. */
-.contact-page { position: relative; isolation: isolate; }
-.contact-page::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100vh;
-    height: 100lvh;
-    z-index: -1;
-    pointer-events: none;
-    background: url('{{ asset('images/mis-servicios-fondo.webp') }}') center / cover no-repeat, #efe8dc;
-    /* Espejada: el marco y el poste quedan a la derecha, y el título descansa sobre la pared lisa.
-       Un desenfoque suave la separa del texto sin ocultarla. */
-    transform: scaleX(-1) scale(1.04);
-    filter: blur(3px);
-}
+/* En Contacto el marco y el poste quedan a la derecha. */
+.contact-page { --page-photo-direction: -1; }
 .contact-page .ct-hero { background: transparent !important; }
 /* Sin velo: la foto se ve completa; el halo claro solo separa el texto donde cruza zonas oscuras. */
 .contact-page .ct-hero .ct-title,

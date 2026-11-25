@@ -1,7 +1,8 @@
 @extends('layouts.public')
 
-@section('title', 'Reservar cita o turno · '.($siteSettings['brand_name'] ?? 'Una Barberia Muy Chimbita'))
-@section('meta_description', $siteSettings['booking_hero_description'] ?? $siteSettings['footer_description'])
+@php $seo = \App\Support\Seo::page('booking', $siteSettings); @endphp
+@section('title', $seo['title'])
+@section('meta_description', $seo['description'])
 
 @section('content')
     @php
@@ -319,6 +320,11 @@
                                     <p class="form-legal-note text-center">Al confirmar aceptas el tratamiento de tus datos según la <a href="{{ route('legal.privacy') }}">política de privacidad</a>.</p>
                                     <p class="form-text text-center mt-2 mb-0" data-push-hint hidden><i class="bi bi-bell" aria-hidden="true"></i> Al enviar, tu navegador te preguntará si permites los avisos. Elige <strong>Permitir</strong> para que te avisemos al celular.</p>
                                 </form>
+                                @if(!empty($siteSettings['whatsapp']))
+                                    <a href="https://wa.me/{{ $siteSettings['whatsapp'] }}?text={{ rawurlencode(\App\Services\WhatsApp\WhatsappBotService::TURN_REQUEST) }}" target="_blank" rel="noopener" class="btn-whatsapp-green btn btn-ghost-light w-100 mt-3">
+                                        <i class="bi bi-whatsapp" aria-hidden="true"></i> Tomar turno por WhatsApp
+                                    </a>
+                                @endif
                             @endif
                         </div>
                     </div>
@@ -343,8 +349,8 @@
                             <li><i class="bi bi-clock" aria-hidden="true"></i><div><strong>Horario</strong><p>@foreach(\App\Models\SiteSetting::groupedHours($siteSettings) as $group){{ $group['label'] }} {{ $group['value'] }}@unless($loop->last) · @endunless @endforeach</p></div></li>
                         </ul>
                         @if(!empty($siteSettings['whatsapp']))
-                            <a href="https://wa.me/{{ $siteSettings['whatsapp'] }}" target="_blank" rel="noopener" class="btn-whatsapp-green btn btn-ghost-light w-100 mt-4">
-                                <i class="bi bi-whatsapp" aria-hidden="true"></i> ¿Dudas? Escríbenos
+                            <a href="https://wa.me/{{ $siteSettings['whatsapp'] }}?text={{ rawurlencode(\App\Services\WhatsApp\WhatsappBotService::ADVISOR_REQUEST) }}" target="_blank" rel="noopener" class="btn-whatsapp-green btn btn-ghost-light w-100 mt-4">
+                                <i class="bi bi-whatsapp" aria-hidden="true"></i> Hablar con un asesor
                             </a>
                         @endif
                     </div>

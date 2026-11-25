@@ -8,6 +8,7 @@
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     let ctx = null;
     let pendingAt = 0; // momento del aviso que quedó esperando para sonar
+    let pendingCount = 0; // cuántos avisos esperan su timbre
 
     const unlock = () => {
         if (!AudioCtx) return;
@@ -35,12 +36,16 @@
         osc.stop(start + length + 0.05);
     };
 
-    const play = () => {
+    const play = (times = 1) => {
         if (document.hidden || !ctx || ctx.state !== 'running') return false;
         try {
-            const now = ctx.currentTime + 0.01;
-            tone(880, now, 0.22);
-            tone(1318.5, now + 0.16, 0.38);
+            // Un timbre por aviso, separados por 0,9 s (máximo 5 para no aturdir).
+            const count = Math.min(5, Math.max(1, times));
+            for (let i = 0; i < count; i++) {
+                const now = ctx.currentTime + 0.01 + i * 0.9;
+                tone(880, now, 0.22);
+                tone(1318.5, now + 0.16, 0.38);
+            }
         } catch (e) {
             return false;
         }
@@ -50,15 +55,17 @@
 
     const replay = () => {
         if (!pendingAt) return;
-        if (Date.now() - pendingAt > 60000) { pendingAt = 0; return; }
-        if (play()) pendingAt = 0;
+        if (Date.now() - pendingAt > 60000) { pendingAt = 0; pendingCount = 0; return; }
+        if (play(pendingCount)) { pendingAt = 0; pendingCount = 0; }
     };
 
     /** Suena siempre que la página esté a la vista; si el audio aún está bloqueado, queda pendiente. */
-    window.ubmcChime = () => {
+    window.ubmcChime = (times) => {
+        const count = typeof times === 'number' ? times : 1;
         if (document.hidden) return false;
-        if (play()) return true;
+        if (play(count)) return true;
         pendingAt = Date.now();
+        pendingCount += count;
         return false;
     };
 

@@ -3,12 +3,10 @@
 @section('title', 'Disponibilidad por barbero')
 
 @section('content')
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <p class="text-muted mb-0">Gestiona la disponibilidad de cada barbero: marca días completos u horarios en los que no podrá atender.</p>
-    </div>
+    <p class="page-intro">Configura los días y horarios en los que cada barbero no podrá atender.</p>
 
-    <div class="card mb-4">
-        <div class="card-body py-3">
+    <div class="card">
+        <div class="card-body">
             <form method="GET" action="{{ route('availability.index') }}" class="row g-2 align-items-end">
                 <div class="col-sm-8 col-md-5">
                     <label class="form-label mb-1">Barbero</label>
@@ -21,37 +19,39 @@
                 <div class="col-auto">
                     <noscript><button class="btn btn-dark">Ver</button></noscript>
                 </div>
+                @if($selectedBarber)
+                    <div class="col-md text-md-end">
+                        <span class="badge-soft gold"><i class="bi bi-person-badge" aria-hidden="true"></i> {{ $selectedBarber->attentionModeLabel() }}</span>
+                    </div>
+                @endif
             </form>
         </div>
     </div>
 
-    @if($selectedBarber)
-        <div class="alert alert-light border mb-4">
-            <i class="bi bi-person-badge me-1"></i> Administrando disponibilidad de: <strong>{{ $selectedBarber->name }}</strong>
-            <span class="text-muted">· {{ $selectedBarber->attentionModeLabel() }}</span>
-        </div>
-    @endif
-
-    <div class="row g-4">
+    <div class="row g-3">
         <div class="col-lg-5">
             <div class="card h-100">
-                <div class="card-header"><i class="bi bi-calendar-x me-1"></i> Marcar indisponibilidad</div>
+                <div class="card-header"><i class="bi bi-calendar-x me-1"></i> Bloqueo semanal</div>
                 <div class="card-body">
-                    <p class="text-muted small mb-3">Define cuándo <strong>{{ $selectedBarber?->name ?? 'el barbero' }}</strong> no estará disponible: todo el día o en un rango de horas. Esto se tendrá en cuenta al reservar citas.</p>
+                    @if($selectedBarber)
+                    <p class="text-muted small mb-3">El bloqueo se repite cada semana para <strong>{{ $selectedBarber->name }}</strong> en todos los días que marques.</p>
                     <form method="POST" action="{{ route('availability.store') }}" class="row g-3">
                         @csrf
                         <input type="hidden" name="barber_id" value="{{ $selectedBarberId }}">
-                        @if($selectedBarber)
-                            <div class="col-12">
-                                <div class="small text-muted">Barbero seleccionado: <strong>{{ $selectedBarber->name }}</strong></div>
+                        <fieldset class="col-12">
+                            <legend class="form-label fs-6">Días de la semana</legend>
+                            <div class="d-flex flex-wrap gap-2 column-gap-3">
+                                @foreach($weekdays as $day => $label)
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="weekdays[]" id="weekday{{ $day }}" value="{{ $day }}"
+                                            @checked(in_array($day, (array) old('weekdays', [])))>
+                                        <label class="form-check-label" for="weekday{{ $day }}">{{ $label }}</label>
+                                    </div>
+                                @endforeach
                             </div>
-                        @endif
-                        <div class="col-12">
-                            <label class="form-label">Fecha</label>
-                            <input type="date" name="date" class="form-control" value="{{ old('date', $date) }}" min="{{ now()->toDateString() }}" required>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Tipo</label>
+                        </fieldset>
+                        <fieldset class="col-12">
+                            <legend class="form-label fs-6">Horario del bloqueo</legend>
                             <div class="d-flex flex-wrap gap-3">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="type" id="typeDay" value="day" {{ old('type', 'day') === 'day' ? 'checked' : '' }}>
@@ -62,23 +62,26 @@
                                     <label class="form-check-label" for="typeRange">No disponible en un horario</label>
                                 </div>
                             </div>
+                        </fieldset>
+                        <div class="col-sm-6 time-range-field">
+                            <label class="form-label" for="availabilityStart">Desde</label>
+                            <input type="time" name="start_time" id="availabilityStart" class="form-control" value="{{ old('start_time') }}">
                         </div>
                         <div class="col-sm-6 time-range-field">
-                            <label class="form-label">Desde</label>
-                            <input type="time" name="start_time" class="form-control" value="{{ old('start_time') }}">
-                        </div>
-                        <div class="col-sm-6 time-range-field">
-                            <label class="form-label">Hasta</label>
-                            <input type="time" name="end_time" class="form-control" value="{{ old('end_time') }}">
+                            <label class="form-label" for="availabilityEnd">Hasta</label>
+                            <input type="time" name="end_time" id="availabilityEnd" class="form-control" value="{{ old('end_time') }}">
                         </div>
                         <div class="col-12">
                             <label class="form-label">Nota (opcional)</label>
                             <input type="text" name="note" class="form-control" maxlength="255" value="{{ old('note') }}" placeholder="Ej: permiso, cita médica, descanso">
                         </div>
                         <div class="col-12">
-                            <button type="submit" class="btn btn-dark"><i class="bi bi-save me-1"></i> Guardar indisponibilidad</button>
+                            <button type="submit" class="btn btn-dark"><i class="bi bi-save me-1"></i> Guardar bloqueo semanal</button>
                         </div>
                     </form>
+                    @else
+                        <p class="text-muted mb-0">Selecciona un barbero para configurar su horario.</p>
+                    @endif
                 </div>
             </div>
         </div>
@@ -86,19 +89,19 @@
         <div class="col-lg-7">
             <div class="card h-100">
                 <div class="card-header">
-                    <span><i class="bi bi-list-ul me-1"></i> Indisponibilidades de {{ $selectedBarber?->name ?? 'barbero' }}</span>
+                    <span><i class="bi bi-list-ul"></i> Indisponibilidades de {{ $selectedBarber?->name ?? 'barbero' }}</span>
                 </div>
                 <div class="card-body p-0">
                     @if(! $selectedBarber)
-                        <div class="p-4 text-muted">Selecciona un barbero para ver su disponibilidad.</div>
+                        <div class="empty-state"><i class="bi bi-person"></i>Selecciona un barbero para ver su disponibilidad.</div>
                     @elseif($unavailabilities->isEmpty())
-                        <div class="p-4 text-muted">No hay indisponibilidades registradas para <strong>{{ $selectedBarber->name }}</strong> (desde ayer en adelante).</div>
+                        <div class="empty-state"><i class="bi bi-calendar-check"></i><p>No hay bloqueos vigentes para <strong>{{ $selectedBarber->name }}</strong>.</p></div>
                     @else
                         <div class="table-responsive">
                             <table class="table align-middle mb-0">
                                 <thead>
                                     <tr>
-                                        <th>Fecha</th>
+                                        <th>Día</th>
                                         <th>Horario</th>
                                         <th>Nota</th>
                                         <th class="text-end">Acción</th>
@@ -107,7 +110,15 @@
                                 <tbody>
                                     @foreach($unavailabilities as $item)
                                         <tr>
-                                            <td>{{ $item->date?->locale('es')->translatedFormat('d \d\e F, Y') }}</td>
+                                            <td>
+                                                @if($item->weekday !== null)
+                                                    {{ $weekdays[$item->weekday] }}
+                                                    <div class="small text-muted">Cada semana</div>
+                                                @else
+                                                    {{ $item->date?->locale('es')->translatedFormat('d \d\e F, Y') }}
+                                                    <div class="small text-muted">Una sola vez</div>
+                                                @endif
+                                            </td>
                                             <td>
                                                 @if($item->isAllDay())
                                                     <span class="badge text-bg-secondary">Todo el día</span>
@@ -120,7 +131,7 @@
                                                 <form method="POST" action="{{ route('availability.destroy', $item) }}" onsubmit="return confirm('¿Eliminar esta indisponibilidad?');">
                                                     @csrf
                                                     @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button>
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger btn-icon" title="Eliminar" aria-label="Eliminar"><i class="bi bi-trash"></i></button>
                                                 </form>
                                             </td>
                                         </tr>
@@ -145,7 +156,7 @@
         function sync() {
             const isRange = range && range.checked;
             fields.forEach(f => f.style.display = isRange ? '' : 'none');
-            inputs.forEach(i => { i.required = isRange; if (!isRange) i.value = ''; });
+            inputs.forEach(i => { i.required = isRange; i.disabled = !isRange; });
         }
         day?.addEventListener('change', sync);
         range?.addEventListener('change', sync);

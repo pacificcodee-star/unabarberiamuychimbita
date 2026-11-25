@@ -17,28 +17,32 @@
     @endphp
 
     <div class="row g-3 mb-3">
-        <div class="col-6 col-lg-3">
-            <div class="card stat-card py-3">
+        <div class="col-6 col-xl-3">
+            <div class="card stat-card" data-tone="emerald">
+                <div class="icon"><i class="bi bi-cash-coin"></i></div>
                 <div class="label">Ventas de la caja</div>
-                <div class="value fs-4">{{ format_money($totalSales) }}</div>
+                <div class="value">{{ format_money($totalSales) }}</div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
-            <div class="card stat-card py-3">
+        <div class="col-6 col-xl-3">
+            <div class="card stat-card" data-tone="violet">
+                <div class="icon"><i class="bi bi-person-badge"></i></div>
                 <div class="label">Comisiones</div>
-                <div class="value fs-4">{{ format_money($totalCommissions) }}</div>
+                <div class="value">{{ format_money($totalCommissions) }}</div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
-            <div class="card stat-card py-3">
+        <div class="col-6 col-xl-3">
+            <div class="card stat-card" data-tone="red">
+                <div class="icon"><i class="bi bi-wallet2"></i></div>
                 <div class="label">Gastos</div>
-                <div class="value fs-4 text-danger">{{ format_money($totalExpenses) }}</div>
+                <div class="value text-danger">{{ format_money($totalExpenses) }}</div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
-            <div class="card stat-card py-3">
+        <div class="col-6 col-xl-3">
+            <div class="card stat-card" data-tone="teal">
+                <div class="icon"><i class="bi bi-graph-up-arrow"></i></div>
                 <div class="label">Ganancia de la caja</div>
-                <div class="value fs-4 text-success">{{ format_money($net) }}</div>
+                <div class="value text-success">{{ format_money($net) }}</div>
             </div>
         </div>
     </div>

@@ -39,6 +39,11 @@ class TurnQueueService
         return $minutes > 0 ? $minutes : max(1, (int) config('notificaciones.default_service_minutes', 30));
     }
 
+    public function expectedStart(Turn $turn): Carbon
+    {
+        return ($turn->called_at ?? $turn->updated_at ?? now())->copy()->addMinutes($this->graceMinutes());
+    }
+
     /**
      * Cierra los turnos que quedaron abiertos en jornadas anteriores.
      *
@@ -115,9 +120,9 @@ class TurnQueueService
             $finishedPrevious = false;
 
             if ($auto && $active && $active->status === 'llamado') {
-                $calledAt = $active->called_at ?: $active->updated_at;
-                if ($now->gte($calledAt->copy()->addMinutes($this->graceMinutes()))) {
-                    $active->update(['status' => 'atendiendo', 'started_at' => $now]);
+                $start = $this->expectedStart($active);
+                if ($now->gte($start)) {
+                    $active->update(['status' => 'atendiendo', 'started_at' => $start]);
                 }
             }
 
@@ -211,7 +216,7 @@ class TurnQueueService
                 $cursor = $end->gt($now) ? $end : $now->copy();
                 $ahead++;
             } elseif ($turn->status === 'llamado') {
-                $start = ($turn->called_at ?: $now)->copy()->addMinutes($grace);
+                $start = $this->expectedStart($turn);
                 $end = ($start->gt($now) ? $start : $now->copy())->addMinutes($duration);
                 $cursor = $end;
                 $ahead++;

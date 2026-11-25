@@ -189,12 +189,10 @@ class ProductionHardeningTest extends TestCase
             'barber_id' => $barber->id, 'service_id' => $this->service()->id, 'client_name' => 'Ana', 'client_phone' => '300 123 4567', 'payment_method' => 'efectivo',
             'appointment_date' => '2026-11-19', 'appointment_time' => '10:30', 'whatsapp_consent' => '1',
         ])->assertRedirect(route('my-services.index'));
-        $this->post(route('public.reviews.store'), ['client_name' => 'Ana', 'rating' => 5, 'comment' => 'Muy buena atención y buen corte.']);
 
         $appointment = Appointment::firstOrFail();
         $records = ConsentRecord::where('subject_type', 'appointment')->where('subject_id', $appointment->id)->pluck('purpose')->all();
         $this->assertEqualsCanonicalizing(['tratamiento_reserva', 'avisos_whatsapp'], $records);
-        $this->assertSame(1, ConsentRecord::where('purpose', 'publicacion_resena')->where('subject_type', 'review')->count());
 
         $record = ConsentRecord::where('purpose', 'avisos_whatsapp')->firstOrFail();
         $this->assertSame('casilla_web', $record->channel);
@@ -294,12 +292,11 @@ class ProductionHardeningTest extends TestCase
         $this->assertStringNotContainsString('<img src=x onerror', $html);
     }
 
-    public function test_reviews_strip_html_when_saved(): void
+    public function test_the_site_has_no_public_review_form_to_abuse(): void
     {
-        $this->post(route('public.reviews.store'), ['client_name' => '<b>Ana</b>', 'rating' => 5, 'comment' => '<script>x()</script>Excelente servicio siempre.']);
-        $review = Review::firstOrFail();
-        $this->assertSame('Ana', $review->client_name);
-        $this->assertStringNotContainsString('<script>', $review->comment);
+        // Las opiniones solo llegan por la encuesta de WhatsApp: no hay formulario abierto en la página.
+        $this->post('/resenas', ['client_name' => '<b>Ana</b>', 'rating' => 5, 'comment' => '<script>x()</script>Excelente.'])->assertStatus(405);
+        $this->assertSame(0, Review::count());
     }
 
     public function test_sql_injection_attempts_are_rejected_by_validation(): void
