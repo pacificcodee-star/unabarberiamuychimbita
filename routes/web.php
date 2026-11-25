@@ -70,6 +70,7 @@ Route::view('/cookies', 'public.legal.cookies')->middleware('public-fresh')->nam
 Route::get('/nosotros', [LandingController::class, 'about'])->middleware('public-fresh')->name('public.about');
 Route::get('/servicios', [LandingController::class, 'services'])->middleware('public-fresh')->name('public.services');
 Route::get('/barberos', [LandingController::class, 'barbers'])->middleware('public-fresh')->name('public.barbers');
+Route::get('/barberos/login', fn () => redirect()->route('public.barbers', [], 301));
 Route::get('/resenas', [LandingController::class, 'reviews'])->middleware('public-fresh')->name('public.reviews');
 Route::get('/contacto', [LandingController::class, 'contact'])->middleware('public-fresh')->name('public.contact');
 Route::get('/reservar', [PublicBookingController::class, 'index'])->middleware('public-fresh')->name('public.booking');
