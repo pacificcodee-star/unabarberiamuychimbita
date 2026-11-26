@@ -5,11 +5,13 @@ namespace Tests\Feature;
 use App\Models\Appointment;
 use App\Models\ClientNotification;
 use App\Models\Service;
+use App\Models\StaffNotification;
 use App\Models\Turn;
 use App\Models\User;
 use App\Services\AttendanceAutomation;
 use App\Services\ClientNotifier;
 use App\Services\TurnService;
+use App\Services\TurnQueueService;
 use App\Support\AttendanceConfirmation;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -86,6 +88,83 @@ class AttendanceAutomationTest extends TestCase
         return app(AttendanceAutomation::class)->run();
     }
 
+    public function test_solo_administracion_resuelve_llegadas_vencidas_una_vez_sin_cobrar_ausencias(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $barber = User::factory()->create(['role' => 'barbero', 'attention_mode' => 'llegada', 'active' => true]);
+        $appointment = $this->cita('10:10', 'confirmada');
+        AttendanceConfirmation::mark($appointment);
+        $data = ['client_name' => 'Pedro', 'service_id' => $this->service->id];
+        $queue = app(TurnService::class);
+        $turn = $queue->createFor($barber, $data);
+        $next = $queue->createFor($barber, $data);
+        $this->actingAs($admin);
+        $cases = [[$appointment, 'cita', 'appointments.index', $this->barbero], [$turn, 'turno', 'turns.index', $barber]];
+        foreach ($cases as [$subject, $type, $index]) {
+            $this->patch(route('arrival.decide', [$type, $subject->id]), ['decision' => 'llego'])->assertSessionHasErrors('arrival');
+            $this->get(route($index))->assertOk()->assertDontSee('Llegó · iniciar servicio');
+        }
+        $this->travel(90)->minutes();
+        $this->artisan('barberia:tick')->assertSuccessful();
+        $this->artisan('barberia:tick')->assertSuccessful();
+        $this->assertSame(2, StaffNotification::where('type', 'arrival_due')->count());
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertNull($turn->fresh()->started_at);
+        foreach ($cases as [$subject, $type, $index, $staff]) {
+            $this->actingAs($staff)->get(route($index))->assertDontSee('Llegó · iniciar servicio');
+            $url = route('arrival.decide', [$type, $subject->id]);
+            $this->patch($url, ['decision' => 'llego'])->assertForbidden();
+            $transition = $type === 'turno' ? 'turns.status' : 'appointments.status';
+            foreach ($type === 'turno' ? ['atendiendo', 'atendido', 'no_asistio'] : ['en_atencion', 'atendida', 'no_asistio'] as $status) {
+                $this->patch(route($transition, $subject), ['status' => $status])->assertSessionHas('error');
+            }
+            $this->assertFalse(StaffNotification::visibleTo($staff)->where('type', 'arrival_due')->exists());
+            $this->actingAs($admin)->get(route($index))->assertOk()->assertSee('Llegó · iniciar servicio');
+            $this->patch($url, ['decision' => 'no_llego'])->assertSessionHas('success');
+            $this->patch($url, ['decision' => 'llego'])->assertSessionHasErrors('arrival');
+            $this->assertSame('no_asistio', $subject->fresh()->status);
+            $this->assertNull($subject->fresh()->sale_id);
+        }
+        $this->artisan('barberia:tick')->assertSuccessful();
+        $this->assertSame('llamado', $next->fresh()->status);
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertFalse(ClientNotification::where('type', 'service_thanks')->exists());
+    }
+
+    public function test_diez_turnos_usan_la_duracion_de_su_barbero_y_se_recalculan_al_confirmar_tarde(): void
+    {
+        $barber = User::factory()->create(['role' => 'barbero', 'attention_mode' => 'llegada', 'active' => true]);
+        $other = User::factory()->create(['role' => 'barbero', 'attention_mode' => 'llegada', 'active' => true]);
+        $this->service->update(['duration_minutes' => 60]);
+        $data = ['client_name' => 'Cliente', 'service_id' => $this->service->id];
+        $service = app(TurnService::class);
+        $queue = app(TurnQueueService::class);
+        $service->createFor($other, $data);
+        $first = $service->createFor($barber, $data);
+        for ($i = 2; $i <= 10; $i++) {
+            $last = $service->createFor($barber, $data);
+        }
+        $before = $queue->estimates($barber->id)[$last->id];
+        $this->assertSame(9, $before['ahead']);
+        $this->assertEquals(9 * (60 + $queue->graceMinutes()), now()->diffInMinutes($before['call_at']));
+        $this->assertEquals(60, $before['start_at']->diffInMinutes($before['end_at']));
+        $this->travel(17)->minutes();
+        $url = route('arrival.decide', ['turno', $first->id]);
+        $this->actingAs(User::factory()->create(['role' => 'admin', 'active' => true]))->patch($url, ['decision' => 'llego'])
+            ->assertSessionHas('success');
+        $this->assertEquals(now(), $first->fresh()->started_at);
+        $this->patch($url, ['decision' => 'llego'])->assertSessionHasErrors('arrival');
+        $after = $queue->estimates($barber->id)[$last->id];
+        $this->assertEquals(7, $before['end_at']->diffInMinutes($after['end_at']));
+        $this->travel(59)->minutes();
+        $queue->advance($barber->id);
+        $this->assertNull($first->fresh()->sale_id);
+        $this->travel(1)->minutes();
+        $queue->advance($barber->id);
+        $queue->advance($barber->id);
+        $this->assertDatabaseCount('sales', 1);
+    }
+
     public function test_cita_sin_confirmar_15_minutos_despues_del_recordatorio_se_cancela_y_se_avisa(): void
     {
         $cita = $this->cita('10:30:00');
@@ -113,6 +192,8 @@ class AttendanceAutomationTest extends TestCase
         $this->automatizar();
         $this->assertSame('confirmada', $cita->fresh()->status);
 
+        $this->travelTo($cita->startsAt());
+        app(\App\Services\ServiceArrival::class)->decide($cita, true);
         // 10:30 + 30 min de servicio = 11:00
         $this->travelTo(Carbon::parse('2026-11-18 11:00:00'));
         $this->automatizar();
@@ -182,10 +263,11 @@ class AttendanceAutomationTest extends TestCase
 
         $this->assertTrue(AttendanceConfirmation::confirmed($cita));
 
-        // Al terminar el servicio (10:15 + 30 min) queda atendida sin que nadie la toque.
+        // La confirmación del bot por sí sola no inicia el servicio.
         $this->travelTo(Carbon::parse('2026-11-18 10:45:00'));
         $this->automatizar();
-        $this->assertSame('atendida', $cita->fresh()->status);
+        $this->assertSame('confirmada', $cita->fresh()->status);
+        $this->assertNull($cita->fresh()->sale_id);
     }
 
     public function test_cita_agendada_faltando_20_minutos_recibe_un_solo_mensaje_y_corre_el_plazo(): void
@@ -248,10 +330,11 @@ class AttendanceAutomationTest extends TestCase
             'client_name' => 'Luis Pérez', 'client_phone' => '3009998888', 'whatsapp_consent' => true, 'service_id' => $this->service->id,
         ]);
 
-        // Llamado → en atención tras la espera de llegada → atendido al cumplir los 30 min del servicio.
+        // La llegada verificada inicia el servicio. A los 30 minutos se cierra automáticamente.
         $this->artisan('barberia:tick');
         $this->travel(11)->minutes();
         $this->artisan('barberia:tick');
+        app(\App\Services\ServiceArrival::class)->decide($turno, true);
         $this->travel(31)->minutes();
         $this->artisan('barberia:tick');
 

@@ -165,6 +165,7 @@ class NotificationSystemTest extends TestCase
         $this->assertSame('esperando', $second->fresh()->status);
 
         $this->travel(10)->minutes(); // se cumple el margen de llegada
+        app(\App\Services\ServiceArrival::class)->decide($first, true);
         $this->artisan('barberia:tick');
         $this->assertSame('atendiendo', $first->fresh()->status);
         $this->assertNotNull($first->fresh()->started_at);
@@ -218,6 +219,7 @@ class NotificationSystemTest extends TestCase
         $turn = $this->turn($this->barber('llegada'), $this->service(), 'Ana');
         $this->travel(10)->minutes();
         $this->artisan('barberia:tick');
+        app(\App\Services\ServiceArrival::class)->decide($turn, true);
         $this->assertSame('atendiendo', $turn->fresh()->status);
 
         $this->post(route('track.cancel', ['type' => 'turno', 'token' => $turn->public_token]))->assertSessionHas('track_error');

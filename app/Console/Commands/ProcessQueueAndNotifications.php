@@ -43,8 +43,9 @@ class ProcessQueueAndNotifications extends Command
         $closedDays = $step('cierre_dias_anteriores', fn () => $queue->closePreviousDays(), 0);
         $step('fila', fn () => $queue->advanceAll());
         $step('recordatorios_turnos', fn () => $queue->remindUpcoming());
-        // Sin confirmación 15 min después del recordatorio → cancelar; cita confirmada y terminada → atendida + gracias.
+        // Sin confirmación 15 min después del recordatorio → cancelar; servicio iniciado por administración y terminado → atendida + gracias.
         $result = $step('asistencia', fn () => $attendance->run(), ['cancelled' => 0, 'attended' => 0]);
+        $step('verificar_llegadas', fn () => app(\App\Services\ServiceArrival::class)->notifyDue());
         $step('encuestas', fn () => app(\App\Services\Surveys\SurveyService::class)->tick());
         $sent = $step('avisos', fn () => $notifier->processDue(), 0);
 

@@ -40,6 +40,7 @@ class TurnController extends Controller
             'llamado' => (clone $query)->where('status', 'llamado')->count(),
             'atendiendo' => (clone $query)->where('status', 'atendiendo')->count(),
             'atendido' => (clone $query)->where('status', 'atendido')->count(),
+            'no_asistio' => (clone $query)->where('status', 'no_asistio')->count(),
             'cancelado' => (clone $query)->where('status', 'cancelado')->count(),
         ];
 
@@ -94,9 +95,25 @@ class TurnController extends Controller
     {
         $this->authorizeTurn($request, $turn);
 
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($request, $turn) {
+            User::whereKey($turn->barber_id)->lockForUpdate()->firstOrFail();
+            $current = Turn::lockForUpdate()->findOrFail($turn->id);
+            $this->authorizeTurn($request, $current);
+
+            return $this->changeStatus($request, $current);
+        }, 3);
+    }
+
+    private function changeStatus(Request $request, Turn $turn)
+    {
+
         $data = $request->validate([
             'status' => ['required', 'in:'.implode(',', array_keys(Turn::STATUSES))],
         ]);
+
+        if (in_array($data['status'], ['atendiendo', 'no_asistio'], true)) {
+            return back()->with('error', 'La llegada se registra desde administración.');
+        }
 
         // Un turno atendido queda cerrado: no se cambia (solo se puede registrar su ingreso si faltaba, o eliminarlo).
         if ($turn->status === 'atendido' && ($data['status'] !== 'atendido' || $turn->sale_id)) {
@@ -107,17 +124,19 @@ class TurnController extends Controller
             return back()->with('error', 'No se puede pasar un turno de "'.$turn->statusLabel().'" a "'.Turn::STATUSES[$data['status']].'".');
         }
 
+        if ($data['status'] === 'llamado' && $turn->status === 'esperando') {
+            $open = Turn::where('barber_id', $turn->barber_id)->whereDate('turn_date', today());
+            if (! $turn->turn_date->isToday() || (clone $open)->whereIn('status', ['llamado', 'atendiendo'])->exists()
+                || (clone $open)->where('status', 'esperando')->where('turn_number', '<', $turn->turn_number)->exists()) {
+                return back()->with('error', 'Espera a que este turno sea el siguiente en la fila del barbero.');
+            }
+        }
+
         $previousStatus = $turn->status;
         $attributes = ['status' => $data['status']];
 
         if ($data['status'] === 'llamado' && ($previousStatus !== 'llamado' || ! $turn->called_at)) {
             $attributes['called_at'] = now();
-        }
-
-        if ($data['status'] === 'atendiendo' && ($previousStatus !== 'atendiendo' || ! $turn->started_at)) {
-            // Empieza a contar la duración del servicio; al cumplirse, el turno se cierra solo.
-            $attributes['called_at'] = $turn->called_at ?: now();
-            $attributes['started_at'] = now();
         }
 
         if (in_array($data['status'], ['atendido', 'cancelado'], true) && ($previousStatus !== $data['status'] || ! $turn->finished_at)) {
@@ -164,8 +183,6 @@ class TurnController extends Controller
             abort(403);
         }
 
-        // La fila avanza sola, pero el barbero puede adelantarse: se cierra el turno en atención
-        // (se registra su ingreso), se llama al siguiente y se le avisa al cliente.
         $result = app(TurnQueueService::class)->callNextManually($barber);
 
         return back()->with($result['ok'] ? 'success' : 'error', $result['message']);

@@ -6,7 +6,6 @@ use App\Models\Appointment;
 use App\Models\Turn;
 use App\Services\ClientBookingActions;
 use App\Services\TurnQueueService;
-use App\Support\AttendanceConfirmation;
 use App\Support\ClientServiceAccess;
 use App\Support\ServiceTimeline;
 use App\Support\WhatsAppHistoryLink;
@@ -32,15 +31,9 @@ class MyServicesController extends Controller
         $turns = ClientServiceAccess::owned($request, 'turno')->with(['barber', 'service'])
             ->orderByDesc('turn_date')->orderByDesc('turn_number')->get();
 
-        [$activeAppointments, $historyAppointments] = $appointments->partition(function (Appointment $appointment) use ($now) {
-            if (! in_array($appointment->status, ['pendiente', 'confirmada'], true)) {
-                return false;
-            }
-
-            return $appointment->startsAt()->addMinutes($appointment->durationMinutes())->gt($now)
-                || ($appointment->status === 'confirmada' && $appointment->appointment_date->isToday()
-                    && AttendanceConfirmation::confirmed($appointment));
-        });
+        [$activeAppointments, $historyAppointments] = $appointments->partition(fn (Appointment $appointment) =>
+            $appointment->status === 'en_atencion' || (in_array($appointment->status, ['pendiente', 'confirmada'], true)
+                && $appointment->appointment_date->gte(today())));
         [$activeTurns, $historyTurns] = $turns->partition(fn ($t) =>
             $t->turn_date->isToday() && in_array($t->status, TurnQueueService::OPEN, true));
         $estimates = [];

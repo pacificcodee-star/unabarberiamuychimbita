@@ -18,6 +18,7 @@ class Turn extends Model
         'atendiendo' => 'En atención',
         'atendido' => 'Finalizado',
         'cancelado' => 'Anulado',
+        'no_asistio' => 'No llegó',
     ];
 
     /**
@@ -25,16 +26,20 @@ class Turn extends Model
      * nunca pasar a finalizado; uno finalizado queda cerrado.
      */
     public const TRANSITIONS = [
-        'esperando' => ['llamado', 'atendiendo', 'cancelado'],
-        'llamado' => ['esperando', 'atendiendo', 'atendido', 'cancelado'],
+        'esperando' => ['llamado', 'cancelado'],
+        'llamado' => ['esperando', 'cancelado'],
         'atendiendo' => ['atendido', 'cancelado'],
         'cancelado' => ['esperando'],
         'atendido' => [],
+        'no_asistio' => [],
     ];
 
     protected static function booted(): void
     {
         static::saving(function (self $turn): void {
+            if ($turn->isDirty('called_at') || ($turn->isDirty('status') && $turn->status === 'llamado')) {
+                $turn->arrival_notified_at = null;
+            }
             $turn->client_phone_normalized = GuestVisitor::normalizePhone($turn->client_phone);
         });
         // Sin turno no hay encuesta: se borra su invitación (y con ella las respuestas) para que no cuente en Resultados.

@@ -304,6 +304,8 @@ class SurveySystemTest extends TestCase
         $appointment = $this->appointment(['status' => 'confirmada']);
         $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
 
+        $this->travelTo($appointment->startsAt());
+        $this->actingAs($admin)->patch(route('arrival.decide', ['cita', $appointment->id]), ['decision' => 'llego'])->assertSessionHasNoErrors();
         $this->actingAs($admin)->patch(route('appointments.status', $appointment), ['status' => 'atendida', 'payment_method' => 'efectivo']);
 
         $this->assertSame('atendida', $appointment->fresh()->status);

@@ -62,6 +62,7 @@
                     <label class="form-label fw-semibold">Estado <span class="text-danger">*</span></label>
                     <select name="status" class="form-select" required>
                         @foreach(\App\Models\Appointment::STATUSES as $key => $label)
+                            @continue(! in_array($key, ['pendiente', 'confirmada', 'cancelada'], true))
                             <option value="{{ $key }}" @selected($selectedStatus === $key)>{{ $label }}</option>
                         @endforeach
                     </select>

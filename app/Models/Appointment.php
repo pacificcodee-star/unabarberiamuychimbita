@@ -20,6 +20,8 @@ class Appointment extends Model
     public const STATUSES = [
         'pendiente' => 'Pendiente',
         'confirmada' => 'Confirmada',
+        'en_atencion' => 'En atención',
+        'no_asistio' => 'No llegó',
         'atendida' => 'Atendida',
         'cancelada' => 'Cancelada',
     ];
@@ -51,8 +53,10 @@ class Appointment extends Model
      * Una atendida queda cerrada.
      */
     public const TRANSITIONS = [
-        'pendiente' => ['confirmada', 'cancelada', 'atendida'],
-        'confirmada' => ['pendiente', 'cancelada', 'atendida'],
+        'pendiente' => ['confirmada', 'cancelada'],
+        'confirmada' => ['pendiente', 'cancelada'],
+        'en_atencion' => ['atendida'],
+        'no_asistio' => [],
         'cancelada' => ['pendiente', 'confirmada'],
         'atendida' => [],
     ];
@@ -60,6 +64,9 @@ class Appointment extends Model
     protected static function booted(): void
     {
         static::saving(function (self $appointment): void {
+            if ($appointment->isDirty(['appointment_date', 'appointment_time', 'barber_id']) || ($appointment->isDirty('status') && $appointment->getOriginal('status') === 'cancelada')) {
+                $appointment->arrival_notified_at = null;
+            }
             $appointment->client_phone_normalized = GuestVisitor::normalizePhone($appointment->client_phone);
         });
         // Sin cita no hay encuesta: se borra su invitación (y con ella las respuestas) para que no cuente en Resultados.
@@ -85,6 +92,12 @@ class Appointment extends Model
     {
         return DB::transaction(function () use ($attributes, $existing, $message) {
             $barber = User::whereKey($attributes['barber_id'])->lockForUpdate()->first();
+            if ($existing) {
+                $locked = static::lockForUpdate()->findOrFail($existing->id);
+                if ($locked->status !== $existing->status || in_array($locked->status, ['en_atencion', 'no_asistio', 'atendida'], true)) {
+                    throw ValidationException::withMessages(['status' => 'La cita cambió y ya no admite esta modificación.']);
+                }
+            }
             $date = Carbon::parse($attributes['appointment_date'])->toDateString();
             $time = Carbon::parse($attributes['appointment_time'])->format('H:i:s');
             $sameSlot = $existing && $existing->status !== 'cancelada'
@@ -181,6 +194,7 @@ class Appointment extends Model
             'guest_visitor_id' => 'integer',
             'service_price' => 'decimal:2',
             'appointment_date' => 'date',
+            'started_at' => 'datetime',
             'whatsapp_consent' => 'boolean',
             'attendance_confirmed_at' => 'datetime',
             'reminder_sent_at' => 'datetime',

@@ -187,8 +187,7 @@ class TrackController extends Controller
             return in_array($subject->status, TurnQueueService::OPEN, true) && $subject->turn_date->isToday();
         }
 
-        return in_array($subject->status, ['pendiente', 'confirmada'], true)
-            && $subject->startsAt()->copy()->addMinutes(15)->isFuture();
+        return $subject->status === 'en_atencion' || (in_array($subject->status, ['pendiente', 'confirmada'], true) && $subject->appointment_date->gte(today()));
     }
 
     /** Estado que ve el cliente. Nunca incluye datos de otras personas de la fila. */
@@ -211,13 +210,15 @@ class TrackController extends Controller
                 'llamado' => "¡Es tu turno! Puedes pasar. Tienes {$grace} minutos para llegar".($subject->called_at ? ' (hasta las '.$this->time($subject->called_at->copy()->addMinutes($grace)).').' : '.'),
                 'atendiendo' => 'Tu servicio está en curso.',
                 'atendido' => 'Tu servicio ya terminó. ¡Gracias por tu visita!',
+                'no_asistio' => 'Administración registró que no llegaste.',
                 default => 'Este turno fue cancelado.',
             };
 
             return [
                 'status' => $subject->status,
                 'label' => $subject->statusLabel(),
-                'detail' => $detail,
+                'detail' => $detail.($estimate ? ' Acércate hacia las '.$this->time($estimate['call_at'])
+                    .'. Inicio estimado: '.$this->time($estimate['start_at']).' · fin estimado: '.$this->time($estimate['end_at']).'.' : ''),
                 'ahead' => $estimate['ahead'] ?? null,
                 'call_at' => isset($estimate['call_at']) ? $this->time($estimate['call_at']) : null,
                 'can_cancel' => in_array('cancelar', ClientBookingActions::actions($subject), true),
@@ -233,6 +234,8 @@ class TrackController extends Controller
                 'pendiente' => 'Recibimos tu cita. El equipo la confirmará pronto.',
                 'confirmada' => 'Tu cita está confirmada. ¡Te esperamos!',
                 'atendida' => 'Tu cita ya fue atendida. ¡Gracias por tu visita!',
+                'no_asistio' => 'Administración registró que no llegaste.',
+                'en_atencion' => 'Tu servicio está en curso.',
                 default => 'Esta cita fue cancelada.',
             },
             'ahead' => null,

@@ -135,6 +135,9 @@
                         <td class="text-nowrap">{{ $turn->created_at->format('h:i A') }}</td>
                         <td>
                             <div class="fw-semibold">{{ $turn->client_name }}</div>
+                            @if(auth()->user()->isAdmin() && app(\App\Services\ServiceArrival::class)->isDue($turn))
+                                @include('partials.service-arrival', ['subject' => $turn, 'type' => 'turno'])
+                            @endif
                             <div class="small text-muted">{{ $turn->client_phone ?: 'Sin teléfono' }}</div>
                         </td>
                         <td>{{ $turn->service?->name ?? 'Por definir' }}</td>
@@ -164,6 +167,7 @@
                                     @method('PATCH')
                                     <select name="status" class="form-select form-select-sm" onchange="attendedChange(this)" style="min-width: 140px;">
                                         @foreach(\App\Models\Turn::STATUSES as $key => $label)
+                                            @continue($key !== $turn->status && ! $turn->canTransitionTo($key))
                                             <option value="{{ $key }}" @selected($turn->status === $key)>{{ $label }}</option>
                                         @endforeach
                                     </select>
@@ -178,7 +182,7 @@
                                 <form method="POST" action="{{ route('turns.status', $turn) }}" class="d-inline">
                                     @csrf
                                     @method('PATCH')
-                                    <input type="hidden" name="status" value="atendiendo">
+                                    <input type="hidden" name="status" value="llamado">
                                     <button class="btn btn-sm btn-outline-dark btn-icon" title="Llamar este turno"><i class="bi bi-megaphone"></i></button>
                                 </form>
                             @endif

@@ -15,6 +15,7 @@ class StaffNotification extends Model
     public const ICONS = [
         'turn_new' => 'bi-person-plus',
         'appt_new' => 'bi-calendar-plus',
+        'arrival_due' => 'bi-person-check',
         'appt_rescheduled' => 'bi-calendar-event',
         'client_cancelled' => 'bi-x-circle',
         'client_confirmed' => 'bi-check2-circle',
@@ -36,6 +37,7 @@ class StaffNotification extends Model
     public const TONES = [
         'turn_new' => 'blue',
         'appt_new' => 'green',
+        'arrival_due' => 'amber',
         'appt_rescheduled' => 'amber',
         'client_cancelled' => 'red',
         'client_confirmed' => 'green',
@@ -93,7 +95,7 @@ class StaffNotification extends Model
     }
 
     /** Nunca interrumpe la reserva o la fila: si falla al guardar, solo queda en el log. */
-    public static function record(string $type, string $title, ?string $body = null, ?string $url = null, ?int $barberId = null): void
+    public static function record(string $type, string $title, ?string $body = null, ?string $url = null, ?int $barberId = null): ?self
     {
         try {
             $notification = static::create([
@@ -104,6 +106,20 @@ class StaffNotification extends Model
                 'url' => $url,
             ]);
 
+            \Illuminate\Support\Facades\DB::afterCommit(fn () => $notification->sendPush());
+
+            return $notification;
+        } catch (Throwable $e) {
+            Log::warning('No se pudo guardar el aviso para el equipo', ['error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    private function sendPush(): void
+    {
+        $barberId = $this->barber_id;
+        try {
             $recipients = User::query()
                 ->where(function ($query) use ($barberId) {
                     $query->where('role', 'admin');
@@ -116,10 +132,10 @@ class StaffNotification extends Model
             foreach ($recipients as $recipient) {
                 foreach ($recipient->pushSubscriptions as $subscription) {
                     $result = $sender->send($subscription, [
-                        'title' => str_replace('*', '', $notification->title),
-                        'body' => Str::limit(str_replace('*', '', (string) $notification->body), 160, '…'),
-                        'url' => $notification->url ?: '/dashboard',
-                        'tag' => 'staff-'.$notification->id,
+                        'title' => str_replace('*', '', $this->title),
+                        'body' => Str::limit(str_replace('*', '', (string) $this->body), 160, '…'),
+                        'url' => $this->url ?: '/dashboard',
+                        'tag' => 'staff-'.$this->id,
                     ], 3600);
 
                     if ($result['ok']) {
@@ -130,7 +146,7 @@ class StaffNotification extends Model
                 }
             }
         } catch (Throwable $e) {
-            Log::warning('No se pudo guardar el aviso para el equipo', ['error' => $e->getMessage()]);
+            Log::warning('No se pudo enviar el aviso al equipo', ['error' => $e->getMessage()]);
         }
     }
 }

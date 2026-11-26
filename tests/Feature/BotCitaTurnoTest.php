@@ -96,6 +96,8 @@ class BotCitaTurnoTest extends TestCase
         $this->get('/?source=pwa')->assertSee('Mis servicios');
         $this->get('/mis-servicios')->assertSee('Ana desde la PWA')->assertSee('Confirmada');
 
+        $this->travelTo(Carbon::parse('2026-11-19 10:00:00'));
+        app(\App\Services\ServiceArrival::class)->decide(Appointment::sole(), true);
         $this->travelTo(Carbon::parse('2026-11-19 10:31:00'));
         $this->assertSame(1, app(\App\Services\AttendanceAutomation::class)->finishConfirmedAppointments());
         $this->get('/mis-servicios')->assertSeeInOrder(['Historial', 'Citas anteriores', 'Atendida', 'Ana desde la PWA']);

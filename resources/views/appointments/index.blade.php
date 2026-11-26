@@ -74,6 +74,19 @@
         </div>
     </div>
 
+    @if(auth()->user()->isAdmin())
+        <div data-booking-region="arrivals">
+            @foreach($appointments as $appointment)
+                @if(app(\App\Services\ServiceArrival::class)->isDue($appointment))
+                    <div class="card card-body mb-2">
+                        <strong>{{ $appointment->startsAt()->format('g:i a') }} · {{ $appointment->barber?->name }} · {{ $appointment->service?->name }}</strong>
+                        @include('partials.service-arrival', ['subject' => $appointment, 'type' => 'cita'])
+                    </div>
+                @endif
+            @endforeach
+        </div>
+    @endif
+
     <div class="status-strip" data-booking-region="counts">
         @foreach(\App\Models\Appointment::STATUSES as $key => $label)
             <div class="status-chip">
@@ -89,7 +102,7 @@
         $weekLabel = $weekStart->isSameMonth($weekEnd)
             ? $weekStart->day.' – '.$weekEnd->locale('es')->translatedFormat('j \d\e F Y')
             : $weekStart->locale('es')->translatedFormat('j \d\e M').' – '.$weekEnd->locale('es')->translatedFormat('j \d\e M Y');
-        $statusDots = ['pendiente' => 'amber', 'confirmada' => 'blue', 'atendida' => 'emerald', 'cancelada' => 'red'];
+        $statusDots = ['pendiente' => 'amber', 'confirmada' => 'blue', 'en_atencion' => 'emerald', 'no_asistio' => 'red', 'atendida' => 'emerald', 'cancelada' => 'red'];
     @endphp
 
     <div class="card cal">
@@ -192,7 +205,7 @@
                                         $top = max(0, ($startMin - $rangeMinutesStart) * $pxPerMinute);
                                         $height = max(30, $duration * $pxPerMinute - 4);
                                         $height = min($height, $totalHeight - $top);
-                                        $canEdit = $appointment->status !== 'atendida';
+                                        $canEdit = in_array($appointment->status, ['pendiente', 'confirmada', 'cancelada'], true);
                                         $editUrl = route('appointments.edit', $appointment);
                                         $deleteUrl = route('appointments.destroy', $appointment);
                                         $timeLabel = \Carbon\Carbon::createFromTime($hh, $mm)->format('h:i A');
@@ -281,7 +294,7 @@
                         <span><i class="bi bi-sticky" aria-hidden="true"></i> Notas</span>
                         <p data-appt-field="notes"></p>
                     </div>
-                    <div class="appt-locked" data-appt-locked hidden><i class="bi bi-lock-fill" aria-hidden="true"></i> Esta cita ya fue atendida y generó su ingreso: no se puede editar.</div>
+                    <div class="appt-locked" data-appt-locked hidden><i class="bi bi-lock-fill" aria-hidden="true"></i> Esta cita ya no admite cambios de reserva.</div>
                 </div>
 
                 <div class="modal-footer">

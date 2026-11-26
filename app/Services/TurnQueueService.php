@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
  *
  * Ciclo de un turno:  esperando -> llamado -> atendiendo -> atendido
  *   - llamado:    se avisó al cliente "puedes pasar". Tiene un margen de llegada (10 min por defecto).
- *   - atendiendo: al cumplirse el margen (o si el barbero lo marca antes) empieza a contar la duración del servicio.
+ *   - atendiendo: cuando administración confirma la llegada empieza a contar la duración del servicio.
  *   - atendido:   al cumplirse la duración se cierra solo, se registra el ingreso y se llama al siguiente.
  *
  * No hay temporizadores en memoria: todo se calcula con las horas guardadas en la base de datos (called_at,
@@ -37,6 +37,24 @@ class TurnQueueService
         $minutes = (int) ($turn->service?->duration_minutes ?: 0);
 
         return $minutes > 0 ? $minutes : max(1, (int) config('notificaciones.default_service_minutes', 30));
+    }
+
+    public function estimateText(Turn $turn): string
+    {
+        if ($turn->status === 'llamado') {
+            $start = $this->expectedStart($turn);
+            $end = $start->copy()->addMinutes($this->durationMinutes($turn));
+
+            return 'Ya puedes acercarte. Inicio estimado: '.$start->format('g:i a').' · fin estimado: '.$end->format('g:i a').".\n\n";
+        }
+        $estimate = $turn->status === 'esperando' ? ($this->estimates($turn->barber_id)[$turn->id] ?? null) : null;
+        if (! $estimate) {
+            return '';
+        }
+
+        return 'Personas antes de ti con este barbero: '.$estimate['ahead'].".\n"
+            .'Acércate hacia las '.$estimate['call_at']->format('g:i a').'. Inicio estimado: '.$estimate['start_at']->format('g:i a')
+            .' · fin estimado: '.$estimate['end_at']->format('g:i a').".\n\n";
     }
 
     public function expectedStart(Turn $turn): Carbon
@@ -91,8 +109,8 @@ class TurnQueueService
     }
 
     /**
-     * Revisa la fila de un barbero y hace lo que corresponda según la hora: iniciar el servicio del cliente llamado,
-     * finalizar el servicio que ya cumplió su tiempo, llamar al siguiente y avisar al que sigue.
+     * Revisa la fila de un barbero y hace lo que corresponda según la hora: finalizar un servicio iniciado por administración que cumplió su duración,
+     * llamar al siguiente y avisar al que sigue.
      * Es seguro llamarlo muchas veces: bloquea la fila del barbero y los avisos no se duplican.
      */
     public function advance(int $barberId, ?Turn $cancel = null): void
@@ -119,16 +137,8 @@ class TurnQueueService
             $active = $turns->first(fn (Turn $t) => in_array($t->status, ['llamado', 'atendiendo'], true));
             $finishedPrevious = false;
 
-            if ($auto && $active && $active->status === 'llamado') {
-                $start = $this->expectedStart($active);
-                if ($now->gte($start)) {
-                    $active->update(['status' => 'atendiendo', 'started_at' => $start]);
-                }
-            }
-
-            if ($auto && $active && $active->status === 'atendiendo') {
-                $startedAt = $active->started_at ?: $active->called_at ?: $active->updated_at;
-                if ($now->gte($startedAt->copy()->addMinutes($this->durationMinutes($active)))) {
+            if ($auto && $active && $active->status === 'atendiendo' && $active->started_at) {
+                if ($now->gte($active->started_at->copy()->addMinutes($this->durationMinutes($active)))) {
                     $active->update(['status' => 'atendido', 'finished_at' => $now]);
                     $this->recorder->sync($active, $active->payment_method);
                     $finished = $active;
@@ -165,7 +175,7 @@ class TurnQueueService
             $turns = $this->openTurns($barber->id);
 
             if ($called = $turns->firstWhere('status', 'llamado')) {
-                return ['ok' => false, 'message' => "El turno #{$called->turn_number} ya fue llamado. Márcalo \"En atención\" cuando llegue o \"Anulado\" si no llegó.", 'events' => []];
+                return ['ok' => false, 'message' => "El turno #{$called->turn_number} ya fue llamado. Administración debe confirmar si llegó.", 'events' => []];
             }
 
             $next = $turns->firstWhere('status', 'esperando');
@@ -173,6 +183,9 @@ class TurnQueueService
                 return ['ok' => false, 'message' => "No hay turnos esperando para {$barber->name}.", 'events' => []];
             }
 
+            if ($turns->contains(fn (Turn $turn) => $turn->status === 'atendiendo' && ! $turn->started_at)) {
+                return ['ok' => false, 'message' => 'Falta la confirmación de llegada de administración.', 'events' => []];
+            }
             // El turno que se estaba atendiendo pasa a "atendido" y se registra como servicio realizado (ingreso).
             $finished = false;
             foreach ($turns->where('status', 'atendiendo') as $previous) {
@@ -292,7 +305,7 @@ class TurnQueueService
                 if ($kind === 'finished') {
                     // Al cliente: gracias por la visita. Al equipo: el turno se cerró solo al cumplirse su tiempo.
                     $this->notifier->serviceThanks($turn);
-                    StaffNotification::record('turn_finished', "Turno #{$turn->turn_number} finalizado automáticamente", "{$turn->client_name}: se cumplió el tiempo del servicio".($turn->sale_id ? ' y se registró el ingreso.' : '.').' Si el cliente no llegó, anula el turno.', $url, $barberId);
+                    StaffNotification::record('turn_finished', "Turno #{$turn->turn_number} finalizado automáticamente", "{$turn->client_name}: se cumplió el tiempo del servicio".($turn->sale_id ? ' y se registró el ingreso.' : '.'), $url, $barberId);
                 } elseif ($kind === 'called') {
                     $this->notifier->turnCalled($turn, $afterPrevious);
                     if ($automatic) {

@@ -1131,6 +1131,7 @@ class WhatsappBotService
             return '✅ ¡Perfecto! Tu turno *'.$number.'* con *'.($turn->barber?->name ?? 'tu barbero').'* quedó registrado correctamente.'."\n\n"
                 .($turn->service ? '✂️ Servicio: *'.$turn->service->name."*\n\n" : '')
                 .(trim((string) $turn->client_name) !== '' ? '👤 Cliente: *'.$turn->client_name."*\n\n" : '')
+                .$this->queue->estimateText($turn)
                 .'📲 Recibirás por este chat el aviso cuando sea tu turno.'."\n\n"
                 .'1. 🏠 Volver al menú principal.'."\n"
                 .'2. 👋 Finalizar conversación.';
@@ -1371,8 +1372,6 @@ class WhatsappBotService
 
     private function turnDetails(WhatsAppConversation $conversation, Turn $turn): string
     {
-        $estimate = $this->queue->estimates((int) $turn->barber_id)[$turn->id] ?? null;
-
         $lines = [
             '🎟️ Número de turno: *'.$this->turnNumber($turn).'*',
         ];
@@ -1383,9 +1382,8 @@ class WhatsappBotService
 
         $lines[] = '💈 Barbero: *'.($turn->barber?->name ?? 'Por asignar').'*';
 
-        if ($turn->status === 'esperando' && $estimate) {
-            $lines[] = '⏳ Posición en la fila: *'.($estimate['ahead'] + 1).'*';
-            $lines[] = '🕒 Hora estimada: *'.$this->slotLabel($estimate['start_at']->format('H:i')).'*';
+        if ($estimate = trim($this->queue->estimateText($turn))) {
+            $lines[] = $estimate;
         }
 
         $lines[] = '📌 Estado: *'.$turn->statusLabel().'*';

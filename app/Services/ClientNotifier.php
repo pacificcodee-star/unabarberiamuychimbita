@@ -49,7 +49,7 @@ class ClientNotifier
             $turn,
             'turn_confirmed',
             'Turno '.$this->number($turn).' confirmado',
-            '¡Tu turno ha sido confirmado! Tu número de turno es el '.$this->number($turn).$this->withBarberAndService($turn).'. Te avisaremos cuando se aproxime tu atención.',
+            '¡Tu turno ha sido confirmado! Tu número de turno es el '.$this->number($turn).$this->withBarberAndService($turn).'. '.trim(app(TurnQueueService::class)->estimateText($turn)).' Te avisaremos cuando se aproxime tu atención.',
             ttlMinutes: (int) config('notificaciones.ttl_minutes.confirmation', 120),
         );
     }
@@ -534,7 +534,7 @@ class ClientNotifier
         $notification->refresh();
 
         $subject = $notification->notifiable;
-        $subjectCancelled = $subject && in_array($subject->status, ['cancelado', 'cancelada'], true);
+        $subjectCancelled = $subject && in_array($subject->status, ['cancelado', 'cancelada', 'no_asistio'], true);
         $isCancellationNotice = in_array($notification->type, ['turn_cancelled', 'appt_cancelled'], true);
 
         if (! $subject || ($subjectCancelled && ! $isCancellationNotice)) {

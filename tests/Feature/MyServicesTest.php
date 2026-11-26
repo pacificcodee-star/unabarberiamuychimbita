@@ -95,7 +95,7 @@ class MyServicesTest extends TestCase
             ->assertDontSee('/mis-servicios/recuperar');
     }
 
-    public function test_appointment_timeline_uses_the_scheduled_start_and_records_automatic_completion(): void
+    public function test_appointment_timeline_starts_with_admin_check_in_and_records_automatic_completion(): void
     {
         $appointment = $this->book($this->barber('citas'), 'cita');
         $appointment->update(['status' => 'confirmada']);
@@ -108,6 +108,8 @@ class MyServicesTest extends TestCase
             ->assertSee('aria-valuenow="0"', false)
             ->assertSee('10:30 am');
 
+        $this->travelTo($appointment->startsAt());
+        app(\App\Services\ServiceArrival::class)->decide($appointment, true);
         $this->travelTo($appointment->startsAt()->addMinutes(12));
         $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()
             ->assertSee('aria-valuenow="40"', false)
@@ -124,7 +126,7 @@ class MyServicesTest extends TestCase
             ->assertSee('Finalizado');
     }
 
-    public function test_called_turn_timeline_starts_after_the_arrival_window_and_keeps_recorded_hours(): void
+    public function test_called_turn_timeline_starts_with_admin_check_in_and_keeps_recorded_hours(): void
     {
         config(['notificaciones.turn_grace_minutes' => 10]);
         $turn = $this->book($this->barber('llegada'), 'turno');
@@ -136,7 +138,9 @@ class MyServicesTest extends TestCase
             ->assertSee('10:40 am')
             ->assertSee('aria-valuenow="0"', false);
 
-        $this->travel(12)->minutes();
+        $this->travel(10)->minutes();
+        app(\App\Services\ServiceArrival::class)->decide($turn, true);
+        $this->travel(2)->minutes();
         $queue->advance($turn->barber_id);
         $this->assertSame('10:10', $turn->fresh()->started_at->format('H:i'));
         $this->get('/mis-servicios')->assertOk()->assertSee('2 de 30 min');

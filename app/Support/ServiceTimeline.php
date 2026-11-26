@@ -13,7 +13,7 @@ class ServiceTimeline
 
     public function for(Appointment|Turn $subject, ?array $estimate, Carbon $now): ?array
     {
-        if (in_array($subject->status, ['cancelada', 'cancelado'], true)) {
+        if (in_array($subject->status, ['cancelada', 'cancelado', 'no_asistio'], true)) {
             return null;
         }
 
@@ -26,13 +26,13 @@ class ServiceTimeline
                 default => $subject->started_at ?? ($subject->status === 'atendiendo' ? $subject->called_at : null),
             };
             $end = $finished ? $subject->finished_at : $start?->copy()->addMinutes($duration);
-            $live = in_array($subject->status, ['llamado', 'atendiendo'], true);
+            $live = $subject->status === 'atendiendo';
         } else {
             $duration = $subject->durationMinutes();
             $finished = $subject->status === 'atendida';
-            $start = $subject->startsAt();
+            $start = $subject->started_at ?? $subject->startsAt();
             $end = $finished ? $subject->completionEvent?->created_at : $start->copy()->addMinutes($duration);
-            $live = $subject->status === 'confirmada';
+            $live = $subject->status === 'en_atencion' && $subject->started_at !== null;
         }
 
         $elapsed = $start !== null && $live ? max(0, $now->timestamp - $start->timestamp) : 0;

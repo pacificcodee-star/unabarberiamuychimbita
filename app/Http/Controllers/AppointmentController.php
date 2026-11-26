@@ -56,6 +56,8 @@ class AppointmentController extends Controller
             'pendiente' => (clone $baseQuery)->where('status', 'pendiente')->count(),
             'confirmada' => (clone $baseQuery)->where('status', 'confirmada')->count(),
             'atendida' => (clone $baseQuery)->where('status', 'atendida')->count(),
+            'no_asistio' => (clone $baseQuery)->where('status', 'no_asistio')->count(),
+            'en_atencion' => (clone $baseQuery)->where('status', 'en_atencion')->count(),
             'cancelada' => (clone $baseQuery)->where('status', 'cancelada')->count(),
         ];
 
@@ -140,9 +142,9 @@ class AppointmentController extends Controller
     {
         $this->authorizeAppointment($request, $appointment);
 
-        if ($appointment->status === 'atendida') {
+        if (in_array($appointment->status, ['atendida', 'no_asistio', 'en_atencion'], true)) {
             return redirect()->route('appointments.index', ['date' => $appointment->appointment_date->toDateString()])
-                ->with('error', 'Esta cita ya fue atendida y no se puede modificar. Si fue un error, elimínala.');
+                ->with('error', 'Esta cita ya no admite cambios de reserva.');
         }
         $user = $request->user();
 
@@ -165,9 +167,9 @@ class AppointmentController extends Controller
     {
         $this->authorizeAppointment($request, $appointment);
 
-        if ($appointment->status === 'atendida') {
+        if (in_array($appointment->status, ['atendida', 'no_asistio', 'en_atencion'], true)) {
             return redirect()->route('appointments.index', ['date' => $appointment->appointment_date->toDateString()])
-                ->with('error', 'Esta cita ya fue atendida y no se puede modificar. Si fue un error, elimínala.');
+                ->with('error', 'Esta cita ya no admite cambios de reserva.');
         }
         $data = $this->validatedData($request);
 
@@ -199,13 +201,29 @@ class AppointmentController extends Controller
     {
         $this->authorizeAppointment($request, $appointment);
 
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($request, $appointment) {
+            User::whereKey($appointment->barber_id)->lockForUpdate()->firstOrFail();
+            $current = Appointment::lockForUpdate()->findOrFail($appointment->id);
+            $this->authorizeAppointment($request, $current);
+
+            return $this->changeStatus($request, $current);
+        }, 3);
+    }
+
+    private function changeStatus(Request $request, Appointment $appointment)
+    {
+
         $data = $request->validate([
             'status' => ['required', 'in:'.implode(',', array_keys(Appointment::STATUSES))],
         ]);
 
+        if (in_array($data['status'], ['en_atencion', 'no_asistio'], true)) {
+            return back()->with('error', 'La llegada se registra desde administración.');
+        }
+
         // Una cita atendida queda cerrada: no se cambia (solo se puede registrar su ingreso si faltaba, o eliminarla).
         if ($appointment->status === 'atendida' && ($data['status'] !== 'atendida' || $appointment->sale_id)) {
-            return back()->with('error', 'Esta cita ya fue atendida y no se puede modificar. Si fue un error, elimínala.');
+            return back()->with('error', 'Esta cita ya no admite cambios de reserva.');
         }
 
         if (! $appointment->canTransitionTo($data['status'])) {
@@ -257,7 +275,7 @@ class AppointmentController extends Controller
             'client_phone' => ['nullable', 'string', 'max:30'],
             'appointment_date' => ['required', 'date'],
             'appointment_time' => ['required', 'date_format:H:i'],
-            'status' => ['required', 'in:'.implode(',', array_keys(Appointment::STATUSES))],
+            'status' => ['required', 'in:pendiente,confirmada,cancelada'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
     }

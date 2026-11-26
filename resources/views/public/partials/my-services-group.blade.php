@@ -58,7 +58,7 @@
                                 @if($turn && ! $history && \App\Support\AttendanceConfirmation::confirmed($subject))
                                     <li><i class="bi bi-check2-circle" aria-hidden="true"></i> Asistencia confirmada</li>
                                 @endif
-                                @if($history && $subject->service_price !== null)
+                                @if($history && $subject->status !== 'no_asistio' && $subject->service_price !== null)
                                     <li><i class="bi bi-receipt" aria-hidden="true"></i> Precio registrado: {{ format_money($subject->service_price) }}</li>
                                 @endif
                             </ul>
@@ -70,7 +70,7 @@
                             <i class="bi {{ $estimate['ahead'] === 0 ? 'bi-bell' : 'bi-people' }}" aria-hidden="true"></i>
                             <div>
                                 <strong>{{ $estimate['ahead'] === 0 ? 'Eres el siguiente' : ($estimate['ahead'] === 1 ? '1 persona antes de ti' : $estimate['ahead'].' personas antes de ti') }}</strong>
-                                <span>Te llamamos cerca de las {{ $estimate['call_at']->format('g:i a') }}</span>
+                                <span>Acércate hacia las {{ $estimate['call_at']->format('g:i a') }}</span>
                             </div>
                         </div>
                     @endif

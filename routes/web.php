@@ -193,6 +193,8 @@ Route::middleware(['panel-desktop', 'auth'])->group(function () {
     Route::post('/cash/{cashSession}/close', [CashSessionController::class, 'close'])->name('cash.close');
 
     Route::middleware('admin')->group(function () {
+        Route::patch('/asistencia/{type}/{id}', \App\Http\Controllers\ServiceArrivalController::class)
+            ->whereIn('type', ['cita', 'turno'])->whereNumber('id')->name('arrival.decide');
         Route::get('/site-settings', [SiteSettingController::class, 'edit'])->name('site-settings.edit');
         Route::put('/site-settings', [SiteSettingController::class, 'update'])->name('site-settings.update');
         Route::put('/site-settings/cuenta', [SiteSettingController::class, 'updateAccount'])->middleware('throttle:10,10')->name('site-settings.account');
