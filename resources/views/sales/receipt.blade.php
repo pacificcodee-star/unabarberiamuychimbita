@@ -46,9 +46,9 @@
         <table class="table table-sm mb-3">
             <thead>
             <tr>
-                <th>{{ $sale->barber_id === null ? 'Producto' : 'Servicio' }}</th>
-                <th class="text-center">Cant.</th>
-                <th class="text-end">Valor</th>
+                <th scope="col">{{ $sale->barber_id === null ? 'Producto' : 'Servicio' }}</th>
+                <th scope="col" class="text-center">Cant.</th>
+                <th scope="col" class="text-end">Valor</th>
             </tr>
             </thead>
             <tbody>
@@ -62,7 +62,7 @@
             </tbody>
         </table>
 
-        <div class="d-flex justify-content-between align-items-center border-top pt-3">
+        <div class="receipt-total d-flex justify-content-between align-items-center border-top pt-3">
             <span class="fs-5">Total</span>
             <span class="fs-3 fw-bold" style="font-family: 'Playfair Display', serif;">{{ format_money($sale->total) }}</span>
         </div>
