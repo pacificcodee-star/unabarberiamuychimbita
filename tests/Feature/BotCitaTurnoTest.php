@@ -53,11 +53,11 @@ class BotCitaTurnoTest extends TestCase
         $this->deTurno = User::factory()->create(['name' => 'Carlos Turno', 'role' => 'barbero', 'attention_mode' => 'llegada', 'active' => true]);
     }
 
-    private function escribir(string $text): string
+    private function escribir(string $text, string $jid = '573001234567@s.whatsapp.net'): string
     {
         $before = count(Http::recorded());
         $this->postJson('/webhook/evolution', ['event' => 'messages.upsert', 'apikey' => 'hook', 'data' => [
-            'key' => ['remoteJid' => '573001234567@s.whatsapp.net', 'fromMe' => false, 'id' => 'T'.(++$this->n)],
+            'key' => ['remoteJid' => $jid, 'fromMe' => false, 'id' => 'T'.(++$this->n)],
             'pushName' => 'Ana', 'message' => ['conversation' => $text], 'messageTimestamp' => now()->getTimestamp(),
         ]])->assertOk();
 
@@ -158,6 +158,84 @@ class BotCitaTurnoTest extends TestCase
         $this->withCookie('mis_servicios', $other->getCookie('mis_servicios')->getValue());
         $this->get('/mis-servicios')->assertSee('Cita antigua del bot')->assertSee('Reserva de la PWA')
             ->assertSee('Ana turno WhatsApp')->assertDontSee('Cita ajena sin vincular');
+    }
+
+    public function test_primer_ingreso_desde_el_formulario_recupera_citas_y_turnos_del_bot(): void
+    {
+        $this->reservarCitaA('2026-11-18 10:10:00');
+        foreach ([WhatsappBotService::TURN_REQUEST, 'Ana turno WhatsApp', '1', '1', 'sí'] as $message) {
+            $this->escribir($message, '573001234567:7@s.whatsapp.net');
+        }
+        $cita = Appointment::sole();
+        $turno = Turn::sole();
+        $this->assertSame($cita->history_whatsapp_phone, $turno->history_whatsapp_phone);
+        $this->assertEquals(20000, $cita->service_price);
+        $this->assertEquals(20000, $turno->service_price);
+
+        $confirm = route('my-services.whatsapp.confirm');
+        $finish = route('my-services.whatsapp.finish');
+        $this->get(route('public.booking'))->assertSee('data-history-phone="appointmentPhone"', false)
+            ->assertSee('data-history-phone="turnPhone"', false);
+        $this->post($finish, ['intent' => 'lookup', 'client_phone' => '(300) 123-4567'])->assertRedirect($confirm);
+        $screen = $this->get($confirm)->assertOk()->assertSee('4567');
+        parse_str(parse_url($screen->viewData('chatUrl'), PHP_URL_QUERY), $params);
+        $this->escribir($params['text'], '13001234567@s.whatsapp.net');
+        $this->post($finish)->assertSessionHasErrors('whatsapp')->assertCookieMissing('mis_servicios');
+        $this->get('/mis-servicios')->assertDontSee('Miguel Torres')->assertDontSee('Ana turno WhatsApp');
+
+        $this->escribir($params['text']);
+        $linked = $this->post($finish)->assertRedirect(route('my-services.index'));
+        $this->withCookie('mis_servicios', $linked->getCookie('mis_servicios')->getValue());
+        $this->get('/mis-servicios')->assertViewHas('activeCitas', fn ($rows) => $rows->contains($cita))
+            ->assertViewHas('activeTurns', fn ($rows) => $rows->contains($turno));
+        $cita->update(['status' => 'atendida']);
+        $turno->update(['status' => 'atendido']);
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])
+            ->assertViewHas('historyAppointments', fn ($rows) => $rows->contains($cita))
+            ->assertViewHas('historyTurns', fn ($rows) => $rows->contains($turno))
+            ->assertViewHas('hasActive', false);
+        $this->post($finish, ['intent' => 'lookup', 'client_phone' => '+57 300 123 4567'])
+            ->assertRedirect(route('my-services.index'));
+        $this->assertDatabaseCount('appointments', 1);
+        $this->assertDatabaseCount('turns', 1);
+    }
+
+    public function test_la_consulta_desde_la_pwa_vence_y_respeta_el_indicativo_internacional(): void
+    {
+        $confirm = route('my-services.whatsapp.confirm');
+        $finish = route('my-services.whatsapp.finish');
+        $lookup = ['intent' => 'lookup', 'client_phone' => '+45 3212 4567'];
+        $this->post($finish, $lookup)->assertRedirect($confirm);
+        parse_str(parse_url($this->get($confirm)->viewData('chatUrl'), PHP_URL_QUERY), $params);
+        $this->escribir($params['text'], '574532124567@s.whatsapp.net');
+        $this->post($finish)->assertSessionHasErrors('whatsapp')->assertCookieMissing('mis_servicios');
+        $this->travel(11)->minutes();
+        $this->post($finish)->assertRedirect(route('public.booking'))->assertCookieMissing('mis_servicios');
+        $this->post($finish, $lookup)->assertRedirect($confirm);
+        parse_str(parse_url($this->get($confirm)->viewData('chatUrl'), PHP_URL_QUERY), $new);
+        $this->escribir($params['text'], '4532124567@s.whatsapp.net');
+        $this->post($finish)->assertSessionHasErrors('whatsapp')->assertCookieMissing('mis_servicios');
+        $this->escribir($new['text'], '4532124567@s.whatsapp.net');
+        $this->post($finish)->assertRedirect(route('my-services.index'))->assertCookie('mis_servicios');
+        $this->assertDatabaseHas('guest_credentials', ['whatsapp_phone' => '4532124567']);
+    }
+
+    public function test_migracion_recupera_reservas_antiguas_solo_con_evidencia_del_bot(): void
+    {
+        $base = ['barber_id' => $this->deCita->id, 'client_phone' => '(300) 123-4567',
+            'client_name' => 'Ana', 'appointment_date' => '2026-11-16', 'status' => 'atendida'];
+        $old = Appointment::create($base + ['appointment_time' => '10:00']);
+        $unverified = Appointment::create($base + ['appointment_time' => '11:00']);
+        $turn = Turn::create(['barber_id' => $this->deTurno->id, 'client_phone' => '+1 300 123 4567',
+            'client_name' => 'Otra persona', 'turn_date' => '2026-11-16', 'turn_number' => 1, 'status' => 'atendido']);
+        ConsentRecord::grant($old, 'tratamiento_reserva', 'whatsapp_bot');
+        ConsentRecord::grant($turn, 'tratamiento_reserva', 'whatsapp_bot');
+        $migration = require database_path('migrations/2026_11_26_000005_normalize_bot_history_phones.php');
+        $migration->up();
+        $migration->up();
+        $this->assertSame('573001234567', $old->fresh()->history_whatsapp_phone);
+        $this->assertSame('13001234567', $turn->fresh()->history_whatsapp_phone);
+        $this->assertNull($unverified->fresh()->history_whatsapp_phone);
     }
 
     public function test_el_enlace_privado_del_historial_vence_sin_vincular_el_dispositivo(): void

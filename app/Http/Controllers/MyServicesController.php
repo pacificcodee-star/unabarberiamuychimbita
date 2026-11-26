@@ -79,12 +79,22 @@ class MyServicesController extends Controller
 
     public function confirmWhatsAppLink(Request $request, WhatsAppHistoryLink $historyLink)
     {
-        return response()->view('my-services.connect-whatsapp', ['maskedPhone' => $historyLink->maskedPhone($request)])
+        return response()->view('my-services.connect-whatsapp', [
+            'maskedPhone' => $historyLink->maskedPhone($request),
+            'chatUrl' => $historyLink->chatUrl($request),
+        ])
             ->header('Cache-Control', 'private, no-store')->header('Referrer-Policy', 'no-referrer')->header('X-Robots-Tag', 'noindex, nofollow');
     }
 
     public function finishWhatsAppLink(Request $request, WhatsAppHistoryLink $historyLink)
     {
+        if ($request->input('intent') === 'lookup') {
+            $data = $request->validate(['client_phone' => ['required', 'string', 'max:30']]);
+            $linked = $historyLink->begin($request, $data['client_phone']);
+
+            return redirect()->route($linked ? 'my-services.index' : 'my-services.whatsapp.confirm')
+                ->header('Cache-Control', 'private, no-store');
+        }
         $historyLink->finish($request);
 
         return redirect()->route('my-services.index')

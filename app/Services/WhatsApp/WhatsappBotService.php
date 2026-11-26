@@ -13,6 +13,7 @@ use App\Models\WhatsAppMessage;
 use App\Services\ClientNotifier;
 use App\Services\TurnQueueService;
 use App\Services\TurnService;
+use App\Services\WhatsAppService;
 use App\Support\AppointmentMessages;
 use App\Support\AttendanceConfirmation;
 use App\Support\ClientServiceAccess;
@@ -46,6 +47,7 @@ class WhatsappBotService
         private readonly TurnQueueService $queue,
         private readonly TurnService $turns,
         private readonly WhatsAppHistoryLink $historyLink,
+        private readonly WhatsAppService $whatsApp,
     ) {
     }
 
@@ -865,11 +867,12 @@ class WhatsappBotService
         $name = trim((string) ($data['client_name'] ?? ''))
             ?: (trim((string) $conversation->client_name) ?: 'Cliente WhatsApp');
 
+        $phone = $this->whatsApp->normalizePhone($conversation->phone, international: true);
         $turn = $this->turns->createFor($barber, [
             'service_id' => $service->id,
             'client_name' => $name,
-            'client_phone' => $conversation->phone,
-            'history_whatsapp_phone' => $conversation->phone,
+            'client_phone' => '+'.$phone,
+            'history_whatsapp_phone' => $phone,
             'whatsapp_consent' => true,
         ], notify: false, advanceQueue: false);
 
@@ -1061,14 +1064,17 @@ class WhatsappBotService
         $name = trim((string) ($data['client_name'] ?? ''))
             ?: (trim((string) $conversation->client_name) ?: 'Cliente WhatsApp');
 
+        $phone = $this->whatsApp->normalizePhone($conversation->phone, international: true);
+
         // Comprobación y creación atómicas: si alguien tomó el horario mientras el cliente escribía, se le avisa.
         try {
             $appointment = Appointment::reserveSlot([
                 'barber_id' => $barber->id,
                 'service_id' => $data['service_id'] ?? null,
+                'service_price' => Service::whereKey($data['service_id'] ?? null)->value('price'),
                 'client_name' => Str::limit($name, 120, ''),
-                'client_phone' => $conversation->phone,
-                'history_whatsapp_phone' => $conversation->phone,
+                'client_phone' => '+'.$phone,
+                'history_whatsapp_phone' => $phone,
                 'whatsapp_consent' => true,
                 'appointment_date' => $date,
                 'appointment_time' => $time,
@@ -1385,8 +1391,7 @@ class WhatsappBotService
         $lines[] = '📌 Estado: *'.$turn->statusLabel().'*';
 
         // El enlace también permite gestionar el turno. Solo se envía al número registrado.
-        $colombianPhone = fn (?string $number) => preg_replace('/^57(?=\d{10}$)/', '', preg_replace('/\D/', '', (string) $number));
-        if ($turn->guest_visitor_id !== null && $colombianPhone($turn->client_phone) === $colombianPhone($conversation->phone)) {
+        if ($turn->guest_visitor_id !== null && $this->phoneMatches($turn->client_phone, $conversation->phone)) {
             $lines[] = '🌐 Abre tu turno en *Mis servicios*: '.ClientServiceAccess::recoveryUrl($turn);
         }
 
@@ -2670,7 +2675,7 @@ class WhatsappBotService
 
     /**
      * Citas activas de este WhatsApp. El teléfono pudo escribirse en la página con espacios,
-     * guiones o indicativo ("+57 300 123 4567"), así que se comparan los últimos 10 dígitos.
+     * guiones o indicativo ("+57 300 123 4567"). Se conserva el indicativo al comparar.
      */
     private function appointmentsForPhone(string $phone, array $statuses): \Illuminate\Support\Collection
     {
@@ -2954,8 +2959,6 @@ class WhatsappBotService
 
     private function phoneMatches(?string $stored, string $phone): bool
     {
-        $local = $this->lastTenDigits($phone);
-
-        return $local !== '' && $this->lastTenDigits($stored) === $local;
+        return $phone !== '' && $this->whatsApp->normalizePhone((string) $stored) === $phone;
     }
 }
