@@ -226,13 +226,5 @@
         }
         form.submit();
     }
-
-    // Mantiene la cola del panel sincronizada con el cliente sin recargar a mano.
-    // No interrumpe mientras alguien escribe o elige un estado.
-    setInterval(() => {
-        if (document.visibilityState !== 'visible') return;
-        if (document.activeElement?.closest('input, select, textarea, button')) return;
-        location.reload();
-    }, 30000);
 </script>
 @endpush
