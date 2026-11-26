@@ -40,7 +40,8 @@ class WhatsAppInbox
             return null;
         }
 
-        $digits = preg_replace('/\D+/', '', $user);
+        // El sufijo de dispositivo de un JID multidispositivo no forma parte del teléfono.
+        $digits = preg_replace('/\D+/', '', explode(':', $user, 2)[0]);
 
         return $digits ?: null;
     }
@@ -212,7 +213,7 @@ class WhatsAppInbox
             }
             $jid = str_contains($candidate, '@') ? $candidate : $candidate.'@s.whatsapp.net';
             if (($phone = self::phoneFromJid($jid)) !== null) {
-                $phone = $this->whatsApp->normalizePhone($phone);
+                $phone = $this->whatsApp->normalizePhone($phone, international: true);
                 WhatsAppLid::remember($lid, $phone);
 
                 return [$phone, $lid ?? $jid];
@@ -221,7 +222,7 @@ class WhatsAppInbox
 
         $phone = WhatsAppLid::phoneFor($lid);
         if ($phone !== null) {
-            return [$this->whatsApp->normalizePhone($phone), $lid];
+            return [$phone, $lid];
         }
         if ($lid !== null) {
             Log::warning('WhatsApp: mensaje entrante sin número de teléfono (solo @lid); no se pudo atender', ['campos' => array_keys($key)]);
@@ -371,12 +372,12 @@ class WhatsAppInbox
     /** Envía una respuesta y la guarda en la conversación. Devuelve true si Evolution la aceptó. */
     public function send(WhatsAppConversation $conversation, string $body, bool $useChatAddress = true): bool
     {
-        $phone = $this->whatsApp->normalizePhone($conversation->phone);
+        $phone = $this->whatsApp->normalizePhone($conversation->phone, international: true);
         $this->pace($phone);
 
         $lid = $useChatAddress && WhatsAppLid::isLid($conversation->jid) ? $conversation->jid : null;
         $receipt = $this->whatsApp->usesTemplates()
-            ? ($this->whatsApp->sendText($phone, $body) ? [] : null)
+            ? ($this->whatsApp->sendText('+'.$phone, $body) ? [] : null)
             : $this->evolution->sendTextReceipt($phone, $body, $lid);
         $id = is_string($receipt['key']['id'] ?? null) ? Str::limit($receipt['key']['id'], 100, '') : null;
         $ok = $receipt !== null;

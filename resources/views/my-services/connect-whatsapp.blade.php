@@ -18,10 +18,31 @@
     <main>
         <h1>Vincular este dispositivo</h1>
         <p>Mostrará las reservas del WhatsApp terminado en <strong>{{ $maskedPhone }}</strong> en este navegador.</p>
+        @if($chatUrl)
+            <p>Abre WhatsApp y envía el mensaje preparado desde ese número. Luego vuelve aquí para ver tus citas y turnos.</p>
+            <p><a href="{{ $chatUrl }}" target="_blank" rel="noopener noreferrer">Confirmar por WhatsApp</a></p>
+            @error('whatsapp') <p role="alert">{{ $message }}</p> @enderror
+        @endif
         <form method="POST" action="{{ route('my-services.whatsapp.finish') }}">
             @csrf
-            <button type="submit">Vincular este dispositivo</button>
+            <button type="submit">{{ $chatUrl ? 'Ver mis servicios' : 'Vincular este dispositivo' }}</button>
         </form>
     </main>
+    @if($chatUrl)
+        <script>
+            const chat = document.querySelector('main a');
+            const confirm = document.querySelector('main form');
+            let openedChat = false;
+            chat.addEventListener('click', () => { openedChat = true; });
+            function checkOnReturn() {
+                if (openedChat && document.visibilityState === 'visible' && document.hasFocus()) {
+                    openedChat = false;
+                    confirm.requestSubmit();
+                }
+            }
+            window.addEventListener('focus', checkOnReturn);
+            document.addEventListener('visibilitychange', checkOnReturn);
+        </script>
+    @endif
 </body>
 </html>

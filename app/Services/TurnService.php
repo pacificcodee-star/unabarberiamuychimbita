@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Service;
 use App\Models\Turn;
 use App\Models\User;
 use App\Services\WhatsApp\BookingMessenger;
@@ -62,6 +63,7 @@ class TurnService
             return Turn::create([
                 'barber_id' => $barber->id,
                 'service_id' => $data['service_id'] ?? null,
+                'service_price' => isset($data['service_id']) ? Service::whereKey($data['service_id'])->value('price') : null,
                 'client_name' => $data['client_name'],
                 'client_phone' => $data['client_phone'] ?? null,
                 'history_whatsapp_phone' => $data['history_whatsapp_phone'] ?? null,

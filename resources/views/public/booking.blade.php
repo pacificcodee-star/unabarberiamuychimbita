@@ -6,6 +6,7 @@
 
 @section('content')
     @php
+        $historyLookup = config('services.evolution.bot_enabled') && filled($siteSettings['whatsapp'] ?? null);
         $currentTab = old('_form', $activeTab);
         $requestedService = request('servicio');
         $citaBarber = old('_form') === 'cita' ? old('barber_id', $selectedBarberId) : $selectedBarberId;
@@ -23,6 +24,14 @@
             ->map(fn ($day) => $day->toDateString())
             ->values();
     @endphp
+
+    @if($historyLookup)
+        <form id="history-lookup" method="post" action="{{ route('my-services.whatsapp.finish') }}" hidden>
+            @csrf
+            <input type="hidden" name="intent" value="lookup">
+            <input type="hidden" name="client_phone">
+        </form>
+    @endif
 
     {{-- Contenedor de la página de reservas: fondo crema #EFE8DC (ver cinema.css, sección "Página de reservas"). --}}
     <div class="booking-page">
@@ -149,7 +158,10 @@
                                             <div class="col-md-6">
                                                 <label class="form-label" for="appointmentPhone">Teléfono o celular <span class="req" aria-hidden="true">*</span></label>
                                                 <input type="tel" name="client_phone" id="appointmentPhone" value="{{ old('_form') === 'cita' ? old('client_phone') : '' }}" class="form-control {{ $fieldError('cita', 'client_phone') ? 'is-invalid' : '' }}" maxlength="30" required autocomplete="tel" inputmode="tel" placeholder="Ej. 300 123 4567" aria-describedby="appointmentPhoneHelp">
-                                                <div class="form-text" id="appointmentPhoneHelp">Lo usamos solo para confirmar tu cita.</div>
+                                                <div class="form-text" id="appointmentPhoneHelp">Usamos este número para confirmar tu cita.</div>
+                                                @if($historyLookup)
+                                                    <button type="button" hidden class="btn btn-link p-0 form-text" data-history-phone="appointmentPhone">Consultar mis servicios</button>
+                                                @endif
                                                 @if($fieldError('cita', 'client_phone'))<div class="invalid-feedback"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>{{ $fieldError('cita', 'client_phone') }}</div>@endif
                                             </div>
                                             <div class="col-md-6">
@@ -277,6 +289,9 @@
                                             <div class="col-md-6">
                                                 <label class="form-label" for="turnPhone">Teléfono o celular <span class="req" aria-hidden="true">*</span></label>
                                                 <input type="tel" name="client_phone" id="turnPhone" value="{{ old('_form') === 'turno' ? old('client_phone') : '' }}" class="form-control {{ $fieldError('turno', 'client_phone') ? 'is-invalid' : '' }}" maxlength="30" required autocomplete="tel" inputmode="tel" placeholder="Ej. 300 123 4567">
+                                                @if($historyLookup)
+                                                    <button type="button" hidden class="btn btn-link p-0 form-text" data-history-phone="turnPhone">Consultar mis servicios</button>
+                                                @endif
                                                 @if($fieldError('turno', 'client_phone'))<div class="invalid-feedback"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>{{ $fieldError('turno', 'client_phone') }}</div>@endif
                                             </div>
                                             <div class="col-md-6">
@@ -366,6 +381,22 @@
 <script src="{{ asset('js/booking-submit.js') }}?v={{ @filemtime(public_path('js/booking-submit.js')) }}" defer></script>
 <script>
     (() => {
+        const historyLookup = document.getElementById('history-lookup');
+        document.querySelectorAll('[data-history-phone]').forEach(button => {
+            const phone = document.getElementById(button.dataset.historyPhone);
+            const toggle = () => {
+                button.hidden = !/^[+0-9().\s-]+$/.test(phone.value) || !/^\d{7,15}$/.test(phone.value.replace(/\D/g, ''));
+            };
+            phone.addEventListener('input', toggle);
+            phone.addEventListener('change', toggle);
+            phone.addEventListener('focus', toggle);
+            toggle();
+            button.addEventListener('click', () => {
+                historyLookup.elements.client_phone.value = phone.value;
+                historyLookup.requestSubmit();
+            });
+        });
+
         // Los turnos dejan de aceptarse al llegar al límite (30 min antes del cierre), sin esperar recarga.
         const turnForm = document.querySelector('[data-booking-form="turno"]');
         const closeTurnRequests = () => {
