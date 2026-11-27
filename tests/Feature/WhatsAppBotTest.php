@@ -349,14 +349,74 @@ class WhatsAppBotTest extends TestCase
             && $request['number'] === '210987654321098@lid');
     }
 
-    public function test_un_mensaje_con_solo_un_lid_desconocido_queda_en_el_registro(): void
+    public function test_un_lid_desconocido_recibe_respuestas_y_conserva_el_usuario_del_webhook(): void
     {
-        \Illuminate\Support\Facades\Log::spy();
+        $lid = '555555555555555@lid';
+        $this->escribir('hola', $lid, ['pushName' => 'Ana Pérez', 'remoteJidUsername' => 'Ana123'])->assertOk();
+        $this->escribir('hola', $lid, ['id' => 'LID-DUPLICADO', 'remoteJidUsername' => '@AnaNueva'])->assertOk();
+        $this->escribir('hola', $lid, ['id' => 'LID-DUPLICADO'])->assertOk();
+        $this->escribir('hola', '100000000000001@lid', ['remoteJidUsername' => 'Ana123'])->assertOk();
 
-        $this->escribir('sí', '555555555555555@lid')->assertOk();
+        $chat = WhatsAppConversation::where('lid', $lid)->firstOrFail();
+        $this->assertSame($lid, $chat->jid);
+        $this->assertNull($chat->phone);
+        $this->assertSame('@AnaNueva', $chat->username);
+        $this->assertSame(2, $chat->messages()->where('direction', 'in')->count());
+        $this->assertDatabaseCount('whatsapp_conversations', 2);
+        Http::assertSentCount(3);
+        Http::assertSent(fn ($request) => $request['number'] === $lid && str_contains((string) $request['text'], 'Agendar'));
 
-        $this->assertSame(0, WhatsAppMessage::query()->count());
-        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'sin número de teléfono'))->once();
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $this->actingAs($admin)->get(route('whatsapp.chat.index', ['q' => '@AnaNueva']))->assertOk()->assertSee('@AnaNueva');
+        $this->get(route('whatsapp.chat.show', $chat))->assertOk()->assertDontSee('Abrir en WhatsApp');
+        $this->post(route('whatsapp.chat.send', $chat), ['body' => 'Hola desde el panel'])->assertRedirect();
+        Http::assertSent(fn ($request) => $request['number'] === $lid && $request['text'] === 'Hola desde el panel');
+    }
+
+    public function test_el_chat_privado_avanza_su_turno_y_recibe_avisos_sin_telefono(): void
+    {
+        User::factory()->create(['role' => 'barbero', 'attention_mode' => 'llegada', 'active' => true]);
+        Service::create(['name' => 'Corte', 'price' => 15000, 'duration_minutes' => 30, 'active' => true]);
+        $lid = '122299361538159@lid';
+        $otro = '100000000000001@lid';
+
+        $this->escribir(WhatsappBotService::TURN_REQUEST, $lid)->assertOk();
+        $this->escribir('hola', $otro)->assertOk();
+        foreach (['Ana Pérez', '1', '1', 'sí'] as $text) {
+            $this->escribir($text, $lid)->assertOk();
+        }
+
+        $turno = \App\Models\Turn::where('whatsapp_lid', $lid)->sole();
+        $this->assertSame('Ana Pérez', $turno->client_name);
+        $this->assertNull($turno->client_phone);
+        Http::assertSent(fn ($request) => $request['number'] === $lid && str_contains((string) $request['text'], '#001'));
+
+        $notifier = app(\App\Services\ClientNotifier::class);
+        $notifier->turnNext($turno);
+        $notifier->flush();
+        Http::assertSent(fn ($request) => $request['number'] === $lid && str_contains((string) $request['text'], 'Eres el siguiente'));
+
+        $this->escribir('BAJA', $otro)->assertOk();
+        $this->assertTrue($turno->fresh()->whatsapp_consent);
+        $this->escribir('BAJA', $lid)->assertOk();
+        $this->assertFalse($turno->fresh()->whatsapp_consent);
+    }
+
+    public function test_el_lid_y_el_numero_comparten_chat_cuando_evolution_envia_la_pareja(): void
+    {
+        $lid = '122299361538159@lid';
+        $number = '573001234567@s.whatsapp.net';
+        $this->escribir('hola', $number)->assertOk();
+        $this->escribir(WhatsappBotService::ADVISOR_REQUEST, $lid, ['remoteJidUsername' => '@Ana123'])->assertOk();
+        $this->escribir('1', $number, ['remoteJidAlt' => $lid])->assertOk();
+        \Illuminate\Support\Facades\Cache::forget('wa.lid.122299361538159');
+        $this->escribir('¿Hola?', $lid)->assertOk();
+
+        $chat = WhatsAppConversation::sole();
+        $this->assertSame('573001234567', $chat->phone);
+        $this->assertSame('@Ana123', $chat->username);
+        $this->assertFalse($chat->bot_active);
+        $this->assertSame(4, $chat->messages()->where('direction', 'in')->count());
     }
 
     public function test_cita_web_sobre_la_hora_manda_un_solo_mensaje(): void

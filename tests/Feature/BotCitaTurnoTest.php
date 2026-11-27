@@ -303,6 +303,31 @@ class BotCitaTurnoTest extends TestCase
         $this->assertStringContainsString('Miguel Torres', $listo);
     }
 
+    public function test_una_cita_de_un_chat_privado_solo_se_gestiona_desde_el_mismo_chat(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-18 10:23:00'));
+        $lid = '122299361538159@lid';
+        foreach (['hola', '1', 'Miguel Torres', '1', '1', '1', '1', '1'] as $text) {
+            $this->escribir($text, $lid);
+        }
+
+        $cita = Appointment::sole();
+        $this->assertSame('confirmada', $cita->status);
+        $this->assertNull($cita->client_phone);
+        $this->assertSame($lid, $cita->whatsapp_lid);
+
+        foreach (['177711111111111@lid', '573001234567@s.whatsapp.net'] as $otro) {
+            $this->escribir('cancelar mi cita', $otro);
+            $this->assertStringContainsString('No encontré', $this->escribir('Miguel Torres', $otro));
+        }
+        $this->assertSame('confirmada', $cita->fresh()->status);
+
+        $this->escribir('cancelar mi cita', $lid);
+        $this->assertStringContainsString('Confirmas que deseas cancelar', $this->escribir('Miguel Torres', $lid));
+        $this->escribir('1', $lid);
+        $this->assertSame('cancelada', $cita->fresh()->status);
+    }
+
     /** Reserva por el chat a las $now; devuelve [mensaje final, textos de horas]. */
     private function reservarCitaA(string $now): array
     {
