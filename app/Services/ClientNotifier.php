@@ -6,6 +6,8 @@ use App\Models\Appointment;
 use App\Models\ClientNotification;
 use App\Models\SiteSetting;
 use App\Models\Turn;
+use App\Services\WhatsApp\WhatsAppInbox;
+use App\Services\WhatsApp\WhatsappBotService;
 use App\Support\AppointmentMessages;
 use App\Support\AttendanceConfirmation;
 use Carbon\Carbon;
@@ -400,7 +402,7 @@ class ClientNotifier
     {
         $at = $at ?: now();
         $channels = ['push'];
-        if ($subject->whatsapp_consent && filled($subject->client_phone)) {
+        if ($subject->whatsapp_consent && (filled($subject->client_phone) || filled($subject->whatsapp_lid))) {
             $channels[] = 'whatsapp';
         }
         if ($only !== null) {
@@ -617,8 +619,8 @@ class ClientNotifier
 
     private function deliverWhatsApp(ClientNotification $notification, Model $subject): bool
     {
-        if (! $subject->whatsapp_consent || blank($subject->client_phone)) {
-            $notification->update(['status' => ClientNotification::CANCELLED, 'last_error' => 'Sin autorización o sin teléfono.']);
+        if (! $subject->whatsapp_consent || (blank($subject->client_phone) && blank($subject->whatsapp_lid))) {
+            $notification->update(['status' => ClientNotification::CANCELLED, 'last_error' => 'Sin autorización o sin destinatario de WhatsApp.']);
 
             return false;
         }
@@ -632,9 +634,11 @@ class ClientNotifier
 
         // Solo la Cloud API de Meta usa plantillas; con Evolution se manda el texto libre.
         $template = $this->whatsApp->usesTemplates() ? config('services.whatsapp.templates.'.$notification->type) : null;
-        $ok = $template
-            ? $this->whatsApp->sendTemplate($subject->client_phone, $template, [$subject->client_name, $notification->body])
-            : $this->whatsApp->sendText($subject->client_phone, $notification->body);
+        $ok = match (true) {
+            $subject->whatsapp_lid !== null => app(WhatsAppInbox::class)->sendToLid($subject->whatsapp_lid, $notification->body),
+            (bool) $template => $this->whatsApp->sendTemplate($subject->client_phone, $template, [$subject->client_name, $notification->body]),
+            default => $this->whatsApp->sendText($subject->client_phone, $notification->body),
+        };
 
         if ($ok) {
             $notification->update(['status' => ClientNotification::SENT, 'sent_at' => now()]);
@@ -642,7 +646,12 @@ class ClientNotifier
             // Mensajes que el cliente contesta ("SÍ", "1", "CANCELAR"): su respuesta se lee contra este mensaje,
             // no contra un menú del bot que haya quedado abierto de antes.
             if (in_array($notification->type, self::ANSWERABLE_TYPES, true)) {
-                app(\App\Services\WhatsApp\WhatsappBotService::class)->forgetConversation($this->whatsApp->normalizePhone((string) $subject->client_phone));
+                $bot = app(WhatsappBotService::class);
+                if ($subject->whatsapp_lid !== null) {
+                    $bot->forgetConversationByLid($subject->whatsapp_lid);
+                } else {
+                    $bot->forgetConversation($this->whatsApp->normalizePhone((string) $subject->client_phone));
+                }
             }
 
             return true;
