@@ -70,12 +70,10 @@ class AppointmentController extends Controller
 
         $hourStart = 7;
         $hourEnd = 20;
-        $settings = \App\Models\SiteSetting::currentData();
-        if (! empty($settings['booking_start'])) {
-            $hourStart = max(0, (int) substr($settings['booking_start'], 0, 2) - 1);
-        }
-        if (! empty($settings['booking_end'])) {
-            $hourEnd = min(23, (int) substr($settings['booking_end'], 0, 2) + 1);
+        // La grilla del calendario va de la primera apertura a el último cierre de la semana (panel del negocio).
+        if ($bounds = app(\App\Services\BusinessHours::class)->weekBounds()) {
+            $hourStart = max(0, (int) substr($bounds['opening'], 0, 2) - 1);
+            $hourEnd = min(23, (int) substr($bounds['closing'], 0, 2) + 1);
         }
 
         return view('appointments.index', [

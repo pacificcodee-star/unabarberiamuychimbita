@@ -666,26 +666,26 @@ class WhatsAppBotTest extends TestCase
         Http::assertSent(fn ($request) => str_contains((string) $request['text'], '/reservar'));
     }
 
-    public function test_el_bot_no_da_turnos_en_la_ultima_media_hora_antes_del_cierre(): void
+    public function test_el_bot_no_da_turnos_si_el_servicio_no_alcanza_a_terminar_antes_del_cierre(): void
     {
         User::factory()->create(['role' => 'barbero', 'attention_mode' => 'llegada', 'active' => true]);
         Service::create(['name' => 'Corte', 'price' => 15000, 'duration_minutes' => 30, 'active' => true]);
 
-        // Cierre a las 8:00 p. m.: a las 7:31 p. m. ya no se reciben turnos.
-        $this->travelTo(Carbon::parse('2026-11-18 19:31:00'));
+        // Cierre a las 8:00 p. m., corte de 30 min y 10 min de margen: a las 7:21 p. m. ya no alcanza.
+        $this->travelTo(Carbon::parse('2026-11-18 19:21:00'));
         $this->escribir('quiero sacar turno')->assertOk();
 
-        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'se reciben hasta las 7:30 p. m.'));
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'se reciben hasta las 7:20 p. m.'));
         Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'Podrá solicitar su turno mañana a partir de las'));
         $this->assertDatabaseCount('turns', 0);
     }
 
-    public function test_el_bot_da_turnos_hasta_la_media_hora_antes_del_cierre(): void
+    public function test_el_bot_da_turnos_mientras_el_servicio_alcance_a_terminar_antes_del_cierre(): void
     {
         User::factory()->create(['role' => 'barbero', 'attention_mode' => 'llegada', 'active' => true]);
         Service::create(['name' => 'Corte', 'price' => 15000, 'duration_minutes' => 30, 'active' => true]);
 
-        $this->travelTo(Carbon::parse('2026-11-18 19:30:00'));
+        $this->travelTo(Carbon::parse('2026-11-18 19:20:00'));
         $this->escribir('quiero sacar turno')->assertOk();
 
         Http::assertNotSent(fn ($request) => str_contains((string) $request['text'], 'ha finalizado'));

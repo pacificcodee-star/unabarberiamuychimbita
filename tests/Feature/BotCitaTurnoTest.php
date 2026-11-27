@@ -461,15 +461,17 @@ class BotCitaTurnoTest extends TestCase
 
     public function test_turno_no_se_guarda_si_el_horario_vence_antes_de_confirmar(): void
     {
-        $this->travelTo(Carbon::parse('2026-11-18 19:29:00'));
+        // Corte de 30 min + 10 min de margen de llegada: el último turno que termina antes
+        // del cierre (8:00 p. m.) se pide a las 7:20 p. m.
+        $this->travelTo(Carbon::parse('2026-11-18 19:19:00'));
         $this->escribir('hola');
         $this->escribir('2');
         $this->escribir('Ana Gomez');
         $this->escribir('1');
         $this->escribir('1');
 
-        $this->travelTo(Carbon::parse('2026-11-18 19:31:00'));
-        $this->assertStringContainsString('se reciben hasta las 7:30 p. m.', $this->escribir('sí'));
+        $this->travelTo(Carbon::parse('2026-11-18 19:21:00'));
+        $this->assertStringContainsString('se reciben hasta las 7:20 p. m.', $this->escribir('sí'));
         $this->assertDatabaseCount('turns', 0);
     }
 

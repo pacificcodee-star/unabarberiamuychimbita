@@ -13,11 +13,9 @@
                 'map_url' => ['Enlace de Google Maps (respaldo, para incrustar)', 'url', 'https://www.google.com/maps?q=...&output=embed'],
                 'map_coords' => ['Coordenadas del local (opcional)', 'text', 'Ej. 1.8067,-78.7647 — en Google Maps: clic derecho sobre el local'],
             ],
-            // Los 7 días se dibujan aparte (abre / cierra / cerrado); aquí solo van las horas de reserva.
-            'Horario de atención' => [
-                'booking_start' => ['Primera hora para reservar citas', 'time', ''],
-                'booking_end' => ['Última hora para reservar citas', 'time', ''],
-            ],
+            // Los 7 días se dibujan aparte (abre / cierra / cerrado). Ese horario es el único que usan
+            // las citas y los turnos: no hay horas de reserva aparte.
+            'Horario de atención' => [],
             'Redes sociales' => [
                 'whatsapp' => ['WhatsApp (solo números, con indicativo)', 'text', 'Ej. 573001234567'],
                 'instagram_url' => ['Instagram', 'url', 'https://www.instagram.com/tu_cuenta'],
@@ -66,6 +64,7 @@
                             @endforeach
                         </div>
                     @endif
+                @if($fields)
                 <div class="row g-3">
                     @foreach($fields as $key => [$label, $type, $placeholder])
                         <div class="col-md-{{ $key === 'map_url' ? '12' : '6' }}">
@@ -73,8 +72,10 @@
                             <input id="setting-{{ $key }}" type="{{ $type }}" name="data[{{ $key }}]" value="{{ old('data.'.$key, $settings[$key] ?? '') }}" class="form-control" placeholder="{{ $placeholder }}" @unless(in_array($key, $optional, true)) required @endunless>
                         </div>
                     @endforeach
-                </div></div>
-                @if($group === 'Horario de atención')<div class="card-footer small text-muted">Elige a qué hora abre y cierra cada día. Marca <strong>Cerrado</strong> en los días que no abren: ese día no se podrán reservar citas ni pedir turnos.</div>@endif
+                </div>
+                @endif
+                </div>
+                @if($group === 'Horario de atención')<div class="card-footer small text-muted">Elige a qué hora abre y cierra cada día. Las citas y los turnos se ofrecen solo dentro de ese horario y el servicio debe terminar a más tardar a la hora de cierre; los cambios cuentan de inmediato en la web, la app y WhatsApp. Marca <strong>Cerrado</strong> en los días que no abren: ese día no se podrán reservar citas ni pedir turnos.</div>@endif
                 @if($group === 'Redes sociales')<div class="card-footer small text-muted">Deja vacía una red para que no aparezca en la página.</div>@endif
             </section>
         @endforeach

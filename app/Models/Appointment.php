@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasClientNotifications;
+use App\Services\BusinessHours;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -97,7 +98,8 @@ class Appointment extends Model
             $sameSlot = $existing && $existing->status !== 'cancelada'
                 && $existing->barber_id === (int) $attributes['barber_id']
                 && $existing->appointment_date->toDateString() === $date
-                && Carbon::parse($existing->appointment_time)->format('H:i:s') === $time;
+                && Carbon::parse($existing->appointment_time)->format('H:i:s') === $time
+                && (! array_key_exists('service_id', $attributes) || (int) $attributes['service_id'] === (int) $existing->service_id);
 
             if (! $sameSlot && ($attributes['status'] ?? $existing?->status) !== 'cancelada'
                 && $barber?->isUnavailableAt($date, $time)) {
@@ -106,23 +108,21 @@ class Appointment extends Model
                 ]);
             }
 
-            $taken = static::query()
-                ->where('barber_id', $attributes['barber_id'])
-                ->whereDate('appointment_date', $date)
-                // Siempre H:i:s: así la comparación es exacta en MySQL y en SQLite ('11:00' = '11:00:00').
-                ->whereTime('appointment_time', $time)
-                ->where('status', '!=', 'cancelada')
-                ->when($existing, fn ($query) => $query->whereKeyNot($existing->getKey()))
-                ->exists();
-
+            // Horario del día, cierre y choques con otras citas (contando la duración de cada servicio).
             // Una cita cancelada no ocupa el horario, así que guardarla así nunca choca.
-            if ($taken && ($attributes['status'] ?? null) !== 'cancelada') {
+            $serviceId = $attributes['service_id'] ?? $existing?->service_id;
+            $problem = ! $sameSlot && $barber && ($attributes['status'] ?? $existing?->status) !== 'cancelada'
+                ? app(BusinessHours::class)->appointmentProblem($barber, $date, $time, app(BusinessHours::class)->serviceMinutes($serviceId ? (int) $serviceId : null), $existing?->getKey(), $message)
+                : null;
+
+            if ($problem !== null) {
                 Log::notice('reservas.horario_ocupado', [
                     'barber_id' => $attributes['barber_id'],
                     'fecha' => (string) $attributes['appointment_date'],
                     'hora' => (string) $attributes['appointment_time'],
+                    'motivo' => $problem,
                 ]);
-                throw ValidationException::withMessages(['appointment_time' => $message]);
+                throw ValidationException::withMessages(['appointment_time' => $problem]);
             }
 
             if ($existing) {
@@ -135,49 +135,16 @@ class Appointment extends Model
         });
     }
 
-    public static function availableTimes(User $barber, string $date, ?int $ignoreAppointmentId = null): array
+    /**
+     * Horas libres (HH:MM) para una cita con ese barbero ese día. La regla (horario del día leído de la
+     * base de datos, duración del servicio, sin choques con otras citas) vive en App\Services\BusinessHours.
+     */
+    public static function availableTimes(User $barber, string $date, ?int $ignoreAppointmentId = null, Service|int|string|null $service = null): array
     {
-        if ($date === '' || Carbon::parse($date)->startOfDay()->lt(today()) || ! $barber->active || $barber->attention_mode !== 'citas') {
-            return [];
-        }
+        $hours = app(BusinessHours::class);
+        $minutes = $service === null || $service === '' ? $hours->defaultMinutes() : $hours->serviceMinutes($service instanceof Service ? $service : (int) $service);
 
-        $settings = SiteSetting::currentData();
-        $day = Carbon::parse($date);
-
-        if (SiteSetting::isClosedOn($day, $settings) || $barber->isUnavailableOnDate($date)) {
-            return [];
-        }
-
-        $start = Carbon::createFromFormat('H:i', $settings['booking_start'] ?? '08:00');
-        $end = Carbon::createFromFormat('H:i', $settings['booking_end'] ?? '20:00');
-
-        $reserved = Appointment::query()
-            ->where('barber_id', $barber->id)
-            ->whereDate('appointment_date', $date)
-            ->where('status', '!=', 'cancelada')
-            ->when($ignoreAppointmentId, fn ($query) => $query->where('id', '!=', $ignoreAppointmentId))
-            ->pluck('appointment_time')
-            ->map(fn ($time) => substr((string) $time, 0, 5))
-            ->all();
-
-        $slots = [];
-        for ($slot = $start->copy(); $slot->lte($end); $slot->addMinutes(30)) {
-            $formatted = $slot->format('H:i');
-
-            if ($day->isToday() && $slot->lte(now())) {
-                continue;
-            }
-            if (in_array($formatted, $reserved, true)) {
-                continue;
-            }
-            if ($barber->isUnavailableAt($date, $formatted)) {
-                continue;
-            }
-
-            $slots[] = $formatted;
-        }
-
-        return $slots;
+        return $hours->appointmentSlots($barber, $date, $minutes, $ignoreAppointmentId);
     }
 
     protected function casts(): array

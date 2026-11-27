@@ -88,7 +88,7 @@
                             @foreach($actions as $action)
                                 <button type="button" class="btn btn-sm {{ $action === 'confirmar' ? 'msv-btn-confirm' : ($action === 'cancelar' ? 'msv-btn-cancel' : 'msv-btn-reschedule') }}"
                                     data-action="{{ $action }}" data-url="{{ route('my-services.update', ['type' => $type, 'id' => $subject->id, 'action' => $action]) }}"
-                                    data-context="{{ $when }} · {{ $subject->barber?->name }}" data-barber="{{ $subject->barber_id }}"
+                                    data-context="{{ $when }} · {{ $subject->barber?->name }}" data-barber="{{ $subject->barber_id }}" data-subject="{{ $turn ? '' : $subject->id }}"
                                     data-date="{{ $turn ? '' : $subject->appointment_date->toDateString() }}"><i class="bi {{ $icons[$action] ?? 'bi-arrow-right' }}" aria-hidden="true"></i> {{ $labels[$action] }}</button>
                             @endforeach
                             @if($history && $subject->service?->active)

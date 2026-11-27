@@ -7,24 +7,27 @@ use Carbon\Carbon;
 use Tests\TestCase;
 
 /**
- * Horario de los turnos: el cierre y el límite de solicitudes salen siempre de la configuración
- * del panel, nunca de valores escritos en el código.
+ * Horario de los turnos: el cierre sale siempre de la configuración del panel, nunca de valores
+ * escritos en el código. El límite de solicitudes es el cierre menos el tiempo que necesita el
+ * servicio (margen de llegada + duración), que aquí se fija en 30 minutos.
  */
 class TurnScheduleTest extends TestCase
 {
+    private const LEAD = 30;
+
     private function settings(array $overrides = []): array
     {
         return $overrides + config('sitio');
     }
 
-    public function test_el_limite_es_30_minutos_antes_del_cierre_configurado(): void
+    public function test_el_limite_es_el_cierre_configurado_menos_lo_que_necesita_el_servicio(): void
     {
         $wednesday = Carbon::parse('2026-11-18 10:00:00');
         $settings = $this->settings(['hours_wed' => '9:00 a. m. - 8:00 p. m.']);
 
         $this->assertSame('09:00', TurnSchedule::openingTime($wednesday, $settings));
         $this->assertSame('20:00', TurnSchedule::closingTime($wednesday, $settings));
-        $this->assertSame('19:30', TurnSchedule::deadlineAt($wednesday, $settings)->format('H:i'));
+        $this->assertSame('19:30', TurnSchedule::deadlineAt($wednesday, $settings, self::LEAD)->format('H:i'));
     }
 
     public function test_el_horario_se_interpreta_en_sus_formatos_habituales(): void
@@ -56,13 +59,13 @@ class TurnScheduleTest extends TestCase
     {
         $settings = $this->settings(['hours_wed' => '9:00 a. m. - 8:00 p. m.']);
 
-        $this->assertTrue(TurnSchedule::forNow(Carbon::parse('2026-11-18 19:30:00'), $settings)['open']);
-        $this->assertSame('open', TurnSchedule::forNow(Carbon::parse('2026-11-18 19:30:00'), $settings)['reason']);
+        $this->assertTrue(TurnSchedule::forNow(Carbon::parse('2026-11-18 19:30:00'), $settings, self::LEAD)['open']);
+        $this->assertSame('open', TurnSchedule::forNow(Carbon::parse('2026-11-18 19:30:00'), $settings, self::LEAD)['reason']);
 
-        $late = TurnSchedule::forNow(Carbon::parse('2026-11-18 19:30:01'), $settings);
+        $late = TurnSchedule::forNow(Carbon::parse('2026-11-18 19:30:01'), $settings, self::LEAD);
         $this->assertFalse($late['open']);
         $this->assertSame('cutoff', $late['reason']);
-        $this->assertStringContainsString('se reciben hasta las 7:30 p. m.', $late['message']);
+        $this->assertStringContainsString('se reciben hasta las 7:30 p. m., para que el servicio alcance a terminar antes del cierre', $late['message']);
     }
 
     public function test_despues_del_corte_avisa_cuando_se_vuelve_a_poder(): void
@@ -72,7 +75,7 @@ class TurnScheduleTest extends TestCase
             'hours_thu' => '9:00 a. m. - 8:00 p. m.',
         ]);
 
-        $late = TurnSchedule::forNow(Carbon::parse('2026-11-18 19:45:00'), $settings);
+        $late = TurnSchedule::forNow(Carbon::parse('2026-11-18 19:45:00'), $settings, self::LEAD);
 
         $this->assertStringContainsString('la recepción de turnos para hoy ha finalizado', $late['message']);
         $this->assertStringContainsString('Podrá solicitar su turno mañana a partir de las 9:00 a. m. Si lo prefiere', $late['message']);
@@ -83,7 +86,7 @@ class TurnScheduleTest extends TestCase
     {
         $settings = $this->settings(['hours_wed' => '9:00 a. m. - 8:00 p. m.']);
 
-        $early = TurnSchedule::forNow(Carbon::parse('2026-11-18 07:30:00'), $settings);
+        $early = TurnSchedule::forNow(Carbon::parse('2026-11-18 07:30:00'), $settings, self::LEAD);
 
         $this->assertSame('before_open', $early['reason']);
         $this->assertStringContainsString('Aún no hemos abierto', $early['message']);
@@ -98,7 +101,7 @@ class TurnScheduleTest extends TestCase
             'hours_mon' => '10:00 a. m. - 8:00 p. m.',
         ]);
 
-        $late = TurnSchedule::forNow(Carbon::parse('2026-11-21 19:40:00'), $settings); // sábado
+        $late = TurnSchedule::forNow(Carbon::parse('2026-11-21 19:40:00'), $settings, self::LEAD); // sábado
 
         $this->assertStringContainsString('Podrá solicitar su turno el lunes a partir de las 10:00 a. m.', $late['message']);
     }
@@ -107,8 +110,8 @@ class TurnScheduleTest extends TestCase
     {
         $settings = $this->settings(['hours_wed' => '9:00 a. m. - 8:00 p. m.']);
 
-        $this->assertSame('before_open', TurnSchedule::forNow(Carbon::parse('2026-11-18 08:59:00'), $settings)['reason']);
-        $this->assertFalse(TurnSchedule::forNow(Carbon::parse('2026-11-18 20:30:00'), $settings)['open']);
+        $this->assertSame('before_open', TurnSchedule::forNow(Carbon::parse('2026-11-18 08:59:00'), $settings, self::LEAD)['reason']);
+        $this->assertFalse(TurnSchedule::forNow(Carbon::parse('2026-11-18 20:30:00'), $settings, self::LEAD)['open']);
     }
 
     public function test_un_dia_cerrado_no_tiene_cierre_ni_limite(): void
@@ -118,7 +121,7 @@ class TurnScheduleTest extends TestCase
 
         $this->assertNull(TurnSchedule::closingTime($sunday, $settings));
 
-        $state = TurnSchedule::forNow($sunday, $settings);
+        $state = TurnSchedule::forNow($sunday, $settings, self::LEAD);
         $this->assertFalse($state['open']);
         $this->assertSame('closed', $state['reason']);
         $this->assertNull($state['deadline']);
@@ -130,7 +133,7 @@ class TurnScheduleTest extends TestCase
     {
         $settings = $this->settings(['hours_wed' => '9:00 a. m. - 9:00 p. m.']);
 
-        $this->assertTrue(TurnSchedule::forNow(Carbon::parse('2026-11-18 20:30:00'), $settings)['open']);
-        $this->assertFalse(TurnSchedule::forNow(Carbon::parse('2026-11-18 20:31:00'), $settings)['open']);
+        $this->assertTrue(TurnSchedule::forNow(Carbon::parse('2026-11-18 20:30:00'), $settings, self::LEAD)['open']);
+        $this->assertFalse(TurnSchedule::forNow(Carbon::parse('2026-11-18 20:31:00'), $settings, self::LEAD)['open']);
     }
 }

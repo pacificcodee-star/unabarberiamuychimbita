@@ -397,7 +397,7 @@
             });
         });
 
-        // Los turnos dejan de aceptarse al llegar al límite (30 min antes del cierre), sin esperar recarga.
+        // Los turnos dejan de aceptarse al llegar al límite (el servicio debe alcanzar a terminar antes del cierre), sin esperar recarga.
         const turnForm = document.querySelector('[data-booking-form="turno"]');
         const closeTurnRequests = () => {
             if (!turnForm) return;
@@ -514,6 +514,7 @@
         const form = document.querySelector('[data-booking-slots]');
         const barber = document.getElementById('appointmentBarber');
         const date = document.getElementById('appointmentDate');
+        const service = document.getElementById('appointmentService');
         const slots = document.getElementById('appointmentTimes');
         const help = document.getElementById('appointmentTimeHelp');
         if (!form || !barber || !date || !slots) { updateSummary(); return; }
@@ -569,6 +570,8 @@
                 const url = new URL(form.dataset.bookingSlots, window.location.origin);
                 url.searchParams.set('barber_id', barber.value);
                 url.searchParams.set('date', date.value);
+                // La duración del servicio decide qué horas caben antes del cierre y sin cruzarse con otras citas.
+                if (service?.value) url.searchParams.set('service_id', service.value);
                 // Con tiempo límite: la carga nunca se queda girando para siempre.
                 const response = await window.safeFetch(url, { headers: { Accept: 'application/json' } }, 12000);
                 const result = await response.json();
@@ -616,6 +619,7 @@
 
         barber.addEventListener('change', loadTimes);
         date.addEventListener('change', loadTimes);
+        service?.addEventListener('change', loadTimes);
         // Para volver a consultar la agenda cuando el servidor dice que la hora ya la tomó otra persona.
         const syncSlots = () => {
             if (!document.hidden && barber.value && date.value && !slots.hasAttribute('aria-busy')) loadTimes(true);

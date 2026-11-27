@@ -127,6 +127,12 @@ class User extends Authenticatable
         return $this->unavailabilitiesOn($date)->contains(fn (BarberUnavailability $u) => $u->blocksSlot($date, $time));
     }
 
+    /** ¿Algún bloqueo del barbero se cruza con el rango [inicio, fin) de ese día? */
+    public function isUnavailableBetween(string $date, string $start, string $end): bool
+    {
+        return $this->unavailabilitiesOn($date)->contains(fn (BarberUnavailability $u) => $u->blocksRange($date, $start, $end));
+    }
+
     /** @var array<string, \Illuminate\Support\Collection> Bloqueos por día ya consultados (evita una consulta por cada franja). */
     private array $unavailabilityCache = [];
 

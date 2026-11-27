@@ -7,17 +7,18 @@ use Carbon\Carbon;
 use Carbon\CarbonInterface;
 
 /**
- * Horario de la jornada para los turnos por orden de llegada.
+ * Lectura del horario de la jornada y mensajes de la recepción de turnos.
  *
- * La hora de cierre se lee del horario del día configurado en el panel ("9:00 a. m. - 8:00 p. m.").
- * Si ese texto no se puede interpretar, se usa la hora final de reservas (booking_end). Nunca
- * está escrita en el código: si el admin cambia el horario, el límite cambia con él.
+ * La apertura y el cierre se leen del horario del día configurado en el panel ("9:00 a. m. - 8:00 p. m.").
+ * Si ese texto no se puede interpretar, se usan las horas de reserva antiguas (booking_start / booking_end).
+ * Nunca están escritas en el código: si el admin cambia el horario, el límite cambia con él.
  *
- * Los turnos solo se pueden pedir dentro del horario del día y hasta 30 minutos antes del cierre.
+ * Los turnos se pueden pedir dentro del horario del día mientras el servicio alcance a terminar
+ * antes del cierre: el último momento es el cierre menos $leadMinutes (margen de llegada + duración).
+ * La regla completa, con la fila real de cada barbero, vive en App\Services\BusinessHours.
  */
 final class TurnSchedule
 {
-    public const REQUEST_CUTOFF_MINUTES = 30;
 
     /** Clave del día de la semana en SiteSetting::DAYS (mon, tue, ...). */
     public static function dayKey(CarbonInterface $day): string
@@ -62,9 +63,9 @@ final class TurnSchedule
         return $time === null ? null : self::at($day, $time);
     }
 
-    public static function deadlineAt(CarbonInterface $day, array $settings): ?Carbon
+    public static function deadlineAt(CarbonInterface $day, array $settings, int $leadMinutes = 0): ?Carbon
     {
-        return self::closingAt($day, $settings)?->subMinutes(self::REQUEST_CUTOFF_MINUTES);
+        return self::closingAt($day, $settings)?->subMinutes(max(0, $leadMinutes));
     }
 
     /**
@@ -72,9 +73,10 @@ final class TurnSchedule
      *
      * @return array{open:bool, reason:string, opening:?Carbon, closing:?Carbon, deadline:?Carbon, message:string, cutoff_message:string}
      */
-    public static function forNow(?CarbonInterface $now = null, ?array $settings = null): array
+    public static function forNow(?CarbonInterface $now = null, ?array $settings = null, int $leadMinutes = 0): array
     {
-        $settings ??= SiteSetting::currentData();
+        $settings ??= SiteSetting::freshData();
+        $leadMinutes = max(0, $leadMinutes);
         $now = $now === null ? now() : Carbon::instance($now);
         $closing = self::closingAt($now, $settings);
 
@@ -92,14 +94,14 @@ final class TurnSchedule
             return self::state(false, 'closed', null, null, null, $message);
         }
 
-        $deadline = $closing->copy()->subMinutes(self::REQUEST_CUTOFF_MINUTES);
+        $deadline = $closing->copy()->subMinutes($leadMinutes);
         $openingTime = self::openingTime($now, $settings);
         $opening = $openingTime === null ? $closing->copy()->startOfDay() : self::at($now, $openingTime);
 
         $closingLabel = self::timeLabel($closing);
         $deadlineLabel = self::timeLabel($deadline);
         $cutoffMessage = self::join([
-            self::sentence("Le informamos que la recepción de turnos para hoy ha finalizado. Los turnos se reciben hasta las {$deadlineLabel}, 30 minutos antes del cierre a las {$closingLabel}"),
+            self::sentence("Le informamos que la recepción de turnos para hoy ha finalizado. Los turnos se reciben hasta las {$deadlineLabel}, para que el servicio alcance a terminar antes del cierre a las {$closingLabel}"),
             $nextSentence,
             'Si lo prefiere, puede agendar una cita para otro día.',
         ]);
@@ -129,7 +131,7 @@ final class TurnSchedule
             $opening,
             $closing,
             $deadline,
-            "Hoy puede solicitar su turno hasta las {$deadlineLabel} (30 minutos antes del cierre).",
+            "Hoy puede solicitar su turno hasta las {$deadlineLabel}: el servicio debe terminar a más tardar al cierre, a las {$closingLabel}.",
             $cutoffMessage,
         );
     }

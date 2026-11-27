@@ -67,6 +67,16 @@ class SiteSetting extends Model
         return $data;
     }
 
+    /**
+     * Datos del negocio leídos de la base de datos en este momento, sin la copia de la petición.
+     * La usan los cálculos de disponibilidad: en procesos largos (cola del bot, programador)
+     * la copia podría quedar vieja si el admin cambia el horario.
+     */
+    public static function freshData(): array
+    {
+        return static::computeCurrentData();
+    }
+
     private static function computeCurrentData(): array
     {
         $saved = static::query()->first()?->data ?? [];
