@@ -15,7 +15,8 @@ use Tests\TestCase;
 
 /**
  * Turnos por orden de llegada: numeración diaria que reinicia a #1, cierre de la jornada anterior,
- * historial intacto y límite de solicitudes 30 minutos antes del cierre configurado.
+ * historial intacto y límite de solicitudes: el servicio (más el margen de llegada) debe terminar
+ * a más tardar a la hora de cierre configurada en el panel.
  */
 class TurnDailyResetTest extends TestCase
 {
@@ -148,15 +149,16 @@ class TurnDailyResetTest extends TestCase
 
     // --- Límite de solicitudes ---------------------------------------------------------------
 
-    public function test_el_limite_es_exactamente_30_minutos_antes_del_cierre(): void
+    public function test_el_limite_es_el_cierre_menos_el_margen_y_la_duracion_del_servicio(): void
     {
         $barber = $this->barber();
 
-        $this->travelTo(Carbon::parse('2026-11-18 19:30:00'));
+        // Cierre 8:00 p. m., servicio de 30 min y 10 min de margen de llegada: termina justo a las 8:00 p. m.
+        $this->travelTo(Carbon::parse('2026-11-18 19:20:00'));
         $this->post(route('public.booking.turn'), $this->payload($barber, 'Justo A Tiempo'))->assertSessionHasNoErrors();
         $this->assertSame(1, Turn::count());
 
-        $this->travelTo(Carbon::parse('2026-11-18 19:30:01'));
+        $this->travelTo(Carbon::parse('2026-11-18 19:20:01'));
         $this->post(route('public.booking.turn'), $this->payload($barber, 'Tarde'))->assertSessionHasErrors('barber_id');
         $this->assertSame(1, Turn::count());
     }
@@ -194,24 +196,25 @@ class TurnDailyResetTest extends TestCase
     public function test_los_cambios_de_horario_del_administrador_mueven_el_limite(): void
     {
         $barber = $this->barber();
-        $this->setHours('wed', '9:00 a. m. - 9:00 p. m.'); // cierre 9:00 p. m. → límite 8:30 p. m.
+        $this->setHours('wed', '9:00 a. m. - 9:00 p. m.'); // cierre 9:00 p. m. → límite 8:20 p. m. (10 + 30 min)
 
-        $this->travelTo(Carbon::parse('2026-11-18 20:30:00'));
+        $this->travelTo(Carbon::parse('2026-11-18 20:20:00'));
         $this->post(route('public.booking.turn'), $this->payload($barber, 'Con Horario Nuevo'))->assertSessionHasNoErrors();
         $this->assertSame(1, Turn::count());
 
-        $this->travelTo(Carbon::parse('2026-11-18 20:31:00'));
+        $this->travelTo(Carbon::parse('2026-11-18 20:21:00'));
         $this->post(route('public.booking.turn'), $this->payload($barber, 'Tarde'))->assertSessionHasErrors('barber_id');
         $this->assertSame(1, Turn::count());
     }
 
     public function test_la_pagina_de_reservas_avisa_hasta_que_hora_se_puede_pedir_turno(): void
     {
+        $this->service(); // servicio más corto: 30 min (+ 10 min de margen de llegada)
         $this->travelTo(Carbon::parse('2026-11-18 10:00:00'));
 
         $this->get(route('public.booking', ['tipo' => 'turno']))
             ->assertOk()
-            ->assertSee('hasta las 7:30 p. m.', false);
+            ->assertSee('hasta las 7:20 p. m.', false);
     }
 
     // --- Sincronización cliente / panel -------------------------------------------------------

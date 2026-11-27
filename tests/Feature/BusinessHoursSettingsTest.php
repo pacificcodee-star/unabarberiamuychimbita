@@ -29,7 +29,6 @@ class BusinessHoursSettingsTest extends TestCase
             'data' => [
                 'address' => 'Calle 1 # 2-3', 'city' => 'Bogotá, Colombia', 'phone' => '+57 300 000 0000',
                 'email' => 'hola@ejemplo.com', 'whatsapp' => '573000000000',
-                'booking_start' => '09:00', 'booking_end' => '19:00',
                 'map_url' => 'https://www.google.com/maps?q=Bogota&output=embed',
             ],
             'hours' => array_replace($week, $hours),

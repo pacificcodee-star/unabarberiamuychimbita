@@ -226,6 +226,18 @@ class TurnQueueService
      */
     public function estimates(int $barberId): array
     {
+        return $this->walkQueue($barberId)[0];
+    }
+
+    /** Momento en que el barbero queda libre para llamar a un turno nuevo (ahora si la fila está vacía). */
+    public function freeAt(int $barberId): Carbon
+    {
+        return $this->walkQueue($barberId)[1];
+    }
+
+    /** @return array{0: array<int, array{ahead:int, call_at:Carbon, start_at:Carbon, end_at:Carbon}>, 1: Carbon} */
+    private function walkQueue(int $barberId): array
+    {
         $now = now();
         $grace = $this->graceMinutes();
         $cursor = $now->copy();
@@ -254,7 +266,7 @@ class TurnQueueService
             }
         }
 
-        return $estimates;
+        return [$estimates, $cursor];
     }
 
     /**

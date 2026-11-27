@@ -127,6 +127,8 @@
         }
         const url = new URL(root.dataset.slots);
         url.searchParams.set('barber_id', trigger.dataset.barber);
+        // La propia cita no le quita horas al reprogramar, y su servicio fija la duración.
+        if (trigger.dataset.subject) url.searchParams.set('appointment_id', trigger.dataset.subject);
         url.searchParams.set('date', date.value);
         try {
             const response = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
