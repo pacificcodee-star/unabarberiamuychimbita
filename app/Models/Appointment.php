@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasClientNotifications;
-use App\Support\TurnSchedule;
+use App\Services\BusinessHours;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -127,41 +127,26 @@ class Appointment extends Model
                 ]);
             }
 
-            $duration = $service && (int) $service->duration_minutes > 0
-                ? (int) $service->duration_minutes
-                : max(1, (int) config('notificaciones.default_service_minutes', 30));
-            $start = Carbon::parse($date.' '.$time);
-            $end = $start->copy()->addMinutes($duration);
+            // BusinessHours concentra el horario diario, la duración completa, los bloqueos del
+            // barbero y los conflictos. La comprobación ocurre con la fila del barbero bloqueada.
+            $hours = app(BusinessHours::class);
+            $problem = $hours->appointmentProblem(
+                $barber,
+                $date,
+                $time,
+                $hours->serviceMinutes($serviceId ? (int) $serviceId : null),
+                $existing?->getKey(),
+                $message,
+            );
 
-            static::assertWorkingWindow($date, $start, $end);
-            static::assertBarberAvailable($barber, $date, $start, $end);
-
-            $conflicts = static::query()
-                ->with('service:id,duration_minutes')
-                ->where('barber_id', $barber->id)
-                ->whereDate('appointment_date', $date)
-                ->where('status', '!=', 'cancelada')
-                ->when($existing, fn ($query) => $query->whereKeyNot($existing->getKey()))
-                ->get(['id', 'service_id', 'appointment_time']);
-
-            // Los extremos también cuentan como conflicto: una cita no puede empezar justo
-            // cuando termina otra (ni terminar justo cuando empieza la siguiente).
-            $conflict = $conflicts->first(function (self $appointment) use ($start, $end, $date): bool {
-                $otherStart = Carbon::parse($date.' '.substr((string) $appointment->appointment_time, 0, 5));
-
-                return $start->lte($otherStart->copy()->addMinutes($appointment->durationMinutes()))
-                    && $end->gte($otherStart);
-            });
-
-            if ($conflict) {
+            if ($problem !== null) {
                 Log::notice('reservas.horario_ocupado', [
                     'barber_id' => $barber->id,
                     'fecha' => $date,
                     'hora' => $time,
-                    'duracion_minutos' => $duration,
-                    'cita_conflictiva' => $conflict->id,
+                    'motivo' => $problem,
                 ]);
-                throw ValidationException::withMessages(['appointment_time' => $message]);
+                throw ValidationException::withMessages(['appointment_time' => $problem]);
             }
 
             if ($existing) {
@@ -175,123 +160,16 @@ class Appointment extends Model
         });
     }
 
-    /** @return list<string> Horas de inicio que caben completas en la jornada del día. */
-    public static function availableTimes(
-        User $barber,
-        string $date,
-        ?int $ignoreAppointmentId = null,
-        ?int $serviceId = null
-    ): array {
-        $day = $date === '' ? today()->copy() : Carbon::parse($date)->startOfDay();
-        if ($day->lt(today()) || ! $barber->active || $barber->attention_mode !== 'citas') {
-            return [];
-        }
-
-        $settings = SiteSetting::currentData();
-        $opening = TurnSchedule::openingTime($day, $settings);
-        $closing = TurnSchedule::closingTime($day, $settings);
-        if ($opening === null || $closing === null || $barber->isUnavailableOnDate($day->toDateString())) {
-            return [];
-        }
-
-        $service = $serviceId ? Service::active()->find($serviceId) : null;
-        if ($serviceId && ! $service) {
-            return [];
-        }
-        $duration = $service && (int) $service->duration_minutes > 0
-            ? (int) $service->duration_minutes
-            : max(1, (int) config('notificaciones.default_service_minutes', 30));
-        $start = Carbon::parse($day->toDateString().' '.$opening);
-        $end = Carbon::parse($day->toDateString().' '.$closing);
-
-        $reserved = static::query()
-            ->with('service:id,duration_minutes')
-            ->where('barber_id', $barber->id)
-            ->whereDate('appointment_date', $day->toDateString())
-            ->where('status', '!=', 'cancelada')
-            ->when($ignoreAppointmentId, fn ($query) => $query->where('id', '!=', $ignoreAppointmentId))
-            ->get(['id', 'service_id', 'appointment_time']);
-
-        $slots = [];
-        for ($slot = $start->copy(); $slot->copy()->addMinutes($duration)->lte($end); $slot->addMinutes(self::SLOT_INTERVAL_MINUTES)) {
-            $formatted = $slot->format('H:i');
-            $slotEnd = $slot->copy()->addMinutes($duration);
-
-            if ($day->isToday() && $slot->lte(now())) {
-                continue;
-            }
-            if (static::barberBlocked($barber, $day->toDateString(), $slot, $slotEnd)) {
-                continue;
-            }
-            $conflict = $reserved->contains(function (self $appointment) use ($slot, $slotEnd, $day): bool {
-                $otherStart = Carbon::parse($day->toDateString().' '.substr((string) $appointment->appointment_time, 0, 5));
-
-                return $slot->lte($otherStart->copy()->addMinutes($appointment->durationMinutes()))
-                    && $slotEnd->gte($otherStart);
-            });
-            if ($conflict) {
-                continue;
-            }
-
-            $slots[] = $formatted;
-        }
-
-        return $slots;
-    }
-
-    /** La apertura y el cierre son los de ese día, no el rango global de respaldo. */
-    private static function assertWorkingWindow(string $date, Carbon $start, Carbon $end): void
+    /**
+     * Horas libres (HH:MM) para una cita con ese barbero ese día. La regla (horario del día leído de la
+     * base de datos, duración del servicio, sin choques con otras citas) vive en App\Services\BusinessHours.
+     */
+    public static function availableTimes(User $barber, string $date, ?int $ignoreAppointmentId = null, Service|int|string|null $service = null): array
     {
-        $day = $start->copy()->startOfDay();
-        $settings = SiteSetting::currentData();
-        $opening = TurnSchedule::openingTime($day, $settings);
-        $closing = TurnSchedule::closingTime($day, $settings);
+        $hours = app(BusinessHours::class);
+        $minutes = $service === null || $service === '' ? $hours->defaultMinutes() : $hours->serviceMinutes($service instanceof Service ? $service : (int) $service);
 
-        if ($opening === null || $closing === null) {
-            throw ValidationException::withMessages([
-                'appointment_time' => 'La barbería no presta servicio ese día. Elige otra fecha.',
-            ]);
-        }
-
-        $opensAt = Carbon::parse($date.' '.$opening);
-        $closesAt = Carbon::parse($date.' '.$closing);
-        if ($start->lt($opensAt) || $end->gt($closesAt)) {
-            throw ValidationException::withMessages([
-                'appointment_time' => 'El servicio debe terminar dentro del horario de ese día. Elige otra hora.',
-            ]);
-        }
-    }
-
-    /** Un bloqueo no puede atravesar ninguna parte del servicio; tocar sus extremos sí está permitido. */
-    private static function assertBarberAvailable(User $barber, string $date, Carbon $start, Carbon $end): void
-    {
-        if (! static::barberBlocked($barber, $date, $start, $end)) {
-            return;
-        }
-
-        throw ValidationException::withMessages([
-            'appointment_time' => 'El barbero no está disponible durante ese horario. Elige otra hora.',
-        ]);
-    }
-
-    private static function barberBlocked(User $barber, string $date, Carbon $start, Carbon $end): bool
-    {
-        $day = Carbon::parse($date);
-        $blocks = $barber->unavailabilities()
-            ->where(fn ($query) => $query->whereDate('date', $date)->orWhere('weekday', $day->dayOfWeekIso))
-            ->get();
-
-        return $blocks->contains(function (BarberUnavailability $block) use ($date, $start, $end): bool {
-            if ($block->isAllDay()) {
-                return true;
-            }
-
-            $blockStart = Carbon::parse($date.' '.$block->start_time);
-            $blockEnd = Carbon::parse($date.' '.$block->end_time);
-
-            // Comprueba el intervalo completo: el bloqueo también puede estar dentro del servicio.
-            return $start->lt($blockEnd) && $end->gt($blockStart);
-        });
+        return $hours->appointmentSlots($barber, $date, $minutes, $ignoreAppointmentId);
     }
 
     protected function casts(): array

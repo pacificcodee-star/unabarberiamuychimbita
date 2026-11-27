@@ -9,12 +9,12 @@ use App\Models\Service;
 use App\Models\StaffNotification;
 use App\Models\Turn;
 use App\Models\User;
+use App\Services\BusinessHours;
 use App\Services\ClientNotifier;
 use App\Services\TurnService;
 use App\Services\WhatsApp\BookingMessenger;
 use App\Services\WhatsAppService;
 use App\Support\ClientServiceAccess;
-use App\Support\TurnSchedule;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -31,21 +31,28 @@ class PublicBookingController extends Controller
             'barber_id' => ['required', 'integer', 'exists:users,id'],
             'service_id' => ['nullable', 'integer', Rule::exists('services', 'id')->where('active', true)],
             'date' => ['required', 'date', 'after_or_equal:today', 'before_or_equal:'.now()->addDays(29)->toDateString()],
+            'appointment_id' => ['nullable', 'integer'],
         ]);
         $barber = User::barbers()->where('active', true)->where('attention_mode', 'citas')->find($data['barber_id']);
         abort_if(! $barber, 404);
 
-        $serviceId = isset($data['service_id']) ? (int) $data['service_id'] : null;
-        if ($serviceId && ! $barber->offersService($serviceId)) {
+        // La duración del servicio decide qué horas caben antes del cierre y sin cruzarse con otras citas.
+        $service = isset($data['service_id']) ? Service::active()->find($data['service_id']) : null;
+        // Al reprogramar desde "Mis servicios", la propia cita del cliente no le quita horas.
+        $own = isset($data['appointment_id'])
+            ? ClientServiceAccess::owned($request, 'cita')->where('barber_id', $barber->id)->find($data['appointment_id'])
+            : null;
+        $serviceId = $own?->service_id ?? $service?->id;
+
+        if ($serviceId && ! Service::active()->find($serviceId)) {
+            throw ValidationException::withMessages(['service_id' => 'El servicio seleccionado ya no está disponible. Elige otro.']);
+        }
+        if ($serviceId && ! $barber->offersService((int) $serviceId)) {
             throw ValidationException::withMessages(['service_id' => 'Ese barbero no ofrece el servicio seleccionado.']);
         }
 
         return response()->json([
-            'times' => Appointment::availableTimes(
-                $barber,
-                Carbon::parse($data['date'])->toDateString(),
-                serviceId: $serviceId
-            ),
+            'times' => Appointment::availableTimes($barber, Carbon::parse($data['date'])->toDateString(), $own?->id, $serviceId),
         ])->header('Cache-Control', 'no-store');
     }
 
@@ -67,7 +74,7 @@ class PublicBookingController extends Controller
 
         $settings = SiteSetting::currentData();
         $paymentMethods = $this->enabledPaymentMethods($settings);
-        $turnState = TurnSchedule::forNow(null, $settings);
+        $turnState = app(BusinessHours::class)->turnState();
         $businessOpenNow = $turnState['open'];
 
         $activeTab = $request->input('tipo') === 'turno' ? 'turno' : 'cita';
@@ -146,11 +153,7 @@ class PublicBookingController extends Controller
         }
 
         $appointmentDate = Carbon::parse($data['appointment_date'])->toDateString();
-        if (! in_array($data['appointment_time'], Appointment::availableTimes(
-            $barber,
-            $appointmentDate,
-            serviceId: (int) $data['service_id']
-        ), true)) {
+        if (! in_array($data['appointment_time'], Appointment::availableTimes($barber, $appointmentDate, null, (int) $data['service_id']), true)) {
             throw ValidationException::withMessages(['appointment_time' => 'Ese horario no está disponible. Elige otra hora.']);
         }
 
@@ -242,7 +245,7 @@ class PublicBookingController extends Controller
         ]);
 
         // Se vuelve a validar en el servidor: nadie puede saltarse el límite llamando directo a la ruta.
-        $turnState = TurnSchedule::forNow(null, $settings);
+        $turnState = app(BusinessHours::class)->turnState();
         if (! $turnState['open']) {
             throw ValidationException::withMessages(['barber_id' => $turnState['message']]);
         }

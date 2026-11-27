@@ -10,6 +10,10 @@ return [
     // Duración que se asume cuando el turno no tiene servicio o el servicio no tiene duración.
     'default_service_minutes' => (int) env('TURN_DEFAULT_SERVICE_MINUTES', 30),
 
+    // Cada cuántos minutos se ofrecen horas de cita a partir de la apertura del día. Además de esa
+    // grilla se ofrece siempre el primer minuto libre después de cada cita ya agendada.
+    'appointment_slot_minutes' => (int) env('APPOINTMENT_SLOT_MINUTES', 30),
+
     // Activa o desactiva el avance automático de la fila (finalizar y llamar al siguiente sin botones).
     'auto_queue' => (bool) env('TURN_AUTO_QUEUE', true),
 

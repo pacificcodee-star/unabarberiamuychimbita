@@ -44,12 +44,7 @@ class BarberUnavailability extends Model
 
     public function blocksSlot(string $date, string $time): bool
     {
-        $day = Carbon::parse($date);
-        $matches = $this->weekday === null
-            ? $this->date?->toDateString() === $day->toDateString()
-            : $this->weekday === $day->dayOfWeekIso;
-
-        if (! $matches) {
+        if (! $this->appliesOn($date)) {
             return false;
         }
 
@@ -58,9 +53,43 @@ class BarberUnavailability extends Model
         }
 
         $slot = Carbon::createFromFormat('H:i', substr($time, 0, 5));
-        $start = Carbon::createFromFormat('H:i:s', strlen($this->start_time) === 5 ? $this->start_time.':00' : $this->start_time);
-        $end = Carbon::createFromFormat('H:i:s', strlen($this->end_time) === 5 ? $this->end_time.':00' : $this->end_time);
 
-        return $slot->gte($start) && $slot->lt($end);
+        return $slot->gte($this->startClock()) && $slot->lt($this->endClock());
+    }
+
+    /** ¿El bloqueo se cruza con un servicio que va de $start a $end (HH:MM) ese día? */
+    public function blocksRange(string $date, string $start, string $end): bool
+    {
+        if (! $this->appliesOn($date)) {
+            return false;
+        }
+
+        if ($this->isAllDay()) {
+            return true;
+        }
+
+        $from = Carbon::createFromFormat('H:i', substr($start, 0, 5));
+        $to = Carbon::createFromFormat('H:i', substr($end, 0, 5));
+
+        return $from->lt($this->endClock()) && $to->gt($this->startClock());
+    }
+
+    private function appliesOn(string $date): bool
+    {
+        $day = Carbon::parse($date);
+
+        return $this->weekday === null
+            ? $this->date?->toDateString() === $day->toDateString()
+            : $this->weekday === $day->dayOfWeekIso;
+    }
+
+    private function startClock(): Carbon
+    {
+        return Carbon::createFromFormat('H:i:s', strlen($this->start_time) === 5 ? $this->start_time.':00' : $this->start_time);
+    }
+
+    private function endClock(): Carbon
+    {
+        return Carbon::createFromFormat('H:i:s', strlen($this->end_time) === 5 ? $this->end_time.':00' : $this->end_time);
     }
 }

@@ -12,6 +12,7 @@ use App\Models\Turn;
 use App\Models\User;
 use App\Models\WhatsAppConversation;
 use App\Models\WhatsAppMessage;
+use App\Services\BusinessHours;
 use App\Services\ClientBookingActions;
 use App\Services\ClientNotifier;
 use App\Services\Surveys\SurveyConversation;
@@ -22,7 +23,6 @@ use App\Support\AppointmentMessages;
 use App\Support\AttendanceConfirmation;
 use App\Support\ClientServiceAccess;
 use App\Support\Pii;
-use App\Support\TurnSchedule;
 use App\Support\WhatsAppHistoryLink;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -517,7 +517,7 @@ class WhatsappBotService
             $barber = User::find($flow['data']['barber_id'] ?? 0);
             $serviceId = isset($flow['data']['service_id']) ? (int) $flow['data']['service_id'] : null;
             $date = (string) ($flow['data']['date'] ?? '');
-            $flow['data']['slots'] = $barber && $date !== '' ? Appointment::availableTimes($barber, $date, serviceId: $serviceId) : [];
+            $flow['data']['slots'] = $barber && $date !== '' ? Appointment::availableTimes($barber, $date, service: $serviceId) : [];
             unset($flow['data']['time']);
             if ($flow['data']['slots'] === []) {
                 $flow['step'] = 'book_date';
@@ -633,7 +633,7 @@ class WhatsappBotService
         $mode = $mode === 'turno' ? 'turno' : 'cita';
 
         if ($mode === 'turno') {
-            $turnState = TurnSchedule::forNow();
+            $turnState = app(BusinessHours::class)->turnState();
             if (! $turnState['open']) {
                 return $this->turnUnavailable($conversation, $turnState['message']);
             }
@@ -942,13 +942,20 @@ class WhatsappBotService
         // El tipo de reserva lo decide lo que eligió el cliente (cita o turno), no el barbero:
         // la lista ya solo muestra barberos de ese tipo.
         if ($mode === 'turno') {
+            // Antes de confirmar se revisa con la fila real que el servicio alcance a terminar antes del cierre.
+            $fit = app(BusinessHours::class)->turnFit($barber, (int) ($data['service_id'] ?? 0) ?: null);
+            if (! $fit['ok']) {
+                return '⚠️ '.$fit['message']."\n\n"
+                    .'Elige otro barbero de la lista:'."\n\n"
+                    .$this->bookingBarberText($flow['data']);
+            }
             $data['date'] = now()->toDateString();
             $flow = $this->enter($conversation->botIdentity(), $flow, 'book_confirm', $data);
 
             return $this->bookingConfirmText($flow['data']);
         }
 
-        $dates = $this->bookingDates($barber, serviceId: (int) $data['service_id']);
+        $dates = $this->bookingDates($barber, null, $data['service_id']);
 
         if ($dates === []) {
             return '⚠️ No encontré fechas con disponibilidad para *'.$barber->name.'* en los próximos días.'."\n\n"
@@ -1019,7 +1026,7 @@ class WhatsappBotService
             return $this->phoneRequiredText('confirmar este turno');
         }
 
-        $turnState = TurnSchedule::forNow();
+        $turnState = app(BusinessHours::class)->turnState();
         if (! $turnState['open']) {
             return $this->turnUnavailable($conversation, $turnState['message']);
         }
@@ -1033,6 +1040,11 @@ class WhatsappBotService
         if (! $service || ! $barber || ! $barber->offersService($service->id)) {
             return 'El servicio o el barbero elegido ya no está disponible. Elige otro.'."\n\n"
                 .$this->startBooking($conversation, 'turno');
+        }
+
+        $fit = app(BusinessHours::class)->turnFit($barber, $service);
+        if (! $fit['ok']) {
+            return $this->turnUnavailable($conversation, $fit['message']);
         }
 
         $name = trim((string) ($data['client_name'] ?? ''))
@@ -1106,7 +1118,7 @@ class WhatsappBotService
         $barber = User::find($flow['data']['barber_id'] ?? 0);
         $serviceId = isset($flow['data']['service_id']) ? (int) $flow['data']['service_id'] : null;
         // La lista se recalcula al elegir: una ampliación de horario debe aparecer sin reiniciar el chat.
-        $dates = $this->bookingDates($barber, serviceId: $serviceId);
+        $dates = $this->bookingDates($barber, null, $serviceId);
         $flow['data']['dates'] = $dates;
 
         if ($dates === []) {
@@ -1122,7 +1134,7 @@ class WhatsappBotService
             return '⚠️ La disponibilidad cambió. Estas son las fechas actualizadas:'."\n\n".$this->bookingDateText($flow['data']);
         }
 
-        $slots = Appointment::availableTimes($barber, $selectedDate, serviceId: $serviceId);
+        $slots = Appointment::availableTimes($barber, $selectedDate, service: $serviceId);
         if ($slots === []) {
             unset($flow['data']['date'], $flow['data']['slots'], $flow['data']['time']);
             $flow = $this->enter($conversation->botIdentity(), $flow, 'book_date', $flow['data']);
@@ -1169,7 +1181,7 @@ class WhatsappBotService
         $barber = User::find($flow['data']['barber_id'] ?? 0);
         $date = (string) ($flow['data']['date'] ?? '');
         $serviceId = isset($flow['data']['service_id']) ? (int) $flow['data']['service_id'] : null;
-        $slots = $barber && $date !== '' ? Appointment::availableTimes($barber, $date, serviceId: $serviceId) : [];
+        $slots = $barber && $date !== '' ? Appointment::availableTimes($barber, $date, service: $serviceId) : [];
         $flow['data']['slots'] = $slots;
 
         if ($slots === []) {
@@ -2819,13 +2831,11 @@ class WhatsappBotService
             return $this->mainMenu($conversation);
         }
 
-        $serviceId = isset($data['service_id']) ? (int) $data['service_id'] : null;
-
         if ($n === 1) {
-            $slots = Appointment::availableTimes($barber, (string) ($data['date'] ?? ''), serviceId: $serviceId);
+            $slots = Appointment::availableTimes($barber, (string) ($data['date'] ?? ''), null, $data['service_id'] ?? null);
 
             if ($slots === []) {
-                $dates = $this->bookingDates($barber, serviceId: $serviceId);
+                $dates = $this->bookingDates($barber, null, $data['service_id'] ?? null);
                 $data['dates'] = $dates;
                 $this->saveFlow($conversation->botIdentity(), $this->enter($conversation->botIdentity(), $flow, 'book_date', $data));
 
@@ -2840,7 +2850,7 @@ class WhatsappBotService
         }
 
         if ($n === 2) {
-            $data['dates'] = $this->bookingDates($barber, serviceId: $serviceId);
+            $data['dates'] = $this->bookingDates($barber, null, $data['service_id'] ?? null);
             $this->saveFlow($conversation->botIdentity(), $this->enter($conversation->botIdentity(), $flow, 'book_date', $data));
 
             return $this->bookingDateText($data);
@@ -2912,7 +2922,7 @@ class WhatsappBotService
                 .'6. ❌ Cancelar una reserva.'."\n"
                 .'7. 👋 Finalizar conversación.'."\n\n"
                 .'8. 💬 Dejar una solicitud para un asesor.'."\n\n"
-                .'🎟️ Los turnos por orden de llegada se reciben hasta 30 minutos antes del cierre, durante el horario de atención.'."\n\n"
+                .'🎟️ Los turnos por orden de llegada se reciben durante el horario de atención, siempre que el servicio alcance a terminar antes del cierre.'."\n\n"
                 .'Responde únicamente con el *número* de la opción que deseas.';
         }
 
@@ -2987,7 +2997,7 @@ class WhatsappBotService
     }
 
     /** Próximos 14 días con al menos un horario libre para el barbero. */
-    private function bookingDates(?User $barber, ?int $ignoreAppointmentId = null, ?int $serviceId = null): array
+    private function bookingDates(?User $barber, ?int $ignoreAppointmentId = null, int|string|null $serviceId = null): array
     {
         if (! $barber) {
             return [];
@@ -3122,13 +3132,9 @@ class WhatsappBotService
 
     private function businessOpenNow(): bool
     {
-        $settings = SiteSetting::currentData();
-        $now = now();
+        $window = app(BusinessHours::class)->window(today());
 
-        $opening = TurnSchedule::openingTime($now, $settings);
-        $closing = TurnSchedule::closingAt($now, $settings);
-
-        return $opening !== null && $closing !== null && $now->format('H:i') >= $opening && $now->lt($closing);
+        return $window !== null && now()->gte($window['opening']) && now()->lt($window['closing']);
     }
 
     private function appointmentWhen(Appointment $appointment): string

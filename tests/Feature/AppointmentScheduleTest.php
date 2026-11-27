@@ -72,7 +72,7 @@ class AppointmentScheduleTest extends TestCase
         $this->hours('thu', '10:00 a. m. - 6:00 p. m.'); // jueves 19 de noviembre
         $barber = $this->barber();
         $service = $this->service(60);
-        $slots = Appointment::availableTimes($barber, '2026-11-19', serviceId: $service->id);
+        $slots = Appointment::availableTimes($barber, '2026-11-19', service: $service->id);
 
         $this->assertSame('10:00', $slots[0]);
         $this->assertSame('17:00', end($slots));
@@ -89,16 +89,34 @@ class AppointmentScheduleTest extends TestCase
         $barber = $this->barber();
         $service = $this->service(60);
 
-        $this->assertNotContains('21:00', Appointment::availableTimes($barber, '2026-11-19', serviceId: $service->id));
+        $this->assertNotContains('21:00', Appointment::availableTimes($barber, '2026-11-19', service: $service->id));
         $setting->update(['data' => array_merge($setting->data, ['hours_thu' => '9:00 a. m. - 10:00 p. m.'])]);
-        $this->assertContains('21:00', Appointment::availableTimes($barber, '2026-11-19', serviceId: $service->id));
+        $this->assertContains('21:00', Appointment::availableTimes($barber, '2026-11-19', service: $service->id));
 
         $setting->update(['data' => array_merge($setting->data, ['hours_thu' => '9:00 a. m. - 2:00 p. m.'])]);
-        $this->assertNotContains('14:00', Appointment::availableTimes($barber, '2026-11-19', serviceId: $service->id));
-        $this->assertNotContains('21:00', Appointment::availableTimes($barber, '2026-11-19', serviceId: $service->id));
-        $reducedSlots = Appointment::availableTimes($barber, '2026-11-19', serviceId: $service->id);
+        $this->assertNotContains('14:00', Appointment::availableTimes($barber, '2026-11-19', service: $service->id));
+        $this->assertNotContains('21:00', Appointment::availableTimes($barber, '2026-11-19', service: $service->id));
+        $reducedSlots = Appointment::availableTimes($barber, '2026-11-19', service: $service->id);
         $this->assertSame('13:00', $reducedSlots[array_key_last($reducedSlots)]);
         $this->assertRejected($this->attributes($barber, '2026-11-19', '21:00', $service));
+    }
+
+    public function test_guardar_una_cita_existente_no_elude_el_nuevo_cierre(): void
+    {
+        $setting = $this->hours('thu', '9:00 a. m. - 6:00 p. m.');
+        $barber = $this->barber();
+        $service = $this->service(60);
+        $attributes = $this->attributes($barber, '2026-11-19', '17:00', $service);
+        $appointment = Appointment::reserveSlot($attributes);
+
+        $setting->update(['data' => array_merge($setting->data, ['hours_thu' => '9:00 a. m. - 4:00 p. m.'])]);
+
+        try {
+            Appointment::reserveSlot($attributes, $appointment);
+            $this->fail('La cita debió rechazarse porque ya no cabe completa en la jornada.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('appointment_time', $exception->errors());
+        }
     }
 
     public function test_una_cita_no_puede_solaparse_ni_empezar_justo_cuando_termina_otra(): void
@@ -108,7 +126,7 @@ class AppointmentScheduleTest extends TestCase
         $service = $this->service(45);
         Appointment::reserveSlot($this->attributes($barber, '2026-11-19', '08:00', $service));
 
-        $slots = Appointment::availableTimes($barber, '2026-11-19', serviceId: $service->id);
+        $slots = Appointment::availableTimes($barber, '2026-11-19', service: $service->id);
         $this->assertNotContains('08:30', $slots);
         $this->assertContains('09:00', $slots);
         $this->assertRejected($this->attributes($barber, '2026-11-19', '08:30', $service));
@@ -138,7 +156,7 @@ class AppointmentScheduleTest extends TestCase
         $cancelled->update(['status' => 'cancelada']);
         Appointment::reserveSlot($this->attributes($other, '2026-11-19', '10:00', $service));
 
-        $this->assertContains('10:00', Appointment::availableTimes($barber, '2026-11-19', serviceId: $service->id));
+        $this->assertContains('10:00', Appointment::availableTimes($barber, '2026-11-19', service: $service->id));
         $this->assertNotNull(Appointment::reserveSlot($this->attributes($barber, '2026-11-19', '10:00', $service)));
     }
 
@@ -167,7 +185,7 @@ class AppointmentScheduleTest extends TestCase
         $service = $this->service(60);
         BarberUnavailability::create(['barber_id' => $barber->id, 'date' => '2026-11-19', 'start_time' => '10:15', 'end_time' => '11:00']);
 
-        $slots = Appointment::availableTimes($barber, '2026-11-19', serviceId: $service->id);
+        $slots = Appointment::availableTimes($barber, '2026-11-19', service: $service->id);
         $this->assertNotContains('10:00', $slots);
         $this->assertContains('09:00', $slots); // termina justo antes del bloqueo
         $this->assertContains('11:00', $slots); // empieza justo al terminar el bloqueo
@@ -182,7 +200,7 @@ class AppointmentScheduleTest extends TestCase
         $service = $this->service(120);
         BarberUnavailability::create(['barber_id' => $barber->id, 'date' => '2026-11-19', 'start_time' => '10:15', 'end_time' => '11:00']);
 
-        $slots = Appointment::availableTimes($barber, '2026-11-19', serviceId: $service->id);
+        $slots = Appointment::availableTimes($barber, '2026-11-19', service: $service->id);
         $this->assertContains('08:00', $slots);
         $this->assertNotContains('09:00', $slots);
         $this->assertNotContains('10:00', $slots);
@@ -256,7 +274,7 @@ class AppointmentScheduleTest extends TestCase
         $barber = $this->barber();
         $service = $this->service();
 
-        $this->assertSame([], Appointment::availableTimes($barber, '2026-11-19', serviceId: $service->id));
+        $this->assertSame([], Appointment::availableTimes($barber, '2026-11-19', service: $service->id));
         $this->assertRejected($this->attributes($barber, '2026-11-19', '10:00', $service));
     }
 }

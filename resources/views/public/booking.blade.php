@@ -397,7 +397,7 @@
             });
         });
 
-        // Los turnos dejan de aceptarse al llegar al límite (30 min antes del cierre), sin esperar recarga.
+        // Los turnos dejan de aceptarse al llegar al límite (el servicio debe alcanzar a terminar antes del cierre), sin esperar recarga.
         const turnForm = document.querySelector('[data-booking-form="turno"]');
         const closeTurnRequests = () => {
             if (!turnForm) return;
@@ -562,15 +562,16 @@
             const keep = slots.querySelector('input:checked')?.value;
             if (!quiet && keep && !slots.dataset.selected) slots.dataset.selected = keep;
             if (!quiet) {
-            slots.setAttribute('aria-busy', 'true');
-            slots.replaceChildren(...Array.from({ length: 8 }, () => Object.assign(document.createElement('div'), { className: 'slot-skeleton' })));
-            help.textContent = 'Consultando la agenda del barbero…';
+                slots.setAttribute('aria-busy', 'true');
+                slots.replaceChildren(...Array.from({ length: 8 }, () => Object.assign(document.createElement('div'), { className: 'slot-skeleton' })));
+                help.textContent = 'Consultando la agenda del barbero…';
             }
             try {
                 const url = new URL(form.dataset.bookingSlots, window.location.origin);
                 url.searchParams.set('barber_id', barber.value);
                 url.searchParams.set('service_id', service.value);
                 url.searchParams.set('date', date.value);
+                // La duración del servicio decide qué horas caben antes del cierre y sin cruzarse con otras citas.
                 // Con tiempo límite: la carga nunca se queda girando para siempre.
                 const response = await window.safeFetch(url, { headers: { Accept: 'application/json' } }, 12000);
                 const result = await response.json();

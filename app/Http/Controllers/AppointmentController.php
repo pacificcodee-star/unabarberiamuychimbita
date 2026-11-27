@@ -4,12 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\Service;
-use App\Models\SiteSetting;
 use App\Models\User;
 use App\Services\AttendanceVerificationService;
+use App\Services\BusinessHours;
 use App\Services\WhatsApp\BookingMessenger;
 use App\Support\AuditLog;
-use App\Support\TurnSchedule;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -71,30 +70,20 @@ class AppointmentController extends Controller
 
         $appointments = $filteredQuery->orderBy('appointment_date')->orderBy('appointment_time')->get();
 
-        // El calendario abarca la jornada configurada de cada día de la semana. Si el administrador
-        // prolonga el cierre, la vista se amplía sin depender del rango global de respaldo.
-        $hourStart = 23;
-        $hourEnd = 0;
-        $settings = SiteSetting::currentData();
-        foreach ($days as $day) {
-            $opening = TurnSchedule::openingTime($day, $settings);
-            $closing = TurnSchedule::closingTime($day, $settings);
-            if ($opening === null || $closing === null) {
-                continue;
-            }
-            $hourStart = min($hourStart, max(0, (int) substr($opening, 0, 2) - 1));
-            $hourEnd = max($hourEnd, min(24, (int) substr($closing, 0, 2) + 1));
+        $hourStart = 7;
+        $hourEnd = 20;
+        // La grilla usa la semana que se está mostrando, no siempre la semana actual.
+        if ($bounds = app(BusinessHours::class)->weekBounds($start)) {
+            $hourStart = max(0, (int) substr($bounds['opening'], 0, 2) - 1);
+            $hourEnd = min(24, (int) substr($bounds['closing'], 0, 2) + 1);
         }
+        // Una cita existente debe seguir visible aunque el horario se haya recortado después.
         foreach ($appointments as $appointment) {
             $appointmentStart = $appointment->startsAt();
             $startMinutes = $appointmentStart->hour * 60 + $appointmentStart->minute;
             $endMinutes = $startMinutes + $appointment->durationMinutes();
             $hourStart = min($hourStart, max(0, intdiv($startMinutes, 60)));
             $hourEnd = max($hourEnd, min(24, (int) ceil($endMinutes / 60)));
-        }
-        if ($hourStart > $hourEnd) {
-            $hourStart = 7;
-            $hourEnd = 20;
         }
 
         return view('appointments.index', [

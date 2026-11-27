@@ -36,8 +36,6 @@ class SiteSettingController extends Controller
             'hours.*.closed' => ['nullable', 'boolean'],
             'hours.*.open' => ['nullable', 'date_format:H:i'],
             'hours.*.close' => ['nullable', 'date_format:H:i'],
-            'data.booking_start' => ['required', 'date_format:H:i'],
-            'data.booking_end' => ['required', 'date_format:H:i', 'after:data.booking_start'],
             'data.map_url' => ['required', 'url', 'max:500'],
             'data.map_coords' => ['nullable', 'regex:/^\s*-?\d{1,2}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?\s*$/'],
             'data.instagram_url' => ['nullable', 'url', 'max:300'],
@@ -54,7 +52,6 @@ class SiteSettingController extends Controller
             'data.facebook_url.url' => 'El enlace de Facebook debe empezar por https://',
             'data.tiktok_url.url' => 'El enlace de TikTok debe empezar por https://',
             'data.map_coords.regex' => 'Las coordenadas deben ser «latitud,longitud», por ejemplo 1.8067,-78.7647.',
-            'data.booking_end.after' => 'La hora final de reservas debe ser después de la hora inicial.',
         ]);
 
         // Cada día abierto necesita hora de apertura y de cierre, y el cierre va después de la apertura.

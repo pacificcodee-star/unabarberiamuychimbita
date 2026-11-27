@@ -6,7 +6,6 @@ use App\Models\Service;
 use App\Models\Turn;
 use App\Models\User;
 use App\Services\WhatsApp\BookingMessenger;
-use App\Support\TurnSchedule;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -28,20 +27,22 @@ class TurnService
 
         $turnDate = Carbon::parse($data['turn_date'] ?? now()->toDateString())->startOfDay();
 
-        // Solo se piden turnos para hoy dentro del horario del día y hasta 30 minutos antes del cierre.
-        if ($turnDate->isToday()) {
-            $state = TurnSchedule::forNow();
-            if (! $state['open']) {
-                throw ValidationException::withMessages(['barber_id' => $state['message']]);
-            }
-        }
-
         // Si el servidor estuvo apagado a medianoche, el primer turno del día también cierra la jornada anterior.
         $this->queue->closePreviousDays();
 
         $turn = DB::transaction(function () use ($barber, $data, $turnDate) {
             User::whereKey($barber->id)->lockForUpdate()->first();
             $date = $turnDate->toDateString();
+
+            // Solo se piden turnos para hoy dentro del horario del día (leído de la base de datos) y
+            // siempre que, con la fila actual, el servicio alcance a terminar a más tardar al cierre.
+            // Se revisa con la fila del barbero bloqueada: dos solicitudes a la vez no se cuelan.
+            if ($turnDate->isToday()) {
+                $fit = app(BusinessHours::class)->turnFit($barber, isset($data['service_id']) ? (int) $data['service_id'] : null);
+                if (! $fit['ok']) {
+                    throw ValidationException::withMessages(['barber_id' => $fit['message']]);
+                }
+            }
 
             // Contador por fecha: la numeración reinicia sola cada día y no se repite aunque lleguen
             // varias solicitudes a la vez (la fila del contador queda bloqueada dentro de la transacción).
