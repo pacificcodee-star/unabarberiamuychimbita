@@ -280,7 +280,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="{{ asset('vendor/sidebar/js/sidebar.js') }}?v={{ @filemtime(public_path('vendor/sidebar/js/sidebar.js')) }}"></script>
-<script src="{{ asset('js/chime.js') }}?v={{ @filemtime(public_path('js/chime.js')) }}"></script>
+<script src="{{ asset('js/chime.js') }}?v={{ @filemtime(public_path('js/chime.js')) }}" data-volume="1"></script>
 <script>
     // Color de la sección actual (paleta del panel) para las gráficas: panelTone() o panelTone(.12) con transparencia.
     window.panelTone = function (alpha) {
