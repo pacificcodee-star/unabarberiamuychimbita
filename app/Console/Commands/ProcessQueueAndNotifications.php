@@ -43,15 +43,15 @@ class ProcessQueueAndNotifications extends Command
         $closedDays = $step('cierre_dias_anteriores', fn () => $queue->closePreviousDays(), 0);
         $step('fila', fn () => $queue->advanceAll());
         $step('recordatorios_turnos', fn () => $queue->remindUpcoming());
-        // Sin confirmación 15 min después del recordatorio → cancelar; cita confirmada y terminada → atendida + gracias.
-        $result = $step('asistencia', fn () => $attendance->run(), ['cancelled' => 0, 'attended' => 0]);
+        // Sin confirmar antes del inicio → cancelar; al iniciar → pedir verificación; con llegada verificada y servicio terminado → atendida.
+        $result = $step('asistencia', fn () => $attendance->run(), ['cancelled' => 0, 'attended' => 0, 'prompted' => 0]);
         $step('encuestas', fn () => app(\App\Services\Surveys\SurveyService::class)->tick());
         $sent = $step('avisos', fn () => $notifier->processDue(), 0);
 
         // Latido: /salud avisa si la tarea dejó de correr (scheduler o worker caído).
         Cache::put('salud:tick', now()->toIso8601String(), now()->addDay());
 
-        $this->info('Fila revisada. Turnos cerrados de días anteriores: '.$closedDays.'. Canceladas sin confirmar: '.$result['cancelled'].'. Citas finalizadas: '.$result['attended'].'. Avisos enviados: '.$sent);
+        $this->info('Fila revisada. Turnos cerrados de días anteriores: '.$closedDays.'. Canceladas sin confirmar: '.$result['cancelled'].'. Verificaciones solicitadas: '.$result['prompted'].'. Citas finalizadas: '.$result['attended'].'. Avisos enviados: '.$sent);
 
         return $failed ? self::FAILURE : self::SUCCESS;
     }

@@ -16,6 +16,10 @@ class ClientBookingActions
 
     public static function actions(Appointment|Turn $subject): array
     {
+        if ($subject->attendance_status !== null) {
+            return [];
+        }
+
         if ($subject instanceof Turn) {
             return $subject->turn_date->isToday() && in_array($subject->status, ['esperando', 'llamado'], true)
                 ? ['cancelar'] : [];

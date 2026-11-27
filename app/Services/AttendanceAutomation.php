@@ -15,9 +15,9 @@ use Illuminate\Support\Facades\DB;
  *
  *  1. Recordatorio enviado por WhatsApp y el cliente NO confirmó en 15 minutos
  *     → la cita o el turno se cancela y se le avisa por WhatsApp.
- *  2. Cita confirmada por el cliente → al cumplirse la hora + la duración del servicio
- *     queda "atendida", se registra el ingreso y se le envía el mensaje de gracias.
- *     (Los turnos ya se cierran solos en TurnQueueService; ahí también sale el gracias.)
+ *  2. Al llegar la hora de un servicio abierto → se pide al administrador verificar la llegada.
+ *  3. Cita con llegada verificada → al cumplirse la duración real queda "atendida", se registra
+ *     el ingreso y se le envía el mensaje de gracias. Los turnos se cierran en TurnQueueService.
  *
  * Las citas agendadas faltando menos de 15 minutos se confirman solas (ClientNotifier::appointmentBooked).
  * Solo cuenta lo de hoy en adelante: nada de días anteriores se toca.
@@ -28,6 +28,7 @@ class AttendanceAutomation
         private ClientNotifier $notifier,
         private TurnQueueService $queue,
         private AttendedServiceRecorder $recorder,
+        private AttendanceVerificationService $verification,
     ) {
     }
 
@@ -36,14 +37,15 @@ class AttendanceAutomation
         return max(1, (int) config('notificaciones.confirm_window_minutes', 15));
     }
 
-    /** @return array{cancelled:int, attended:int} */
+    /** @return array{cancelled:int, attended:int, prompted:int} */
     public function run(): array
     {
+        $prompted = $this->verification->promptDue();
         $cancelled = $this->cancelUnconfirmed();
-        $attended = $this->finishConfirmedAppointments();
+        $attended = $this->finishVerifiedAppointments();
         $this->notifier->flush();
 
-        return ['cancelled' => $cancelled, 'attended' => $attended];
+        return ['cancelled' => $cancelled, 'attended' => $attended, 'prompted' => $prompted];
     }
 
     /** Regla 1: recordatorio de WhatsApp enviado hace 15 minutos o más y sin confirmación → cancelar. */
@@ -82,7 +84,9 @@ class AttendanceAutomation
             $current = Appointment::whereKey($appointment->id)->lockForUpdate()->first();
             if (! $current || ! in_array($current->status, ['pendiente', 'confirmada'], true)
                 || AttendanceConfirmation::confirmed($current)
-                || $current->appointment_date->toDateString() < now()->toDateString()) {
+                || $current->attendance_status !== null
+                || $current->appointment_date->toDateString() < now()->toDateString()
+                || $current->startsAt()->lte(now())) {
                 return false;
             }
             return $current->update(['status' => 'cancelada']);
@@ -111,7 +115,9 @@ class AttendanceAutomation
     {
         if (! in_array($turn->status, ['esperando', 'llamado'], true)
             || AttendanceConfirmation::confirmed($turn)
-            || ! $turn->turn_date?->isSameDay(now())) {
+            || $turn->attendance_status !== null
+            || ! $turn->turn_date?->isSameDay(now())
+            || ($turn->status === 'llamado' && $this->queue->expectedStart($turn)->lte(now()))) {
             return false;
         }
 
@@ -141,45 +147,39 @@ class AttendanceAutomation
         return true;
     }
 
-    /** Regla 2: cita confirmada cuyo servicio ya terminó (hora + duración) → atendida + ingreso + gracias. */
-    public function finishConfirmedAppointments(): int
+    /** Cita con llegada verificada cuyo tiempo real de servicio terminó → atendida + ingreso + gracias. */
+    public function finishVerifiedAppointments(): int
     {
         $count = 0;
 
         $appointments = Appointment::query()
             ->with(['barber', 'service'])
             ->where('status', 'confirmada')
+            ->where('attendance_status', 'presente')
+            ->whereNotNull('started_at')
             ->whereDate('appointment_date', now()->toDateString())
             ->get();
 
         foreach ($appointments as $appointment) {
-            if (! AttendanceConfirmation::confirmed($appointment)) {
-                continue; // solo las que el cliente confirmó (o se confirmaron solas al agendar sobre la hora)
-            }
-
-            $endsAt = $appointment->startsAt()->addMinutes($appointment->durationMinutes());
+            $endsAt = $appointment->started_at->copy()->addMinutes($appointment->durationMinutes());
 
             if (now()->lt($endsAt)) {
                 continue;
             }
 
             $done = DB::transaction(function () use ($appointment) {
-                $updated = Appointment::query()
-                    ->whereKey($appointment->id)
-                    ->where('status', 'confirmada')
-                    ->whereDate('appointment_date', $appointment->appointment_date->toDateString())
-                    ->whereTime('appointment_time', $appointment->startsAt()->format('H:i:s'))
-                    ->update(['status' => 'atendida', 'updated_at' => now()]);
-
-                if (! $updated) {
+                $current = Appointment::query()->lockForUpdate()->find($appointment->id);
+                if (! $current || $current->status !== 'confirmada'
+                    || $current->attendance_status !== 'presente'
+                    || ! $current->started_at
+                    || now()->lt($current->started_at->copy()->addMinutes($current->durationMinutes()))) {
                     return false;
                 }
 
-                $appointment->refresh();
-                ReservationStatusHistory::record($appointment, 'confirmada');
-                $this->recorder->sync($appointment, $appointment->payment_method);
-                // Se marcó con una actualización directa (sin eventos): se programa la encuesta a mano.
-                app(\App\Services\Surveys\SurveyService::class)->statusChanged($appointment, 'confirmada');
+                $current->update(['status' => 'atendida', 'updated_at' => now()]);
+                ReservationStatusHistory::record($current, 'confirmada');
+                $this->recorder->sync($current, $current->payment_method);
+                app(\App\Services\Surveys\SurveyService::class)->statusChanged($current, 'confirmada');
 
                 return true;
             });
@@ -188,12 +188,13 @@ class AttendanceAutomation
                 continue;
             }
 
+            $appointment->refresh();
             $this->notifier->serviceThanks($appointment);
 
             StaffNotification::record(
                 'appointment_finished',
                 'Cita finalizada automáticamente: '.($appointment->client_name ?: $appointment->client_phone),
-                'Se cumplió el tiempo del servicio'.($appointment->sale_id ? ' y se registró el ingreso.' : '.').' Si el cliente no llegó, cámbiala a cancelada.',
+                'Llegada verificada y tiempo real del servicio cumplido'.($appointment->sale_id ? '. Se registró el ingreso.' : '.'),
                 route('appointments.index', ['date' => $appointment->appointment_date?->toDateString()], false),
                 $appointment->barber_id,
             );

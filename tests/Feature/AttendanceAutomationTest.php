@@ -19,7 +19,7 @@ use Tests\TestCase;
 /**
  * Reglas automáticas de asistencia:
  *  - sin confirmar 15 min después del recordatorio por WhatsApp → se cancela y se avisa;
- *  - cita confirmada y con el servicio terminado → atendida + mensaje de gracias;
+ *  - cita confirmada espera verificación de llegada; al terminar desde la llegada real → atendida + gracias;
  *  - cita agendada faltando menos de 15 min → confirmada sola;
  *  - turno finalizado solo → mensaje de gracias.
  */
@@ -46,6 +46,11 @@ class AttendanceAutomationTest extends TestCase
 
         $this->barbero = User::factory()->create(['role' => 'barbero', 'attention_mode' => 'citas', 'active' => true]);
         $this->service = Service::create(['name' => 'Corte', 'price' => 20000, 'duration_minutes' => 30, 'active' => true]);
+    }
+
+    private function admin(): User
+    {
+        return User::factory()->create(['role' => 'admin', 'active' => true]);
     }
 
     private function cita(string $time, string $status = 'pendiente'): Appointment
@@ -103,7 +108,7 @@ class AttendanceAutomationTest extends TestCase
         $this->assertDatabaseHas('staff_notifications', ['title' => 'Cita cancelada: el cliente no confirmó']);
     }
 
-    public function test_cita_confirmada_no_se_cancela_y_al_terminar_queda_atendida_con_gracias(): void
+    public function test_cita_confirmada_espera_al_administrador_y_termina_desde_la_llegada_real(): void
     {
         $cita = $this->cita('10:30:00');
         $this->recordatorioEnviado($cita, 'appt_reminder_30', 20);
@@ -113,13 +118,22 @@ class AttendanceAutomationTest extends TestCase
         $this->automatizar();
         $this->assertSame('confirmada', $cita->fresh()->status);
 
-        // 10:30 + 30 min de servicio = 11:00
         $this->travelTo(Carbon::parse('2026-11-18 11:00:00'));
         $this->automatizar();
 
         $cita->refresh();
+        $this->assertSame('confirmada', $cita->status);
+        $this->assertNull($cita->attendance_status);
+        $this->assertNull($cita->sale_id);
+        $this->assertSame(1, \App\Models\StaffNotification::where('type', 'attendance_check')->count());
+
+        $this->actingAs($this->admin())->patch(route('appointments.attendance', $cita), ['decision' => 'presente'])->assertRedirect();
+        $this->travel(30)->minutes();
+        $this->automatizar();
+
+        $cita->refresh();
         $this->assertSame('atendida', $cita->status);
-        $this->assertNotNull($cita->sale_id); // se registró el ingreso
+        $this->assertNotNull($cita->sale_id);
         $this->assertTrue(ClientNotification::where('notifiable_id', $cita->id)->where('type', 'service_thanks')->exists());
     }
 
@@ -131,6 +145,9 @@ class AttendanceAutomationTest extends TestCase
         $this->automatizar();
 
         $this->assertSame('confirmada', $cita->fresh()->status);
+        $this->assertNull($cita->fresh()->attendance_status);
+        $this->assertNull($cita->fresh()->sale_id);
+        $this->assertSame(1, \App\Models\StaffNotification::where('type', 'attendance_check')->count());
     }
 
     public function test_cita_agendada_faltando_menos_de_15_minutos_se_confirma_sola(): void
@@ -175,17 +192,18 @@ class AttendanceAutomationTest extends TestCase
         $this->assertFalse(AttendanceConfirmation::confirmed($cita));
     }
 
-    public function test_cita_agendada_por_el_bot_faltando_15_minutos_se_confirma_sola(): void
+    public function test_cita_agendada_por_el_bot_no_se_atiende_sin_verificar_llegada(): void
     {
         $cita = $this->cita('10:15:00', 'confirmada'); // así la crea el bot
         app(ClientNotifier::class)->autoConfirmIfSoon($cita);
 
         $this->assertTrue(AttendanceConfirmation::confirmed($cita));
 
-        // Al terminar el servicio (10:15 + 30 min) queda atendida sin que nadie la toque.
         $this->travelTo(Carbon::parse('2026-11-18 10:45:00'));
         $this->automatizar();
-        $this->assertSame('atendida', $cita->fresh()->status);
+        $this->assertSame('confirmada', $cita->fresh()->status);
+        $this->assertNull($cita->fresh()->attendance_status);
+        $this->assertNull($cita->fresh()->sale_id);
     }
 
     public function test_cita_agendada_faltando_20_minutos_recibe_un_solo_mensaje_y_corre_el_plazo(): void
@@ -248,14 +266,19 @@ class AttendanceAutomationTest extends TestCase
             'client_name' => 'Luis Pérez', 'client_phone' => '3009998888', 'whatsapp_consent' => true, 'service_id' => $this->service->id,
         ]);
 
-        // Llamado → en atención tras la espera de llegada → atendido al cumplir los 30 min del servicio.
         $this->artisan('barberia:tick');
         $this->travel(11)->minutes();
         $this->artisan('barberia:tick');
+        $this->assertSame('llamado', $turno->fresh()->status);
+        $this->assertNull($turno->fresh()->started_at);
+        $this->assertNull($turno->fresh()->sale_id);
+
+        $this->actingAs($this->admin())->patch(route('turns.attendance', $turno), ['decision' => 'presente'])->assertRedirect();
         $this->travel(31)->minutes();
         $this->artisan('barberia:tick');
 
         $this->assertSame('atendido', $turno->fresh()->status);
+        $this->assertNotNull($turno->fresh()->sale_id);
         $this->assertTrue(ClientNotification::where('notifiable_id', $turno->id)->where('type', 'service_thanks')->exists());
     }
 }

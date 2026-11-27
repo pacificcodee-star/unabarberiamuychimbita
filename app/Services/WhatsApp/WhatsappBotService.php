@@ -20,6 +20,7 @@ use App\Support\TurnSchedule;
 use App\Support\WhatsAppHistoryLink;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -1477,7 +1478,7 @@ class WhatsappBotService
     {
         $appointment = $this->activeAppointment($conversation->phone);
 
-        if (! $appointment) {
+        if (! $appointment || $appointment->attendance_status !== null) {
             $this->saveFlow($conversation->phone, ['step' => 'no_bookings', 'data' => [], 'history' => [['step' => 'menu', 'data' => []]]]);
 
             return $this->noBookingsText();
@@ -1516,7 +1517,7 @@ class WhatsappBotService
     {
         $appointment = Appointment::with(['barber', 'service'])->find($flow['data']['appointment_id'] ?? 0);
 
-        if (! $appointment || ! in_array($appointment->status, ['pendiente', 'confirmada'], true)) {
+        if (! $appointment || $appointment->attendance_status !== null || ! in_array($appointment->status, ['pendiente', 'confirmada'], true)) {
             $this->clearFlow($conversation->phone);
 
             return '⚠️ No encontré una cita activa para modificar.'."\n\n".$this->menuText();
@@ -1600,9 +1601,19 @@ class WhatsappBotService
         return '⚠️ El barbero *'.$appointment->barber->name.'* no ofrece *'.$service->name.'*.'."\n\n".$this->modServiceText();
         }
 
+        $updated = Appointment::query()
+            ->whereKey($appointment->id)
+            ->whereNull('attendance_status')
+            ->whereIn('status', ['pendiente', 'confirmada'])
+            ->update(['service_id' => $service->id]);
+        if (! $updated) {
+            $this->clearFlow($conversation->phone);
+
+            return '⚠️ La cita ya tiene asistencia registrada o ya no se puede modificar.'."\n\n".$this->menuText();
+        }
+
         $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
-        $appointment->update(['service_id' => $service->id]);
-        $appointment->load(['barber', 'service']);
+        $appointment->refresh()->load(['barber', 'service']);
 
         $this->notifier->appointmentChanged($appointment, $before);
         $this->flushNotifier();
@@ -1649,14 +1660,29 @@ class WhatsappBotService
             return $this->invalidOption($conversation, $flow);
         }
 
-        $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
+        $before = [];
         try {
-            Appointment::reserveSlot([
-                'barber_id' => $barber->id, 'appointment_date' => $appointment->appointment_date->toDateString(),
-                'appointment_time' => $appointment->startsAt()->format('H:i'),
-            ], $appointment);
+            $appointment = DB::transaction(function () use ($appointment, $barber, &$before) {
+                $current = Appointment::with(['barber', 'service'])->lockForUpdate()->find($appointment->id);
+                if (! $current || $current->attendance_status !== null || ! in_array($current->status, ['pendiente', 'confirmada'], true)) {
+                    return null;
+                }
+
+                $before = ['status' => $current->status, 'starts_at' => $current->startsAt()];
+                Appointment::reserveSlot([
+                    'barber_id' => $barber->id, 'appointment_date' => $current->appointment_date->toDateString(),
+                    'appointment_time' => $current->startsAt()->format('H:i'),
+                ], $current);
+
+                return $current;
+            });
         } catch (\Illuminate\Validation\ValidationException) {
             return '⚠️ Ese barbero ya tiene una cita en ese horario.'."\n\n".$this->modBarberText($flow['data']);
+        }
+        if (! $appointment) {
+            $this->clearFlow($conversation->phone);
+
+            return '⚠️ La cita ya tiene asistencia registrada o ya no se puede modificar.'."\n\n".$this->menuText();
         }
         $appointment->load(['barber', 'service']);
 
@@ -1996,6 +2022,7 @@ class WhatsappBotService
         if ($kind !== 'appointment') {
             Turn::query()
                 ->whereDate('turn_date', now()->toDateString())
+                ->whereNull('attendance_status')
                 ->whereIn('status', ['esperando', 'llamado'])
                 ->orderBy('turn_number')
                 ->get()
@@ -2007,6 +2034,7 @@ class WhatsappBotService
 
         if ($kind !== 'turn') {
             Appointment::query()
+                ->whereNull('attendance_status')
                 ->whereIn('status', ['pendiente', 'confirmada'])
                 ->whereDate('appointment_date', '>=', now()->toDateString())
                 ->orderBy('appointment_date')
@@ -2025,6 +2053,10 @@ class WhatsappBotService
     /** Se puede cancelar: cita activa de hoy en adelante (que no haya pasado) o turno de hoy aún no atendido. */
     private function isCancellable(Appointment|Turn $subject): bool
     {
+        if ($subject->attendance_status !== null) {
+            return false;
+        }
+
         if ($subject instanceof Turn) {
             return $subject->turn_date?->isSameDay(now())
                 && in_array($subject->status, ['esperando', 'llamado'], true);
@@ -2100,9 +2132,25 @@ class WhatsappBotService
         }
 
         if ($subject instanceof Appointment) {
+            $before = [];
+            $subject = DB::transaction(function () use ($subject, &$before) {
+                $current = Appointment::query()->lockForUpdate()->find($subject->id);
+                if (! $current || ! $this->isCancellable($current)) {
+                    return null;
+                }
+
+                $before = ['status' => $current->status, 'starts_at' => $current->startsAt()];
+                $current->update(['status' => 'cancelada']);
+
+                return $current;
+            });
+            if (! $subject) {
+                $this->clearFlow($conversation->phone);
+
+                return '⚠️ Esa cita ya tiene asistencia registrada o ya no se puede cancelar.'."\n\n".$this->menuText();
+            }
+
             $done = '✅ Tu cita ha sido cancelada correctamente.';
-            $before = ['status' => $subject->status, 'starts_at' => $subject->startsAt()];
-            $subject->update(['status' => 'cancelada']);
             // La cancelación se confirma al cliente por WhatsApp (con los datos de la página); el
             // espacio entre ese aviso y la respuesta del bot lo pone WhatsAppInbox::pace().
             $this->notifier->appointmentChanged($subject, $before);
@@ -2119,6 +2167,7 @@ class WhatsappBotService
             $done = '✅ Tu turno *'.$this->turnNumber($subject).'* ha sido cancelado correctamente.';
             $cancelled = Turn::query()
                 ->whereKey($subject->id)
+                ->whereNull('attendance_status')
                 ->whereIn('status', ['esperando', 'llamado'])
                 ->update(['status' => 'cancelado', 'finished_at' => now()]);
 

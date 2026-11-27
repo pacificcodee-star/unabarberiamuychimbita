@@ -23,6 +23,7 @@ class StaffNotification extends Model
         'client_advisor' => 'bi-chat-dots',
         'survey_attention' => 'bi-chat-square-heart',
         'survey_review' => 'bi-shield-exclamation',
+        'attendance_check' => 'bi-person-check',
     ];
 
     protected $fillable = ['barber_id', 'type', 'title', 'body', 'url'];
@@ -44,6 +45,7 @@ class StaffNotification extends Model
         'client_advisor' => 'blue',
         'survey_attention' => 'amber',
         'survey_review' => 'red',
+        'attendance_check' => 'amber',
     ];
 
     /** Los avisos se borran solos después de este tiempo (programador diario). */

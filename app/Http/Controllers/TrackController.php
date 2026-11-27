@@ -202,20 +202,24 @@ class TrackController extends Controller
             }
 
             $estimate = $subject->status === 'esperando' ? ($queue->estimates($subject->barber_id)[$subject->id] ?? null) : null;
-            $grace = $queue->graceMinutes();
 
             $detail = match ($subject->status) {
                 'esperando' => $estimate
                     ? ($estimate['ahead'] === 0 ? 'Eres el siguiente.' : ($estimate['ahead'] === 1 ? 'Hay 1 persona antes de ti.' : "Hay {$estimate['ahead']} personas antes de ti."))
                     : 'Estás en la fila.',
-                'llamado' => "¡Es tu turno! Puedes pasar. Tienes {$grace} minutos para llegar".($subject->called_at ? ' (hasta las '.$this->time($subject->called_at->copy()->addMinutes($grace)).').' : '.'),
-                'atendiendo' => 'Tu servicio está en curso.',
+                'llamado' => $subject->attendance_status === 'presente'
+                    ? 'Tu servicio está en curso.'
+                    : "Es tu turno. Puedes pasar; el equipo verificará tu llegada para iniciar el servicio.",
+                'atendiendo' => ($subject->attendance_status === 'presente' || $subject->attendance_status === null)
+                    ? 'Tu servicio está en curso.'
+                    : 'El equipo está verificando tu llegada antes de iniciar el servicio.',
                 'atendido' => 'Tu servicio ya terminó. ¡Gracias por tu visita!',
                 default => 'Este turno fue cancelado.',
             };
 
             return [
                 'status' => $subject->status,
+                'attendance_status' => $subject->attendance_status,
                 'label' => $subject->statusLabel(),
                 'detail' => $detail,
                 'ahead' => $estimate['ahead'] ?? null,
@@ -228,10 +232,15 @@ class TrackController extends Controller
 
         return [
             'status' => $subject->status,
+            'attendance_status' => $subject->attendance_status,
             'label' => $subject->statusLabel(),
             'detail' => match ($subject->status) {
                 'pendiente' => 'Recibimos tu cita. El equipo la confirmará pronto.',
-                'confirmada' => 'Tu cita está confirmada. ¡Te esperamos!',
+                'confirmada' => $subject->attendance_status === 'presente'
+                    ? 'Tu servicio está en curso.'
+                    : ($subject->startsAt()->lte(now())
+                        ? 'Estamos verificando tu llegada antes de iniciar el servicio.'
+                        : 'Tu cita está confirmada. ¡Te esperamos!'),
                 'atendida' => 'Tu cita ya fue atendida. ¡Gracias por tu visita!',
                 default => 'Esta cita fue cancelada.',
             },

@@ -11,13 +11,13 @@ use Illuminate\Support\Facades\DB;
 /**
  * Fila automática de turnos. Cada barbero tiene su propia fila independiente.
  *
- * Ciclo de un turno:  esperando -> llamado -> atendiendo -> atendido
- *   - llamado:    se avisó al cliente "puedes pasar". Tiene un margen de llegada (10 min por defecto).
- *   - atendiendo: al cumplirse el margen (o si el barbero lo marca antes) empieza a contar la duración del servicio.
- *   - atendido:   al cumplirse la duración se cierra solo, se registra el ingreso y se llama al siguiente.
+ * Ciclo de un turno:  esperando -> llamado -> [verificación del administrador] -> atendiendo -> atendido
+ *   - llamado:    se le avisó al cliente que puede pasar y corre el margen de llegada.
+ *   - atendiendo: el administrador verificó "Llegó" y empieza a contar la duración real del servicio.
+ *   - atendido:   al cumplirse la duración se cierra, se registra el ingreso y se llama al siguiente.
  *
- * No hay temporizadores en memoria: todo se calcula con las horas guardadas en la base de datos (called_at,
- * started_at), así que si el servidor se reinicia la fila continúa donde iba en la siguiente pasada del programador.
+ * "No llegó" cancela el turno llamado sin ingreso y permite avanzar la cola. No hay temporizadores
+ * en memoria: las horas guardadas en called_at y started_at permiten reanudar la fila tras un reinicio.
  */
 class TurnQueueService
 {
@@ -119,14 +119,11 @@ class TurnQueueService
             $active = $turns->first(fn (Turn $t) => in_array($t->status, ['llamado', 'atendiendo'], true));
             $finishedPrevious = false;
 
-            if ($auto && $active && $active->status === 'llamado') {
-                $start = $this->expectedStart($active);
-                if ($now->gte($start)) {
-                    $active->update(['status' => 'atendiendo', 'started_at' => $start]);
-                }
+            if ($auto && $active && $active->status === 'llamado' && $active->attendance_status === 'presente') {
+                $active->update(['status' => 'atendiendo', 'started_at' => $active->started_at ?: $now]);
             }
 
-            if ($auto && $active && $active->status === 'atendiendo') {
+            if ($auto && $active && $active->status === 'atendiendo' && ($active->attendance_status === 'presente' || $active->attendance_status === null)) {
                 $startedAt = $active->started_at ?: $active->called_at ?: $active->updated_at;
                 if ($now->gte($startedAt->copy()->addMinutes($this->durationMinutes($active)))) {
                     $active->update(['status' => 'atendido', 'finished_at' => $now]);
@@ -142,7 +139,16 @@ class TurnQueueService
 
             if ($auto && ! $active && $waiting->isNotEmpty() && ! $barber->isUnavailableAt($now->toDateString(), $now->format('H:i'))) {
                 $next = $waiting->shift();
-                $next->update(['status' => 'llamado', 'called_at' => $now]);
+                $next->update([
+                    'status' => 'llamado',
+                    'called_at' => $now,
+                    'attendance_status' => null,
+                    'attendance_verified_at' => null,
+                    'attendance_verified_by' => null,
+                    'attendance_prompted_at' => null,
+                    'started_at' => null,
+                    'finished_at' => null,
+                ]);
                 $events[] = ['called', $next, $finishedPrevious];
                 $active = $next;
             }
@@ -165,24 +171,42 @@ class TurnQueueService
             $turns = $this->openTurns($barber->id);
 
             if ($called = $turns->firstWhere('status', 'llamado')) {
-                return ['ok' => false, 'message' => "El turno #{$called->turn_number} ya fue llamado. Márcalo \"En atención\" cuando llegue o \"Anulado\" si no llegó.", 'events' => []];
+                return ['ok' => false, 'message' => "El turno #{$called->turn_number} está llamado. El administrador debe verificar si el cliente llegó o no llegó.", 'events' => []];
+            }
+
+            $events = [];
+            $active = $turns->firstWhere('status', 'atendiendo');
+            if ($active) {
+                if ($active->attendance_status !== 'presente' && $active->attendance_status !== null) {
+                    return ['ok' => false, 'message' => 'El servicio no puede avanzar sin verificar la llegada del cliente.', 'events' => []];
+                }
+
+                $startedAt = $active->started_at ?: $active->called_at ?: now();
+                if (now()->lt($startedAt->copy()->addMinutes($this->durationMinutes($active)))) {
+                    return ['ok' => false, 'message' => 'El servicio actual todavía está en curso. La cola avanzará al cumplirse su duración.', 'events' => []];
+                }
+
+                $active->update(['status' => 'atendido', 'finished_at' => now()]);
+                $this->recorder->sync($active, $active->payment_method);
+                $events[] = ['finished', $active, false];
             }
 
             $next = $turns->firstWhere('status', 'esperando');
             if (! $next) {
-                return ['ok' => false, 'message' => "No hay turnos esperando para {$barber->name}.", 'events' => []];
+                return ['ok' => $events !== [], 'message' => $events !== [] ? 'Servicio finalizado. No hay más turnos esperando.' : "No hay turnos esperando para {$barber->name}.", 'events' => $events];
             }
 
-            // El turno que se estaba atendiendo pasa a "atendido" y se registra como servicio realizado (ingreso).
-            $finished = false;
-            foreach ($turns->where('status', 'atendiendo') as $previous) {
-                $previous->update(['status' => 'atendido', 'finished_at' => now()]);
-                $this->recorder->sync($previous, $previous->payment_method);
-                $finished = true;
-            }
-
-            $next->update(['status' => 'llamado', 'called_at' => now()]);
-            $events = [['called', $next, $finished]];
+            $next->update([
+                'status' => 'llamado',
+                'called_at' => now(),
+                'attendance_status' => null,
+                'attendance_verified_at' => null,
+                'attendance_verified_by' => null,
+                'attendance_prompted_at' => null,
+                'started_at' => null,
+                'finished_at' => null,
+            ]);
+            $events[] = ['called', $next, $events !== []];
             if ($after = $turns->first(fn (Turn $t) => $t->status === 'esperando' && $t->id !== $next->id)) {
                 $events[] = ['next', $after, false];
             }
@@ -292,7 +316,7 @@ class TurnQueueService
                 if ($kind === 'finished') {
                     // Al cliente: gracias por la visita. Al equipo: el turno se cerró solo al cumplirse su tiempo.
                     $this->notifier->serviceThanks($turn);
-                    StaffNotification::record('turn_finished', "Turno #{$turn->turn_number} finalizado automáticamente", "{$turn->client_name}: se cumplió el tiempo del servicio".($turn->sale_id ? ' y se registró el ingreso.' : '.').' Si el cliente no llegó, anula el turno.', $url, $barberId);
+                    StaffNotification::record('turn_finished', "Turno #{$turn->turn_number} finalizado automáticamente", "{$turn->client_name}: llegada verificada y tiempo del servicio cumplido".($turn->sale_id ? '. Se registró el ingreso.' : '.'), $url, $barberId);
                 } elseif ($kind === 'called') {
                     $this->notifier->turnCalled($turn, $afterPrevious);
                     if ($automatic) {

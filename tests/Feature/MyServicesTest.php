@@ -95,7 +95,7 @@ class MyServicesTest extends TestCase
             ->assertDontSee('/mis-servicios/recuperar');
     }
 
-    public function test_appointment_timeline_uses_the_scheduled_start_and_records_automatic_completion(): void
+    public function test_appointment_timeline_waits_for_verified_arrival_and_finishes_from_the_real_start(): void
     {
         $appointment = $this->book($this->barber('citas'), 'cita');
         $appointment->update(['status' => 'confirmada']);
@@ -110,21 +110,28 @@ class MyServicesTest extends TestCase
 
         $this->travelTo($appointment->startsAt()->addMinutes(12));
         $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()
-            ->assertSee('aria-valuenow="40"', false)
-            ->assertSee('12 de 30 min')
-            ->assertSee('18 min restantes');
+            ->assertSee('aria-valuenow="0"', false)
+            ->assertDontSee('12 de 30 min')
+            ->assertDontSee('Pendiente de cierre');
 
         $this->travelTo($appointment->startsAt()->addMinutes(32));
-        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()
-            ->assertSee('Pendiente de cierre')->assertDontSee('Citas anteriores');
-        $this->assertSame(1, app(\App\Services\AttendanceAutomation::class)->finishConfirmedAppointments());
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $this->actingAs($admin)->patch(route('appointments.attendance', $appointment), ['decision' => 'presente'])->assertRedirect();
+        $this->assertSame('10:32', $appointment->fresh()->started_at->format('H:i'));
+        $this->get('/mis-servicios')->assertOk()
+            ->assertSee('aria-valuenow="0"', false)
+            ->assertSee('10:32 am')
+            ->assertDontSee('Citas anteriores');
+
+        $this->travel(30)->minutes();
+        $this->assertSame(1, app(\App\Services\AttendanceAutomation::class)->finishVerifiedAppointments());
         $this->get('/mis-servicios')->assertOk()
             ->assertSee('aria-valuenow="100"', false)
             ->assertSee('10:32 am')
             ->assertSee('Finalizado');
     }
 
-    public function test_called_turn_timeline_starts_after_the_arrival_window_and_keeps_recorded_hours(): void
+    public function test_called_turn_timeline_starts_after_admin_verifies_arrival(): void
     {
         config(['notificaciones.turn_grace_minutes' => 10]);
         $turn = $this->book($this->barber('llegada'), 'turno');
@@ -138,14 +145,19 @@ class MyServicesTest extends TestCase
 
         $this->travel(12)->minutes();
         $queue->advance($turn->barber_id);
-        $this->assertSame('10:10', $turn->fresh()->started_at->format('H:i'));
-        $this->get('/mis-servicios')->assertOk()->assertSee('2 de 30 min');
+        $this->assertSame('llamado', $turn->fresh()->status);
+        $this->assertNull($turn->fresh()->started_at);
 
-        $this->travel(29)->minutes();
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $this->actingAs($admin)->patch(route('turns.attendance', $turn), ['decision' => 'presente'])->assertRedirect();
+        $this->assertSame('10:12', $turn->fresh()->started_at->format('H:i'));
+        $this->get('/mis-servicios')->assertOk()->assertSee('0 de 30 min');
+
+        $this->travel(30)->minutes();
         $queue->advance($turn->barber_id);
         $this->get('/mis-servicios')->assertOk()
-            ->assertSee('10:10 am')
-            ->assertSee('10:41 am')
+            ->assertSee('10:12 am')
+            ->assertSee('10:42 am')
             ->assertSee('aria-valuenow="100"', false);
     }
 
@@ -223,16 +235,22 @@ class MyServicesTest extends TestCase
         $this->get('/mis-servicios')->assertSee('Atendida');
     }
 
-    public function test_the_page_shows_when_the_client_confirmed_attendance_from_whatsapp(): void
+    public function test_the_page_distinguishes_client_confirmation_from_verified_arrival(): void
     {
         $turn = $this->book($this->barber('llegada'), 'turno');
 
-        $this->get('/mis-servicios')->assertOk()->assertDontSee('Asistencia confirmada');
+        $this->get('/mis-servicios')->assertOk()->assertDontSee('Cliente confirmó')->assertDontSee('Llegada verificada');
 
-        // Lo mismo que hace el bot cuando el cliente responde «sí» por WhatsApp.
         AttendanceConfirmation::mark($turn);
 
-        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()->assertSee('Asistencia confirmada');
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()
+            ->assertSee('Cliente confirmó')->assertDontSee('Llegada verificada');
+
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $this->travel(10)->minutes();
+        app(TurnQueueService::class)->advance($turn->barber_id);
+        $this->actingAs($admin)->patch(route('turns.attendance', $turn), ['decision' => 'presente'])->assertRedirect();
+        $this->get('/mis-servicios')->assertOk()->assertSee('Llegada verificada');
     }
 
     public function test_cancelling_called_turn_updates_queue_estimates_history_and_notifications_once(): void

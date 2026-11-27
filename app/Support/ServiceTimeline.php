@@ -20,19 +20,26 @@ class ServiceTimeline
         if ($subject instanceof Turn) {
             $duration = $this->queue->durationMinutes($subject);
             $finished = $subject->status === 'atendido';
-            $start = match ($subject->status) {
-                'esperando' => $estimate['start_at'] ?? null,
-                'llamado' => $this->queue->expectedStart($subject),
-                default => $subject->started_at ?? ($subject->status === 'atendiendo' ? $subject->called_at : null),
+            $verified = $subject->attendance_status === 'presente'
+                || ($subject->attendance_status === null && $subject->status === 'atendiendo');
+            $start = match (true) {
+                $verified => $subject->started_at ?? $subject->called_at ?? $this->queue->expectedStart($subject),
+                $subject->status === 'esperando' => $estimate['start_at'] ?? null,
+                $subject->status === 'llamado' => $this->queue->expectedStart($subject),
+                $finished => $subject->started_at ?? $subject->called_at ?? $subject->finished_at?->copy()->subMinutes($duration),
+                default => null,
             };
             $end = $finished ? $subject->finished_at : $start?->copy()->addMinutes($duration);
-            $live = in_array($subject->status, ['llamado', 'atendiendo'], true);
+            $live = $verified && in_array($subject->status, ['llamado', 'atendiendo'], true);
         } else {
             $duration = $subject->durationMinutes();
             $finished = $subject->status === 'atendida';
-            $start = $subject->startsAt();
-            $end = $finished ? $subject->completionEvent?->created_at : $start->copy()->addMinutes($duration);
-            $live = $subject->status === 'confirmada';
+            $verified = $subject->attendance_status === 'presente';
+            $start = $verified ? ($subject->started_at ?? $subject->startsAt()) : $subject->startsAt();
+            $end = $finished
+                ? ($subject->completionEvent?->created_at ?? $start->copy()->addMinutes($duration))
+                : $start->copy()->addMinutes($duration);
+            $live = $verified && $subject->status === 'confirmada';
         }
 
         $elapsed = $start !== null && $live ? max(0, $now->timestamp - $start->timestamp) : 0;

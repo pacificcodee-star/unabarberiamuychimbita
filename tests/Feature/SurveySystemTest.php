@@ -34,6 +34,7 @@ class SurveySystemTest extends TestCase
         // Estas pruebas recorren el motor de la encuesta también por la web. En producción la web está
         // apagada (solo WhatsApp); ese modo se prueba aparte en los tests "only_whatsapp".
         config([
+            'encuestas.enabled' => true,
             'encuestas.whatsapp' => true,
             'encuestas.web' => true,
             'encuestas.send_delay_minutes' => 2,
@@ -304,9 +305,11 @@ class SurveySystemTest extends TestCase
         $appointment = $this->appointment(['status' => 'confirmada']);
         $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
 
-        $this->actingAs($admin)->patch(route('appointments.status', $appointment), ['status' => 'atendida', 'payment_method' => 'efectivo']);
+        $this->actingAs($admin)->patch(route('appointments.attendance', $appointment), ['decision' => 'presente'])->assertRedirect();
+        $this->actingAs($admin)->patch(route('appointments.status', $appointment), ['status' => 'atendida', 'payment_method' => 'efectivo'])->assertRedirect();
 
         $this->assertSame('atendida', $appointment->fresh()->status);
+        $this->assertDatabaseCount('sales', 1);
         $thanks = ClientNotification::where('type', 'service_thanks')->where('channel', 'whatsapp')->firstOrFail();
         $survey = ClientNotification::where('type', 'survey_invite')->where('channel', 'whatsapp')->firstOrFail();
         // El "Gracias por tu visita" no cancela la encuesta, y la encuesta sale después.

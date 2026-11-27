@@ -192,7 +192,21 @@
                                         $top = max(0, ($startMin - $rangeMinutesStart) * $pxPerMinute);
                                         $height = max(30, $duration * $pxPerMinute - 4);
                                         $height = min($height, $totalHeight - $top);
-                                        $canEdit = $appointment->status !== 'atendida';
+                                        $canEdit = $appointment->status !== 'atendida' && $appointment->attendance_status !== 'presente';
+                                        $verification = app(\App\Services\AttendanceVerificationService::class);
+                                        $statusLabel = \App\Models\Appointment::STATUSES[$appointment->status] ?? $appointment->status;
+                                        $canVerifyArrival = auth()->user()->isAdmin() && $verification->canVerify($appointment);
+                                        $canVerifyAbsence = auth()->user()->isAdmin() && $verification->canVerify($appointment, decision: 'ausente');
+                                        $canVerify = $canVerifyArrival || $canVerifyAbsence;
+                                        $attendanceLabel = $appointment->attendanceLabel();
+                                        $displayStatusLabel = $canVerify ? 'Verificar llegada' : ($attendanceLabel ?? $statusLabel);
+                                        $attendanceDetail = match (true) {
+                                            $appointment->attendance_status === 'presente' => 'El administrador verificó la llegada'.($appointment->started_at ? ' a las '.$appointment->started_at->format('h:i A') : '').'.',
+                                            $appointment->attendance_status === 'ausente' => 'El administrador registró que el cliente no llegó. No se generó ingreso.',
+                                            $canVerifyAbsence && ! $canVerifyArrival => 'La hora de esta cita ya pasó. Registra "No llegó" si el cliente no asistió.',
+                                            $canVerify => 'Ya es hora de iniciar. Confirma si el cliente está físicamente en la barbería.',
+                                            default => 'El administrador verificará la llegada cuando el servicio esté por iniciar.',
+                                        };
                                         $editUrl = route('appointments.edit', $appointment);
                                         $deleteUrl = route('appointments.destroy', $appointment);
                                         $timeLabel = \Carbon\Carbon::createFromTime($hh, $mm)->format('h:i A');
@@ -200,14 +214,13 @@
                                         $dateLabel = \Carbon\Carbon::parse($appointment->appointment_date)->locale('es')->translatedFormat('l, d \\d\\e F');
                                         $barberName = $appointment->barber?->name ?? '—';
                                         $serviceName = $appointment->service?->name ?? 'Por definir';
-                                        $statusLabel = \App\Models\Appointment::STATUSES[$appointment->status] ?? $appointment->status;
                                         [$lane, $cluster] = $lanes[$appointment->id] ?? [0, 0];
                                         $laneCount = $clusters[$cluster] ?? 1;
                                         $phoneDigits = preg_replace('/\D+/', '', (string) $appointment->client_phone);
                                         $waPhone = strlen($phoneDigits) === 10 ? '57'.$phoneDigits : $phoneDigits;
                                     @endphp
                                     @if($startMin >= $rangeMinutesStart && $startMin < $rangeMinutesEnd)
-                                        <a href="{{ $canEdit ? $editUrl : '#' }}" class="cal-event {{ $height < 56 ? 'is-compact' : ($height < 84 ? 'is-short' : ($height < 120 ? 'is-medium' : '')) }}" data-tone="{{ $statusDots[$appointment->status] ?? 'slate' }}" style="top: {{ $top + 2 }}px; height: {{ $height }}px; left: calc({{ $lane }} * 100% / {{ $laneCount }}); width: calc(100% / {{ $laneCount }} - {{ $laneCount > 1 ? 3 : 0 }}px);"
+                                        <a href="{{ $canEdit ? $editUrl : '#' }}" class="cal-event {{ $height < 56 ? 'is-compact' : ($height < 84 ? 'is-short' : ($height < 120 ? 'is-medium' : '')) }} {{ request('attendance') == $appointment->id ? 'is-attendance-target' : '' }}" data-tone="{{ $statusDots[$appointment->status] ?? 'slate' }}" style="top: {{ $top + 2 }}px; height: {{ $height }}px; left: calc({{ $lane }} * 100% / {{ $laneCount }}); width: calc(100% / {{ $laneCount }} - {{ $laneCount > 1 ? 3 : 0 }}px);"
                                            data-appt-trigger
                                            data-tone-key="{{ $statusDots[$appointment->status] ?? 'slate' }}"
                                            data-range="{{ e($rangeLabel) }}"
@@ -220,7 +233,15 @@
                                            data-time="{{ e($timeLabel) }}"
                                            data-barber="{{ e($barberName) }}"
                                            data-service="{{ e($serviceName) }}"
-                                           data-status="{{ e($statusLabel) }}"
+                                           data-status="{{ e($displayStatusLabel) }}"
+                                           data-attendance-url="{{ e(route('appointments.attendance', $appointment)) }}"
+                                           data-attendance-state="{{ e($appointment->attendance_status ?? 'pendiente') }}"
+                                           data-attendance-label="{{ e($attendanceLabel ?? 'Llegada pendiente de verificar') }}"
+                                           data-attendance-detail="{{ e($attendanceDetail) }}"
+                                           data-can-verify="{{ $canVerify ? '1' : '0' }}"
+                                           data-can-verify-arrival="{{ $canVerifyArrival ? '1' : '0' }}"
+                                           data-can-verify-absence="{{ $canVerifyAbsence ? '1' : '0' }}"
+                                           data-attendance-visible="{{ $canVerify || $appointment->attendance_status !== null ? '1' : '0' }}"
                                            data-notes="{{ e($appointment->notes ?? '') }}"
                                            data-edit-url="{{ e($editUrl) }}"
                                            data-delete-url="{{ e($deleteUrl) }}"
@@ -232,7 +253,7 @@
                                             <span class="cal-event-time">{{ $rangeLabel }}</span>
                                             <span class="cal-event-title">{{ $appointment->client_name }}</span>
                                             <span class="cal-event-sub">{{ $serviceName }}@if(auth()->user()->isAdmin() && $appointment->barber) · {{ $appointment->barber->name }}@endif</span>
-                                            <span class="cal-event-status">{{ $statusLabel }}</span>
+                                            <span class="cal-event-status">{{ $displayStatusLabel }}</span>
                                         </a>
                                     @endif
                                 @endforeach
@@ -281,7 +302,19 @@
                         <span><i class="bi bi-sticky" aria-hidden="true"></i> Notas</span>
                         <p data-appt-field="notes"></p>
                     </div>
-                    <div class="appt-locked" data-appt-locked hidden><i class="bi bi-lock-fill" aria-hidden="true"></i> Esta cita ya fue atendida y generó su ingreso: no se puede editar.</div>
+                    <div class="appt-attendance" data-appt-attendance-box hidden>
+                        <span><i class="bi bi-person-check" aria-hidden="true"></i> <strong data-appt-attendance-label>Llegada pendiente de verificar</strong></span>
+                        <p data-appt-attendance-detail></p>
+                        @if(auth()->user()->isAdmin())
+                            <form method="POST" action="#" data-appt-attendance-form class="d-flex flex-wrap gap-2">
+                                @csrf
+                                @method('PATCH')
+                                <button name="decision" value="presente" data-appt-decision="presente" class="btn btn-sm btn-success"><i class="bi bi-person-check me-1"></i> Llegó</button>
+                                <button name="decision" value="ausente" data-appt-decision="ausente" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Marcar que el cliente no llegó? La cita se cancelará sin generar ingreso.');"><i class="bi bi-person-x me-1"></i> No llegó</button>
+                            </form>
+                        @endif
+                    </div>
+                    <div class="appt-locked" data-appt-locked hidden><i class="bi bi-lock-fill" aria-hidden="true"></i> Este servicio ya no se puede editar.</div>
                 </div>
 
                 <div class="modal-footer">
@@ -433,6 +466,10 @@
     .appt-notes span { display: inline-flex; align-items: center; gap: 6px; color: var(--c-amber); font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
     .appt-notes p { margin: 4px 0 0; font-size: .86rem; white-space: pre-line; }
     .appt-locked { margin-top: 12px; padding: 10px 14px; border-radius: 12px; background: var(--ui-surface-2); color: var(--ui-text-2); font-size: .8rem; }
+    .appt-attendance { margin-top: 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--c-amber) 28%, var(--ui-border)); border-radius: 14px; background: var(--c-amber-soft); }
+    .appt-attendance > span { display: inline-flex; align-items: center; gap: 7px; color: var(--c-amber); font-size: .82rem; }
+    .appt-attendance p { margin: 5px 0 10px; color: var(--ui-text-2); font-size: .8rem; line-height: 1.45; }
+    .cal-event.is-attendance-target { outline: 3px solid var(--c-amber); outline-offset: 2px; z-index: 5; }
     .appt-modal .modal-footer { justify-content: space-between; flex-wrap: nowrap; }
     .appt-modal .modal-footer form { margin: 0; }
     .appt-delete { color: var(--c-red) !important; font-weight: 700; display: inline-flex; gap: 6px; }
@@ -453,6 +490,8 @@
             const modal = new bootstrap.Modal(modalEl);
             const content = modalEl.querySelector('[data-appt-tone]');
             const deleteForm = modalEl.querySelector('[data-appt-delete-form]');
+            const attendanceBox = modalEl.querySelector('[data-appt-attendance-box]');
+            const attendanceForm = modalEl.querySelector('[data-appt-attendance-form]');
             const editLinks = modalEl.querySelectorAll('[data-appt-edit], [data-appt-edit-quick]');
             const call = modalEl.querySelector('[data-appt-call]');
             const wa = modalEl.querySelector('[data-appt-wa]');
@@ -463,10 +502,7 @@
                 if (href) link.removeAttribute('aria-disabled'); else link.setAttribute('aria-disabled', 'true');
             };
 
-            document.addEventListener('click', (e) => {
-                const el = e.target.closest('[data-appt-trigger]');
-                if (!el) return;
-                e.preventDefault();
+            const openAppointment = (el) => {
                 const d = el.dataset;
                 content.dataset.tone = d.toneKey || 'slate';
                 field('initial').textContent = (d.client || '?').trim().charAt(0).toUpperCase();
@@ -487,8 +523,34 @@
                 editLinks.forEach((link) => setLink(link, canEdit ? d.editUrl : ''));
                 modalEl.querySelector('[data-appt-locked]').hidden = !!canEdit;
                 if (deleteForm) deleteForm.action = d.deleteUrl || '#';
+
+                attendanceBox.hidden = d.attendanceVisible !== '1';
+                modalEl.querySelector('[data-appt-attendance-label]').textContent = d.attendanceLabel || 'Llegada pendiente de verificar';
+                modalEl.querySelector('[data-appt-attendance-detail]').textContent = d.attendanceDetail || '';
+                if (attendanceForm) {
+                    attendanceForm.hidden = d.canVerify !== '1';
+                    attendanceForm.action = d.attendanceUrl || '#';
+                    attendanceForm.querySelector('[data-appt-decision="presente"]').disabled = d.canVerifyArrival !== '1';
+                    attendanceForm.querySelector('[data-appt-decision="ausente"]').disabled = d.canVerifyAbsence !== '1';
+                }
                 modal.show();
+            };
+
+            document.addEventListener('click', (e) => {
+                const el = e.target.closest('[data-appt-trigger]');
+                if (!el) return;
+                e.preventDefault();
+                openAppointment(el);
             });
+
+            const attendanceId = new URLSearchParams(window.location.search).get('attendance');
+            if (attendanceId && /^\d+$/.test(attendanceId)) {
+                const target = [...document.querySelectorAll('[data-appt-trigger]')].find((el) => el.dataset.id === attendanceId);
+                if (target) {
+                    openAppointment(target);
+                    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }
+            }
         }
 
         // Al abrir, el calendario baja hasta la hora actual o la primera cita.

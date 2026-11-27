@@ -72,7 +72,7 @@ class BotCitaTurnoTest extends TestCase
         $this->assertStringContainsString('2. 🎟️ Tomar un turno', $menu);
     }
 
-    public function test_confirmar_en_whatsapp_actualiza_la_cita_de_la_pwa_y_la_pasa_al_historial(): void
+    public function test_confirmar_en_whatsapp_actualiza_la_pwa_pero_el_historial_espera_la_llegada_real(): void
     {
         $booking = $this->post(route('public.booking.appointment'), [
             'barber_id' => $this->deCita->id,
@@ -97,7 +97,15 @@ class BotCitaTurnoTest extends TestCase
         $this->get('/mis-servicios')->assertSee('Ana desde la PWA')->assertSee('Confirmada');
 
         $this->travelTo(Carbon::parse('2026-11-19 10:31:00'));
-        $this->assertSame(1, app(\App\Services\AttendanceAutomation::class)->finishConfirmedAppointments());
+        $this->assertSame(0, app(\App\Services\AttendanceAutomation::class)->finishVerifiedAppointments());
+        $this->assertDatabaseCount('sales', 0);
+        $this->get('/mis-servicios')->assertSee('Confirmada')->assertDontSee('Citas anteriores');
+
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $appointment = Appointment::firstOrFail();
+        $this->actingAs($admin)->patch(route('appointments.attendance', $appointment), ['decision' => 'presente'])->assertRedirect();
+        $this->travel(30)->minutes();
+        $this->assertSame(1, app(\App\Services\AttendanceAutomation::class)->finishVerifiedAppointments());
         $this->get('/mis-servicios')->assertSeeInOrder(['Historial', 'Citas anteriores', 'Atendida', 'Ana desde la PWA']);
     }
 
@@ -311,6 +319,8 @@ class BotCitaTurnoTest extends TestCase
 
         Turn::where('turn_number', 1)->firstOrFail()->update([
             'status' => 'atendiendo',
+            'attendance_status' => 'presente',
+            'attendance_verified_at' => now()->subMinutes(30),
             'started_at' => now()->subMinutes(30),
         ]);
         app(TurnQueueService::class)->advance($this->deTurno->id);
@@ -407,6 +417,42 @@ class BotCitaTurnoTest extends TestCase
 
         $this->escribir('1');
         $this->assertSame('cancelada', $cita->fresh()->status);
+    }
+
+    public function test_whatsapp_no_puede_cancelar_ni_modificar_una_cita_con_llegada_verificada(): void
+    {
+        $service = Service::firstOrFail();
+        $cita = Appointment::create([
+            'barber_id' => $this->deCita->id, 'service_id' => $service->id,
+            'client_name' => 'Ana Verificada', 'client_phone' => '3001234567',
+            'appointment_date' => now()->toDateString(), 'appointment_time' => '10:00:00',
+            'status' => 'confirmada', 'attendance_status' => 'presente',
+            'attendance_verified_at' => now(), 'started_at' => now(),
+        ]);
+
+        $this->escribir('cancelar');
+        $this->assertStringContainsString('No encontré', $this->escribir('Ana Verificada'));
+        $this->assertSame('confirmada', $cita->fresh()->status);
+        $this->assertSame('presente', $cita->fresh()->attendance_status);
+    }
+
+    public function test_whatsapp_no_puede_modificar_una_cita_con_llegada_verificada(): void
+    {
+        $service = Service::firstOrFail();
+        $cita = Appointment::create([
+            'barber_id' => $this->deCita->id, 'service_id' => $service->id,
+            'client_name' => 'Ana Verificada', 'client_phone' => '3001234567',
+            'appointment_date' => now()->toDateString(), 'appointment_time' => '10:00:00',
+            'status' => 'confirmada', 'attendance_status' => 'presente',
+            'attendance_verified_at' => now(), 'started_at' => now(),
+        ]);
+
+        $this->escribir('hola');
+        $this->assertStringContainsString('no encontramos', $this->escribir('6'));
+        $cita->refresh();
+        $this->assertSame('confirmada', $cita->status);
+        $this->assertSame('presente', $cita->attendance_status);
+        $this->assertSame($service->id, $cita->service_id);
     }
 
     public function test_cancelar_con_varias_reservas_deja_elegir_cual(): void

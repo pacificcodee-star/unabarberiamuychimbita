@@ -19,17 +19,19 @@ class SendServiceReminders extends Command
         $now = now();
         $sent = 0;
 
-        // Citas: 15 minutos antes de acabar el corte (fin estimado = hora cita + duración del servicio).
+        // Citas: 15 minutos antes de acabar el servicio, contadas desde la llegada verificada.
         $appointments = Appointment::query()
             ->with(['service', 'barber'])
             ->whereNull('reminder_sent_at')
             ->whereNotNull('client_phone')
+            ->where('attendance_status', 'presente')
+            ->whereNotNull('started_at')
             ->whereIn('status', ['pendiente', 'confirmada'])
             ->whereDate('appointment_date', $now->toDateString())
             ->get();
 
         foreach ($appointments as $appointment) {
-            $end = $appointment->startsAt()->addMinutes($appointment->durationMinutes());
+            $end = $appointment->started_at->copy()->addMinutes($appointment->durationMinutes());
             $triggerAt = $end->copy()->subMinutes(15);
 
             // Ventana: desde el disparo hasta el fin (o hasta 5 min después por si el cron se retrasa), sin enviar si ya terminó hace rato.
@@ -55,12 +57,13 @@ class SendServiceReminders extends Command
             ->whereNull('reminder_sent_at')
             ->whereNotNull('client_phone')
             ->where('status', 'atendiendo')
-            ->where(fn ($query) => $query->whereNotNull('started_at')->orWhereNotNull('called_at'))
+            ->where(fn ($query) => $query->where('attendance_status', 'presente')->orWhereNull('attendance_status'))
+            ->whereNotNull('started_at')
             ->whereDate('turn_date', $now->toDateString())
             ->get();
 
         foreach ($turns as $turn) {
-            $start = $turn->started_at ?? $turn->called_at;
+            $start = $turn->started_at;
             $end = $start->copy()->addMinutes($queue->durationMinutes($turn));
             $triggerAt = $end->copy()->subMinutes(10);
 

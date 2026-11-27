@@ -130,7 +130,12 @@
                 </thead>
                 <tbody data-booking-region="queue">
                 @forelse($turns as $turn)
-                    <tr>
+                    @php
+                        $verification = app(\App\Services\AttendanceVerificationService::class);
+                        $canVerify = auth()->user()->isAdmin() && $verification->canVerify($turn);
+                        $dueAt = $turn->status === 'llamado' ? $verification->dueAt($turn) : null;
+                    @endphp
+                    <tr id="turn-{{ $turn->id }}" class="{{ request('attendance') == $turn->id ? 'is-attendance-target' : '' }}">
                         <td><span class="agenda-time">#{{ $turn->turn_number }}</span></td>
                         <td class="text-nowrap">{{ $turn->created_at->format('h:i A') }}</td>
                         <td>
@@ -159,18 +164,16 @@
                                     </form>
                                 @endif
                             @else
-                                <form method="POST" action="{{ route('turns.status', $turn) }}">
-                                    @csrf
-                                    @method('PATCH')
-                                    <select name="status" class="form-select form-select-sm" onchange="attendedChange(this)" style="min-width: 140px;">
-                                        @foreach(\App\Models\Turn::STATUSES as $key => $label)
-                                            <option value="{{ $key }}" @selected($turn->status === $key)>{{ $label }}</option>
-                                        @endforeach
-                                    </select>
-                                    <select name="payment_method" class="form-select form-select-sm mt-1 attended-pay" aria-label="Medio de pago" title="¿Cómo pagó el cliente?" hidden>
-                                        @foreach(\App\Models\Sale::PAYMENT_METHODS as $pm => $pmLabel)<option value="{{ $pm }}">{{ $pmLabel }}</option>@endforeach
-                                    </select>
-                                </form>
+                                <span class="badge-soft {{ $turn->status === 'atendiendo' ? 'blue' : ($turn->status === 'cancelado' ? 'red' : 'gold') }}">{{ $turn->statusLabel() }}</span>
+                                @if($turn->attendance_status === 'presente')
+                                    <div class="small text-success mt-1"><i class="bi bi-person-check"></i> Llegada verificada</div>
+                                @elseif($turn->attendance_status === 'ausente')
+                                    <div class="small text-danger mt-1"><i class="bi bi-person-x"></i> No llegó</div>
+                                @elseif($turn->status === 'llamado')
+                                    <div class="small {{ $canVerify ? 'text-warning fw-semibold' : 'text-muted' }} mt-1">
+                                        <i class="bi bi-clock"></i> {{ $canVerify ? 'Verificar llegada ahora' : 'Verificar desde las '.$dueAt->format('h:i A') }}
+                                    </div>
+                                @endif
                             @endif
                         </td>
                         <td class="text-end text-nowrap">
@@ -178,10 +181,27 @@
                                 <form method="POST" action="{{ route('turns.status', $turn) }}" class="d-inline">
                                     @csrf
                                     @method('PATCH')
-                                    <input type="hidden" name="status" value="atendiendo">
-                                    <button class="btn btn-sm btn-outline-dark btn-icon" title="Llamar este turno"><i class="bi bi-megaphone"></i></button>
+                                    <input type="hidden" name="status" value="llamado">
+                                    <button class="btn btn-sm btn-outline-dark" title="Llamar este turno"><i class="bi bi-megaphone me-1"></i> Llamar</button>
+                                </form>
+                            @elseif($turn->status === 'cancelado')
+                                <form method="POST" action="{{ route('turns.status', $turn) }}" class="d-inline">
+                                    @csrf
+                                    @method('PATCH')
+                                    <input type="hidden" name="status" value="esperando">
+                                    <button class="btn btn-sm btn-outline-dark"><i class="bi bi-arrow-counterclockwise me-1"></i> Volver a la fila</button>
                                 </form>
                             @endif
+
+                            @if($canVerify)
+                                <form method="POST" action="{{ route('turns.attendance', $turn) }}" class="d-inline-flex gap-1 ms-1" data-attendance-form>
+                                    @csrf
+                                    @method('PATCH')
+                                    <button name="decision" value="presente" class="btn btn-sm btn-success"><i class="bi bi-person-check me-1"></i> Llegó</button>
+                                    <button name="decision" value="ausente" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Marcar que el cliente no llegó? Se cancelará sin generar ingreso.');"><i class="bi bi-person-x me-1"></i> No llegó</button>
+                                </form>
+                            @endif
+
                             <form method="POST" action="{{ route('turns.destroy', $turn) }}" class="d-inline" onsubmit="return confirm('{{ $turn->sale_id ? '¿Eliminar este turno? También se borrará el ingreso que generó.' : '¿Eliminar este turno?' }}');">
                                 @csrf
                                 @method('DELETE')
@@ -205,34 +225,23 @@
     </div>
 @endsection
 
+@push('styles')
+<style>
+    .is-attendance-target > td { background: var(--c-amber-soft); }
+</style>
+@endpush
+
 @push('scripts')
 <script>
-    // Al marcar como finalizado se pregunta el medio de pago antes de registrar el ingreso.
-    function attendedChange(select) {
-        const form = select.form;
-        const pay = form.querySelector('.attended-pay');
-        if (['atendida', 'atendido'].includes(select.value) && pay) {
-            // Mostrar el medio de pago y un botón para confirmar (así no se guarda por accidente).
-            pay.hidden = false;
-            if (!form.querySelector('.attended-confirm')) {
-                const btn = document.createElement('button');
-                btn.type = 'submit';
-                btn.className = 'btn btn-sm btn-gold w-100 mt-1 attended-confirm';
-                btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Confirmar finalizado';
-                form.appendChild(btn);
-            }
-            pay.focus();
-            return;
-        }
-        form.submit();
-    }
-
     // Mantiene la cola del panel sincronizada con el cliente sin recargar a mano.
-    // No interrumpe mientras alguien escribe o elige un estado.
+    // No interrumpe mientras alguien está gestionando un cliente.
     setInterval(() => {
         if (document.visibilityState !== 'visible') return;
         if (document.activeElement?.closest('input, select, textarea, button')) return;
         location.reload();
     }, 30000);
+
+    const target = document.querySelector('.is-attendance-target');
+    if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
 </script>
 @endpush

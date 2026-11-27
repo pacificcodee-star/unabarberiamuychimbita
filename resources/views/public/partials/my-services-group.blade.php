@@ -56,7 +56,10 @@
                                     <li><i class="bi bi-person-badge" aria-hidden="true"></i> Cliente: {{ $subject->client_name }}</li>
                                 @endif
                                 @if($turn && ! $history && \App\Support\AttendanceConfirmation::confirmed($subject))
-                                    <li><i class="bi bi-check2-circle" aria-hidden="true"></i> Asistencia confirmada</li>
+                                    <li><i class="bi bi-check2-circle" aria-hidden="true"></i> Cliente confirmó</li>
+                                @endif
+                                @if(! $history && $subject->attendance_status === 'presente')
+                                    <li><i class="bi bi-person-check" aria-hidden="true"></i> Llegada verificada</li>
                                 @endif
                                 @if($history && $subject->service_price !== null)
                                     <li><i class="bi bi-receipt" aria-hidden="true"></i> Precio registrado: {{ format_money($subject->service_price) }}</li>

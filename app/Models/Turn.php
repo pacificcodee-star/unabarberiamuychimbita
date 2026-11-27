@@ -12,6 +12,8 @@ class Turn extends Model
     use HasClientNotifications;
 
     // 'llamado': ya se le avisó al cliente que puede pasar y corre el margen de llegada.
+    public const ATTENDANCE_STATUSES = ['presente' => 'Llegada verificada', 'ausente' => 'No llegó'];
+
     public const STATUSES = [
         'esperando' => 'En espera',
         'llamado' => 'Llamado',
@@ -51,6 +53,10 @@ class Turn extends Model
         'public_token',
         'client_email',
         'whatsapp_consent',
+        'attendance_status',
+        'attendance_verified_at',
+        'attendance_verified_by',
+        'attendance_prompted_at',
         'started_at',
         'barber_id',
         'service_id',
@@ -81,6 +87,9 @@ class Turn extends Model
             'turn_date' => 'date',
             'called_at' => 'datetime',
             'started_at' => 'datetime',
+            'attendance_verified_at' => 'datetime',
+            'attendance_verified_by' => 'integer',
+            'attendance_prompted_at' => 'datetime',
             'whatsapp_consent' => 'boolean',
             'attendance_confirmed_at' => 'datetime',
             'finished_at' => 'datetime',
@@ -96,6 +105,11 @@ class Turn extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    public function attendanceVerifier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'attendance_verified_by');
     }
 
     public function service(): BelongsTo
@@ -116,6 +130,11 @@ class Turn extends Model
     public function statusLabel(): string
     {
         return self::STATUSES[$this->status] ?? ucfirst($this->status);
+    }
+
+    public function attendanceLabel(): ?string
+    {
+        return self::ATTENDANCE_STATUSES[$this->attendance_status] ?? null;
     }
 
     public function scopeToday($query)

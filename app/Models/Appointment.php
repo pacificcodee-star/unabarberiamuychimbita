@@ -17,6 +17,8 @@ class Appointment extends Model
 {
     use HasClientNotifications;
 
+    public const ATTENDANCE_STATUSES = ['presente' => 'Llegada verificada', 'ausente' => 'No llegó'];
+
     public const STATUSES = [
         'pendiente' => 'Pendiente',
         'confirmada' => 'Confirmada',
@@ -29,6 +31,11 @@ class Appointment extends Model
         'public_token',
         'client_email',
         'whatsapp_consent',
+        'attendance_status',
+        'attendance_verified_at',
+        'attendance_verified_by',
+        'attendance_prompted_at',
+        'started_at',
         'barber_id',
         'service_id',
         'client_name',
@@ -182,6 +189,10 @@ class Appointment extends Model
             'service_price' => 'decimal:2',
             'appointment_date' => 'date',
             'whatsapp_consent' => 'boolean',
+            'started_at' => 'datetime',
+            'attendance_verified_at' => 'datetime',
+            'attendance_verified_by' => 'integer',
+            'attendance_prompted_at' => 'datetime',
             'attendance_confirmed_at' => 'datetime',
             'reminder_sent_at' => 'datetime',
         ];
@@ -195,6 +206,11 @@ class Appointment extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    public function attendanceVerifier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'attendance_verified_by');
     }
 
     public function service(): BelongsTo
@@ -233,5 +249,10 @@ class Appointment extends Model
     public function statusLabel(): string
     {
         return self::STATUSES[$this->status] ?? ucfirst($this->status);
+    }
+
+    public function attendanceLabel(): ?string
+    {
+        return self::ATTENDANCE_STATUSES[$this->attendance_status] ?? null;
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Service;
 use App\Models\Turn;
 use App\Models\User;
+use App\Services\AttendanceVerificationService;
 use App\Services\ClientNotifier;
 use App\Services\TurnQueueService;
 use App\Services\TurnService;
@@ -103,6 +104,12 @@ class TurnController extends Controller
             return back()->with('error', 'Este turno ya fue atendido y no se puede modificar. Si fue un error, elimínalo.');
         }
 
+        try {
+            $this->ensureAttendanceDecisionNotBypassed($request, $turn, $data['status']);
+        } catch (ValidationException $e) {
+            return back()->withErrors($e->errors())->with('error', $e->getMessage());
+        }
+
         if (! $turn->canTransitionTo($data['status'])) {
             return back()->with('error', 'No se puede pasar un turno de "'.$turn->statusLabel().'" a "'.Turn::STATUSES[$data['status']].'".');
         }
@@ -110,8 +117,23 @@ class TurnController extends Controller
         $previousStatus = $turn->status;
         $attributes = ['status' => $data['status']];
 
-        if ($data['status'] === 'llamado' && ($previousStatus !== 'llamado' || ! $turn->called_at)) {
-            $attributes['called_at'] = now();
+        if ($data['status'] === 'llamado') {
+            $attributes['called_at'] = $turn->called_at && $previousStatus === 'llamado' ? $turn->called_at : now();
+            $attributes['attendance_prompted_at'] = null;
+            $attributes['attendance_status'] = null;
+            $attributes['attendance_verified_at'] = null;
+            $attributes['attendance_verified_by'] = null;
+            $attributes['started_at'] = null;
+            $attributes['finished_at'] = null;
+        }
+
+        if ($data['status'] === 'esperando' && $previousStatus === 'cancelado') {
+            $attributes['attendance_status'] = null;
+            $attributes['attendance_verified_at'] = null;
+            $attributes['attendance_verified_by'] = null;
+            $attributes['attendance_prompted_at'] = null;
+            $attributes['started_at'] = null;
+            $attributes['finished_at'] = null;
         }
 
         if ($data['status'] === 'atendiendo' && ($previousStatus !== 'atendiendo' || ! $turn->started_at)) {
@@ -164,9 +186,21 @@ class TurnController extends Controller
             abort(403);
         }
 
-        // La fila avanza sola, pero el barbero puede adelantarse: se cierra el turno en atención
-        // (se registra su ingreso), se llama al siguiente y se le avisa al cliente.
+        // La fila avanza sola, pero el barbero puede adelantarse cuando el servicio ya terminó.
         $result = app(TurnQueueService::class)->callNextManually($barber);
+
+        return back()->with($result['ok'] ? 'success' : 'error', $result['message']);
+    }
+
+    public function updateAttendance(Request $request, Turn $turn, AttendanceVerificationService $verification)
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+        $data = $request->validate(['decision' => ['required', 'in:presente,ausente']]);
+        $result = $verification->verify($request->user(), $turn, $data['decision']);
+
+        if ($request->expectsJson()) {
+            return response()->json($result);
+        }
 
         return back()->with($result['ok'] ? 'success' : 'error', $result['message']);
     }
@@ -190,5 +224,19 @@ class TurnController extends Controller
     {
         $user = $request->user();
         abort_unless($user->isAdmin() || $turn->barber_id === $user->id, 403);
+    }
+
+    private function ensureAttendanceDecisionNotBypassed(Request $request, Turn $turn, string $status): void
+    {
+        $legacyAttended = $turn->attendance_status === null && $turn->status === 'atendido' && $status === 'atendido';
+
+        if (in_array($status, ['atendiendo', 'atendido'], true) && ! $legacyAttended && $turn->attendance_status !== 'presente') {
+            throw ValidationException::withMessages(['status' => 'Solo el administrador puede iniciar el servicio después de verificar "Llegó".']);
+        }
+
+        if ($status === 'cancelado' && ($turn->attendance_status === 'presente'
+            || ($turn->attendance_status === null && $turn->status === 'llamado' && app(TurnQueueService::class)->expectedStart($turn)->lte(now())))) {
+            throw ValidationException::withMessages(['status' => 'Usa las acciones "Llegó" o "No llegó" para registrar la asistencia.']);
+        }
     }
 }

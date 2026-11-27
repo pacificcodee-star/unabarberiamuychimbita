@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\Service;
 use App\Models\User;
+use App\Services\AttendanceVerificationService;
 use App\Services\WhatsApp\BookingMessenger;
 use App\Support\AuditLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class AppointmentController extends Controller
@@ -144,6 +146,11 @@ class AppointmentController extends Controller
             return redirect()->route('appointments.index', ['date' => $appointment->appointment_date->toDateString()])
                 ->with('error', 'Esta cita ya fue atendida y no se puede modificar. Si fue un error, elimínala.');
         }
+
+        if ($appointment->attendance_status !== null) {
+            return redirect()->route('appointments.index', ['date' => $appointment->appointment_date->toDateString()])
+                ->with('error', 'Esta cita ya tiene una decisión de asistencia y no se puede editar.');
+        }
         $user = $request->user();
 
         if (! $user->isAdmin() && $user->attention_mode !== 'citas') {
@@ -169,20 +176,33 @@ class AppointmentController extends Controller
             return redirect()->route('appointments.index', ['date' => $appointment->appointment_date->toDateString()])
                 ->with('error', 'Esta cita ya fue atendida y no se puede modificar. Si fue un error, elimínala.');
         }
+
+        if ($appointment->attendance_status !== null) {
+            return redirect()->route('appointments.index', ['date' => $appointment->appointment_date->toDateString()])
+                ->with('error', 'Esta cita ya tiene una decisión de asistencia y no se puede editar.');
+        }
         $data = $this->validatedData($request);
 
         if (! $request->user()->isAdmin()) {
             $data['barber_id'] = $request->user()->id;
         }
 
-        if (! $appointment->canTransitionTo($data['status'])) {
-            throw ValidationException::withMessages(['status' => 'No se puede pasar una cita de "'.$appointment->statusLabel().'" a "'.Appointment::STATUSES[$data['status']].'".']);
-        }
-
         $this->ensureBarberHandlesAppointments((int) $data['barber_id']);
 
         $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
-        Appointment::reserveSlot($data, $appointment, 'Ese horario ya está ocupado para el barbero seleccionado. Elige otra hora.');
+        $appointment = DB::transaction(function () use ($request, $appointment, $data) {
+            $current = Appointment::query()->lockForUpdate()->findOrFail($appointment->getKey());
+            if ($current->attendance_status !== null) {
+                throw ValidationException::withMessages(['status' => 'La asistencia de esta cita ya fue registrada.']);
+            }
+
+            $this->ensureAttendanceDecisionNotBypassed($request, $current, $data['status']);
+            if (! $current->canTransitionTo($data['status'])) {
+                throw ValidationException::withMessages(['status' => 'No se puede pasar una cita de "'.$current->statusLabel().'" a "'.Appointment::STATUSES[$data['status']].'".']);
+            }
+
+            return Appointment::reserveSlot($data, $current, 'Ese horario ya está ocupado para el barbero seleccionado. Elige otra hora.');
+        });
         AuditLog::record('cita.editada', $appointment, ['antes' => ['estado' => $before['status'], 'inicio' => (string) $before['starts_at']], 'estado' => $appointment->status]);
         $note = app(\App\Services\AttendedServiceRecorder::class)->sync($appointment, $request->input('payment_method'));
         // Si cambió la fecha, la hora o el estado: se cancelan los recordatorios viejos y se crean los nuevos.
@@ -208,25 +228,42 @@ class AppointmentController extends Controller
             return back()->with('error', 'Esta cita ya fue atendida y no se puede modificar. Si fue un error, elimínala.');
         }
 
-        if (! $appointment->canTransitionTo($data['status'])) {
-            return back()->with('error', 'No se puede pasar una cita de "'.$appointment->statusLabel().'" a "'.Appointment::STATUSES[$data['status']].'".');
-        }
-
         $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
-        if ($appointment->status === 'cancelada' && $data['status'] !== 'cancelada') {
-            // Reactivar una cancelada: el horario pudo haberlo tomado otra persona; se comprueba con bloqueo.
-            try {
-                Appointment::reserveSlot([
-                    'barber_id' => $appointment->barber_id,
-                    'appointment_date' => $appointment->appointment_date->toDateString(),
-                    'appointment_time' => substr((string) $appointment->appointment_time, 0, 5),
-                    'status' => $data['status'],
-                ], $appointment);
-            } catch (ValidationException) {
-                return back()->with('error', 'No se puede reactivar: ese horario ya lo tiene otra cita.');
-            }
-        } else {
-            $appointment->update(['status' => $data['status']]);
+        try {
+            $appointment = DB::transaction(function () use ($request, $appointment, $data) {
+                $current = Appointment::query()->lockForUpdate()->findOrFail($appointment->getKey());
+                if ($current->status === 'atendida' && ($data['status'] !== 'atendida' || $current->sale_id)) {
+                    throw ValidationException::withMessages(['status' => 'Esta cita ya fue atendida y no se puede modificar.']);
+                }
+
+                $this->ensureAttendanceDecisionNotBypassed($request, $current, $data['status']);
+                if (! $current->canTransitionTo($data['status'])) {
+                    throw ValidationException::withMessages(['status' => 'No se puede pasar una cita de "'.$current->statusLabel().'" a "'.Appointment::STATUSES[$data['status']].'".']);
+                }
+
+                if ($current->status === 'cancelada' && $data['status'] !== 'cancelada') {
+                    Appointment::reserveSlot([
+                        'barber_id' => $current->barber_id,
+                        'appointment_date' => $current->appointment_date->toDateString(),
+                        'appointment_time' => substr((string) $current->appointment_time, 0, 5),
+                        'status' => $data['status'],
+                    ], $current, 'No se puede reactivar: ese horario ya lo tiene otra cita.');
+                    $current->forceFill([
+                        'status' => $data['status'],
+                        'attendance_status' => null,
+                        'attendance_verified_at' => null,
+                        'attendance_verified_by' => null,
+                        'attendance_prompted_at' => null,
+                        'started_at' => null,
+                    ])->save();
+                } else {
+                    $current->update(['status' => $data['status']]);
+                }
+
+                return $current;
+            });
+        } catch (ValidationException $e) {
+            return back()->withErrors($e->errors())->with('error', $e->getMessage());
         }
         AuditLog::record('cita.estado', $appointment, ['de' => $before['status'], 'a' => $data['status']]);
         $note = app(\App\Services\AttendedServiceRecorder::class)->sync($appointment, $request->input('payment_method'));
@@ -235,6 +272,19 @@ class AppointmentController extends Controller
         app(\App\Services\ClientNotifier::class)->flush();
 
         return back()->with('success', 'Estado de la cita actualizado.'.($note ? ' '.$note : ''));
+    }
+
+    public function updateAttendance(Request $request, Appointment $appointment, AttendanceVerificationService $verification)
+    {
+        abort_unless($request->user()->isAdmin(), 403);
+        $data = $request->validate(['decision' => ['required', 'in:presente,ausente']]);
+        $result = $verification->verify($request->user(), $appointment, $data['decision']);
+
+        if ($request->expectsJson()) {
+            return response()->json($result);
+        }
+
+        return back()->with($result['ok'] ? 'success' : 'error', $result['message']);
     }
 
     public function destroy(Request $request, Appointment $appointment)
@@ -278,5 +328,23 @@ class AppointmentController extends Controller
     {
         $user = $request->user();
         abort_unless($user->isAdmin() || $appointment->barber_id === $user->id, 403);
+    }
+
+    private function ensureAttendanceDecisionNotBypassed(Request $request, Appointment $appointment, string $status): void
+    {
+        if ($appointment->attendance_status === 'ausente' && $status !== 'cancelada') {
+            throw ValidationException::withMessages(['status' => 'La ausencia ya fue registrada. Esta cita no se puede reactivar.']);
+        }
+
+        $legacyAttended = $appointment->attendance_status === null && $appointment->status === 'atendida';
+
+        if ($status === 'atendida' && ! $legacyAttended && $appointment->attendance_status !== 'presente') {
+            throw ValidationException::withMessages(['status' => 'Primero verifica la llegada del cliente con la acción "Llegó".']);
+        }
+
+        if ($status === 'cancelada' && ($appointment->attendance_status === 'presente'
+            || ($appointment->attendance_status === null && $appointment->startsAt()->lte(now())))) {
+            throw ValidationException::withMessages(['status' => 'Usa las acciones "Llegó" o "No llegó" para registrar la asistencia.']);
+        }
     }
 }

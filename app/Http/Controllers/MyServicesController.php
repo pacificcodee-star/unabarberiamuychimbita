@@ -38,8 +38,9 @@ class MyServicesController extends Controller
             }
 
             return $appointment->startsAt()->addMinutes($appointment->durationMinutes())->gt($now)
-                || ($appointment->status === 'confirmada' && $appointment->appointment_date->isToday()
-                    && AttendanceConfirmation::confirmed($appointment));
+                || ($appointment->appointment_date->isToday()
+                    && ($appointment->attendance_status === 'presente'
+                        || ($appointment->status === 'confirmada' && AttendanceConfirmation::confirmed($appointment))));
         });
         [$activeTurns, $historyTurns] = $turns->partition(fn ($t) =>
             $t->turn_date->isToday() && in_array($t->status, TurnQueueService::OPEN, true));
