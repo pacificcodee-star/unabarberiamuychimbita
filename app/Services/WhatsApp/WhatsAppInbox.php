@@ -40,7 +40,8 @@ class WhatsAppInbox
             return null;
         }
 
-        $digits = preg_replace('/\D+/', '', $user);
+        // El sufijo de dispositivo de un JID multidispositivo no forma parte del teléfono.
+        $digits = preg_replace('/\D+/', '', explode(':', $user, 2)[0]);
 
         return $digits ?: null;
     }
@@ -189,7 +190,7 @@ class WhatsAppInbox
             'whatsapp_message',
             'WhatsApp: '.($conversation->client_name ?: $conversation->phone),
             Str::limit($message->body ?? '['.$message->type.']', 200, ''),
-            route('whatsapp.chat.show', $conversation),
+            route('whatsapp.chat.show', $conversation, false),
         );
     }
 
@@ -212,7 +213,7 @@ class WhatsAppInbox
             }
             $jid = str_contains($candidate, '@') ? $candidate : $candidate.'@s.whatsapp.net';
             if (($phone = self::phoneFromJid($jid)) !== null) {
-                $phone = $this->whatsApp->normalizePhone($phone);
+                $phone = $this->whatsApp->normalizePhone($phone, international: true);
                 WhatsAppLid::remember($lid, $phone);
 
                 return [$phone, $lid ?? $jid];
@@ -221,7 +222,7 @@ class WhatsAppInbox
 
         $phone = WhatsAppLid::phoneFor($lid);
         if ($phone !== null) {
-            return [$this->whatsApp->normalizePhone($phone), $lid];
+            return [$phone, $lid];
         }
         if ($lid !== null) {
             Log::warning('WhatsApp: mensaje entrante sin número de teléfono (solo @lid); no se pudo atender', ['campos' => array_keys($key)]);
@@ -343,7 +344,12 @@ class WhatsAppInbox
             ->where('direction', WhatsAppMessage::DIRECTION_OUT);
         $previous = array_filter(array_keys(WhatsAppMessage::STATUSES), fn ($state) => $this->canUpdateStatus($state, $status));
 
-        return (bool) (clone $query)->whereIn('status', $previous)->update(['status' => $status]) || $query->exists();
+        $updated = (clone $query)->whereIn('status', $previous)->update(['status' => $status]);
+        if ($updated && config('reverb.chat_enabled') && ($conversationId = $query->value('conversation_id'))) {
+            app(WhatsAppLive::class)->changed($conversationId);
+        }
+
+        return $updated || $query->exists();
     }
 
     private function canUpdateStatus(?string $before, string $after): bool
@@ -366,12 +372,12 @@ class WhatsAppInbox
     /** Envía una respuesta y la guarda en la conversación. Devuelve true si Evolution la aceptó. */
     public function send(WhatsAppConversation $conversation, string $body, bool $useChatAddress = true): bool
     {
-        $phone = $this->whatsApp->normalizePhone($conversation->phone);
+        $phone = $this->whatsApp->normalizePhone($conversation->phone, international: true);
         $this->pace($phone);
 
         $lid = $useChatAddress && WhatsAppLid::isLid($conversation->jid) ? $conversation->jid : null;
         $receipt = $this->whatsApp->usesTemplates()
-            ? ($this->whatsApp->sendText($phone, $body) ? [] : null)
+            ? ($this->whatsApp->sendText('+'.$phone, $body) ? [] : null)
             : $this->evolution->sendTextReceipt($phone, $body, $lid);
         $id = is_string($receipt['key']['id'] ?? null) ? Str::limit($receipt['key']['id'], 100, '') : null;
         $ok = $receipt !== null;

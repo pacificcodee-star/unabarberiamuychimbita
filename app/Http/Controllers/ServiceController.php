@@ -103,12 +103,18 @@ class ServiceController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'category' => ['nullable', 'string', Rule::in(array_keys(Service::CATEGORIES))],
-            'description' => ['nullable', 'string', 'max:500'],
+            'description' => ['nullable', 'string'],
             'image' => ['nullable', 'file', new ImageUpload, 'max:20480'],
             'price' => ['required', 'numeric', 'min:0'],
-            'duration_minutes' => ['required', 'integer', 'min:5', 'max:480'],
+            // Límite de almacenamiento de la columna unsignedInteger.
+            'duration_minutes' => ['required', 'integer', 'min:1', 'max:4294967295'],
         ], [
+            'name.max' => 'El nombre del servicio no puede superar los :max caracteres.',
             'category.in' => 'Elige una categoría válida.',
+            'duration_minutes.required' => 'Ingresa la duración del servicio en minutos.',
+            'duration_minutes.integer' => 'Ingresa la duración en minutos enteros.',
+            'duration_minutes.min' => 'La duración debe ser de al menos un minuto.',
+            'duration_minutes.max' => 'La duración indicada supera la capacidad de almacenamiento.',
         ]);
 
         $data['category'] = filled($data['category'] ?? null) ? $data['category'] : Service::guessCategory($data['name']);

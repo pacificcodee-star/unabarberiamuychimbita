@@ -109,7 +109,7 @@ class WhatsAppService
         if (! $this->usesTemplates()) {
             $body = $parameters !== [] ? (string) end($parameters) : '';
 
-            return $body !== '' ? $this->sendText($to, $body) : false;
+            return $body !== '' ? $this->sendText('+'.$to, $body) : false;
         }
 
         if (! $this->isConfigured()) {
@@ -148,7 +148,7 @@ class WhatsAppService
     }
 
     /** 573001234567: dígitos puros con indicativo, formato que entienden ambos drivers. */
-    public function normalizePhone(string $phone): string
+    public function normalizePhone(string $phone, bool $international = false): string
     {
         $digits = preg_replace('/\D+/', '', $phone);
         if (! $digits) {
@@ -159,7 +159,7 @@ class WhatsAppService
         $country = preg_replace('/\D+/', '', $country) ?: '57';
 
         // Si es un número local de 10 dígitos, anteponer país.
-        if (strlen($digits) === 10) {
+        if (! $international && ! str_starts_with(ltrim($phone), '+') && strlen($digits) === 10) {
             $digits = $country.$digits;
         }
 

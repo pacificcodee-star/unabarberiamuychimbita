@@ -556,6 +556,100 @@ class WhatsAppBotTest extends TestCase
         $this->actingAs($admin)->get(route('whatsapp.chat.show', $conversation))->assertOk();
     }
 
+    public function test_los_enlaces_de_chats_privados_requieren_acceso_al_panel(): void
+    {
+        $url = route('whatsapp.chat.show', 76);
+
+        $this->get($url)->assertRedirect(route('login'));
+
+        $barber = User::factory()->create(['role' => 'barbero', 'active' => true]);
+        $this->actingAs($barber)->get($url)->assertForbidden();
+    }
+
+    public function test_el_hilo_abierto_recibe_mensajes_nuevos_despues_de_consultas_vacias(): void
+    {
+        config(['services.evolution.bot_enabled' => false, 'services.evolution.send_gap_ms' => 0]);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $conversation = WhatsAppConversation::create(['phone' => '573001234567', 'jid' => '573001234567@s.whatsapp.net']);
+
+        WhatsAppMessage::insert(array_map(fn ($number) => [
+            'conversation_id' => $conversation->id,
+            'direction' => WhatsAppMessage::DIRECTION_IN,
+            'type' => 'text',
+            'body' => sprintf('Historial %03d', $number),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], range(1, 205)));
+        $after = (int) $conversation->messages()->max('id');
+
+        $this->actingAs($admin)->get(route('whatsapp.chat.show', $conversation))
+            ->assertOk()
+            ->assertSee('data-last="'.$after.'"', false)
+            ->assertSee('Historial 205')
+            ->assertDontSee('Historial 005');
+
+        for ($round = 1; $round <= 8; $round++) {
+            $feed = route('whatsapp.chat.messages', ['conversation' => $conversation, 'after' => $after]);
+            $this->getJson($feed)->assertOk()->assertJsonCount(0, 'messages');
+
+            $incoming = "Mensaje del cliente $round";
+            $reply = "Respuesta del equipo $round";
+            $this->escribir($incoming)->assertOk();
+            $this->post(route('whatsapp.chat.send', $conversation), ['body' => $reply])->assertRedirect();
+
+            $update = $this->getJson($feed)->assertOk()
+                ->assertHeader('Cache-Control', 'no-store, private')
+                ->assertJsonCount(2, 'messages')
+                ->assertJsonPath('messages.0.body', $incoming)
+                ->assertJsonPath('messages.0.direction', 'in')
+                ->assertJsonPath('messages.1.body', $reply)
+                ->assertJsonPath('messages.1.direction', 'out');
+            $after = $update->json('messages.1.id');
+            $update->assertJsonPath('receipts.0.id', $after);
+        }
+    }
+
+    public function test_el_canal_en_vivo_es_privado_y_solo_firma_el_chat_solicitado(): void
+    {
+        config(['reverb.chat_enabled' => true]);
+        $chat = WhatsAppConversation::create(['phone' => '573001234567', 'jid' => '573001234567@s.whatsapp.net']);
+        $url = route('whatsapp.chat.live.auth', $chat);
+        $channel = "private-whatsapp.chat.{$chat->id}";
+        $credentials = ['socket_id' => '1234.5678', 'channel_name' => $channel];
+
+        $this->postJson($url, $credentials)->assertUnauthorized();
+        $this->actingAs(User::factory()->create(['role' => 'barbero', 'active' => true]))
+            ->postJson($url, $credentials)->assertForbidden();
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $this->actingAs($admin)->postJson($url, [...$credentials, 'channel_name' => 'private-whatsapp.chat.0'])
+            ->assertUnprocessable();
+
+        $app = config('reverb.apps.apps.0');
+        $signature = hash_hmac('sha256', "1234.5678:$channel", $app['secret']);
+        $this->postJson($url, $credentials)->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertExactJson(['auth' => $app['key'].':'.$signature]);
+    }
+
+    public function test_el_equipo_envia_desde_el_hilo_sin_redirigir_y_muestra_fallos(): void
+    {
+        config(['services.evolution.send_gap_ms' => 0]);
+        Http::swap(new Factory);
+        Http::fakeSequence('evolution.test/*')
+            ->push(['key' => ['id' => 'RESPUESTA-PANEL']], 201)
+            ->pushStatus(400);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $chat = WhatsAppConversation::create(['phone' => '573001234567', 'jid' => '573001234567@s.whatsapp.net']);
+
+        $this->actingAs($admin)->postJson(route('whatsapp.chat.send', $chat), ['body' => 'Respuesta desde el hilo'])
+            ->assertOk();
+        $this->postJson(route('whatsapp.chat.send', $chat), ['body' => 'Mensaje fallido'])
+            ->assertStatus(502);
+        $this->assertDatabaseHas('whatsapp_messages', ['body' => 'Respuesta desde el hilo', 'status' => 'sent']);
+        $this->assertDatabaseHas('whatsapp_messages', ['body' => 'Mensaje fallido', 'status' => 'failed']);
+        Http::assertSentCount(2);
+    }
+
     public function test_el_equipo_puede_eliminar_un_chat_de_la_bandeja(): void
     {
         $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
@@ -564,6 +658,8 @@ class WhatsAppBotTest extends TestCase
         $this->escribir('hola', '573001111222@s.whatsapp.net')->assertOk();
         $conversation = WhatsAppConversation::query()->firstOrFail();
         $this->assertGreaterThan(1, $conversation->messages()->count());
+        $chatUrl = route('whatsapp.chat.show', $conversation, false);
+        $this->assertDatabaseHas('staff_notifications', ['type' => 'whatsapp_message', 'url' => $chatUrl]);
 
         $this->actingAs($admin)
             ->delete(route('whatsapp.chat.destroy', $conversation))
@@ -572,6 +668,9 @@ class WhatsAppBotTest extends TestCase
 
         $this->assertDatabaseCount('whatsapp_conversations', 0);
         $this->assertDatabaseCount('whatsapp_messages', 0);
+
+        $this->get($chatUrl)->assertRedirect(route('whatsapp.chat.index'));
+        $this->getJson($chatUrl)->assertNotFound();
 
         // Si vuelve a escribir, aparece como chat nuevo y el bot empieza desde el menú.
         $this->escribir('hola', '573001111222@s.whatsapp.net')->assertOk();

@@ -70,6 +70,7 @@ Route::view('/cookies', 'public.legal.cookies')->middleware('public-fresh')->nam
 Route::get('/nosotros', [LandingController::class, 'about'])->middleware('public-fresh')->name('public.about');
 Route::get('/servicios', [LandingController::class, 'services'])->middleware('public-fresh')->name('public.services');
 Route::get('/barberos', [LandingController::class, 'barbers'])->middleware('public-fresh')->name('public.barbers');
+Route::get('/barberos/login', fn () => redirect()->route('public.barbers', [], 301));
 Route::get('/resenas', [LandingController::class, 'reviews'])->middleware('public-fresh')->name('public.reviews');
 Route::get('/contacto', [LandingController::class, 'contact'])->middleware('public-fresh')->name('public.contact');
 Route::get('/reservar', [PublicBookingController::class, 'index'])->middleware('public-fresh')->name('public.booking');
@@ -254,6 +255,8 @@ Route::middleware(['panel-desktop', 'auth'])->group(function () {
         Route::get('/whatsapp/chat', [WhatsAppChatController::class, 'index'])->name('whatsapp.chat.index');
         Route::get('/whatsapp/chat/{conversation}', [WhatsAppChatController::class, 'show'])->name('whatsapp.chat.show');
         Route::get('/whatsapp/chat/{conversation}/messages', [WhatsAppChatController::class, 'messages'])->name('whatsapp.chat.messages');
+        Route::post('/whatsapp/chat/{conversation}/live/auth', [WhatsAppChatController::class, 'authorizeLive'])
+            ->middleware('throttle:30,1,whatsapp-live')->name('whatsapp.chat.live.auth');
         Route::post('/whatsapp/chat/{conversation}/send', [WhatsAppChatController::class, 'send'])->name('whatsapp.chat.send');
         Route::post('/whatsapp/chat/{conversation}/bot', [WhatsAppChatController::class, 'toggleBot'])->name('whatsapp.chat.bot');
         Route::delete('/whatsapp/chat/{conversation}', [WhatsAppChatController::class, 'destroy'])->name('whatsapp.chat.destroy');

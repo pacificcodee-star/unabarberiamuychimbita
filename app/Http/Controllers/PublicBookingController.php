@@ -250,8 +250,6 @@ class PublicBookingController extends Controller
         }
 
         $turn = $turnService->createFor($barber, $data);
-        $turn->loadMissing('service');
-        $turn->forceFill(['service_price' => $turn->service?->price])->saveQuietly();
         ClientServiceAccess::remember($request, $turn);
         $this->recordConsents($turn, (bool) ($data['whatsapp_consent'] ?? false));
         $turn->load('service');

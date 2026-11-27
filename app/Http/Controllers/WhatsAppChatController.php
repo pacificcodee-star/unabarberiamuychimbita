@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\WhatsAppConversation;
 use App\Models\WhatsAppMessage;
 use App\Services\WhatsApp\WhatsAppInbox;
+use App\Services\WhatsApp\WhatsAppLive;
 use App\Services\WhatsApp\WhatsappBotService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Chat de WhatsApp del panel: bandeja de conversaciones y envío manual del equipo.
@@ -46,14 +48,22 @@ class WhatsAppChatController extends Controller
         ]);
     }
 
-    public function show(WhatsAppConversation $conversation)
+    public function show(Request $request, string $conversation)
     {
-        $conversation->load(['messages' => fn ($query) => $query->latest()->limit(200)])->load('lastMessage');
-        $conversation->markAsRead();
+        $chat = ctype_digit($conversation) ? WhatsAppConversation::query()->find($conversation) : null;
+
+        if (! $chat) {
+            abort_if($request->expectsJson(), 404);
+
+            return redirect()->route('whatsapp.chat.index');
+        }
+
+        $chat->load(['messages' => fn ($query) => $query->latest('id')->limit(200)])->load('lastMessage');
+        $chat->markAsRead();
 
         return view('whatsapp.chat.show', [
-            'conversation' => $conversation,
-            'messages' => $conversation->messages->sortBy('id')->values(),
+            'conversation' => $chat,
+            'messages' => $chat->messages->sortBy('id')->values(),
         ]);
     }
 
@@ -94,11 +104,25 @@ class WhatsAppChatController extends Controller
             ]),
             'bot_active' => $conversation->bot_active,
             'advisor_wait_until' => $conversation->advisor_wait_until?->toIso8601String(),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function authorizeLive(Request $request, WhatsAppConversation $conversation, WhatsAppLive $live): JsonResponse
+    {
+        abort_unless(config('reverb.chat_enabled'), 404);
+        abort_unless($request->user()->active, 403);
+
+        $validated = $request->validate([
+            'socket_id' => ['required', 'string', 'max:64', 'regex:/^\d+\.\d+$/D'],
+            'channel_name' => ['required', 'string', Rule::in([WhatsAppLive::channel($conversation->id)])],
         ]);
+
+        return response()->json($live->authorize($conversation->id, $validated['socket_id']))
+            ->header('Cache-Control', 'private, no-store');
     }
 
     /** Envía un mensaje del equipo (izquierda → derecha en el hilo). */
-    public function send(Request $request, WhatsAppConversation $conversation): RedirectResponse
+    public function send(Request $request, WhatsAppConversation $conversation): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:2000'],
@@ -113,12 +137,15 @@ class WhatsAppChatController extends Controller
             $conversation->advisorReplied($sentAt);
         }
 
-        return back()->with(
-            $sent ? 'success' : 'error',
-            $sent
-                ? 'Mensaje enviado.'
-                : 'No se pudo enviar. Revisa la conexión de WhatsApp (menú WhatsApp) y que Evolution API esté en línea.'
-        );
+        $message = $sent
+            ? 'Mensaje enviado.'
+            : 'No se pudo enviar. Revisa la conexión de WhatsApp (menú WhatsApp) y que Evolution API esté en línea.';
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $message], $sent ? 200 : 502);
+        }
+
+        return back()->with($sent ? 'success' : 'error', $message);
     }
 
     /**

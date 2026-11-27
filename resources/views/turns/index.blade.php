@@ -233,15 +233,27 @@
 
 @push('scripts')
 <script>
-    // Mantiene la cola del panel sincronizada con el cliente sin recargar a mano.
-    // No interrumpe mientras alguien está gestionando un cliente.
-    setInterval(() => {
-        if (document.visibilityState !== 'visible') return;
-        if (document.activeElement?.closest('input, select, textarea, button')) return;
-        location.reload();
-    }, 30000);
-
     const target = document.querySelector('.is-attendance-target');
     if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+
+    // Al marcar como finalizado se pregunta el medio de pago antes de registrar el ingreso.
+    function attendedChange(select) {
+        const form = select.form;
+        const pay = form.querySelector('.attended-pay');
+        if (['atendida', 'atendido'].includes(select.value) && pay) {
+            // Mostrar el medio de pago y un botón para confirmar (así no se guarda por accidente).
+            pay.hidden = false;
+            if (!form.querySelector('.attended-confirm')) {
+                const btn = document.createElement('button');
+                btn.type = 'submit';
+                btn.className = 'btn btn-sm btn-gold w-100 mt-1 attended-confirm';
+                btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Confirmar finalizado';
+                form.appendChild(btn);
+            }
+            pay.focus();
+            return;
+        }
+        form.submit();
+    }
 </script>
 @endpush

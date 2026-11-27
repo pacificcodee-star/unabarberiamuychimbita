@@ -60,7 +60,7 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Duración (minutos) <span class="text-danger">*</span></label>
-                    <input type="number" name="duration_minutes" value="{{ old('duration_minutes', $service->duration_minutes ?? '') }}" class="form-control" min="5" max="480" placeholder="Ej: 30" required>
+                    <input type="number" name="duration_minutes" value="{{ old('duration_minutes', $service->duration_minutes ?? '') }}" class="form-control" min="1" placeholder="Ej: 30" required>
                 </div>
             </div>
             <div class="form-check form-switch mt-4">
