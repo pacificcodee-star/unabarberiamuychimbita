@@ -71,8 +71,8 @@ class SurveyService
         if (! config('encuestas.enabled') || ! $this->isDone($subject)) {
             return null;
         }
-        // Encuesta solo por WhatsApp: sin autorización de WhatsApp o sin celular no hay cómo enviarla.
-        if (! config('encuestas.web') && (! $subject->whatsapp_consent || blank($subject->client_phone))) {
+        if (! config('encuestas.web')
+            && (! $subject->whatsapp_consent || (blank($subject->client_phone) && blank($subject->whatsapp_lid)))) {
             return null;
         }
 

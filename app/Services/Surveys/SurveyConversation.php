@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\SurveyInvitation;
 use App\Models\SurveySession;
 use App\Models\Turn;
+use App\Models\WhatsAppConversation;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -35,12 +36,12 @@ class SurveyConversation
     }
 
     /** Devuelve la respuesta del bot, o null si el mensaje no es para la encuesta. */
-    public function handle(string $phone, string $text): ?string
+    public function handle(WhatsAppConversation $conversation, string $text): ?string
     {
         if (! config('encuestas.enabled') || ! config('encuestas.whatsapp')) {
             return null;
         }
-        $invitation = $this->openInvitation($phone);
+        $invitation = $this->openInvitation($conversation);
         if (! $invitation) {
             return null;
         }
@@ -107,10 +108,10 @@ class SurveyConversation
         return $this->ask($session);
     }
 
-    private function openInvitation(string $phone): ?SurveyInvitation
+    private function openInvitation(WhatsAppConversation $conversation): ?SurveyInvitation
     {
-        $local = substr(preg_replace('/\D/', '', $phone), -10);
-        if (strlen($local) < 7) {
+        $local = substr(preg_replace('/\D/', '', (string) $conversation->phone), -10);
+        if (strlen($local) < 7 && $conversation->lid === null) {
             return null;
         }
 
@@ -118,7 +119,16 @@ class SurveyConversation
             ->with('session.answers')
             ->where('status', 'enviada')
             ->where('expires_at', '>', now())
-            ->whereHasMorph('subject', [Appointment::class, Turn::class], fn ($q) => $q->where('client_phone', 'like', '%'.$local)->where('whatsapp_consent', true))
+            ->whereHasMorph('subject', [Appointment::class, Turn::class], function ($query) use ($conversation, $local) {
+                $query->where('whatsapp_consent', true)->where(function ($identity) use ($conversation, $local) {
+                    if ($conversation->lid !== null) {
+                        $identity->where('whatsapp_lid', $conversation->lid);
+                    }
+                    if (strlen($local) >= 7) {
+                        $identity->orWhere(fn ($phone) => $phone->whereNull('whatsapp_lid')->where('client_phone', 'like', '%'.$local));
+                    }
+                });
+            })
             ->latest('sent_at')
             ->first();
     }
