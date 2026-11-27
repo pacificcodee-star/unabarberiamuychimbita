@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Chat · '.($conversation->client_name ?: $conversation->phone))
+@section('title', 'Chat · '.$conversation->contactLabel())
 
 @section('actions')
     <a href="{{ route('whatsapp.chat.index') }}" class="btn btn-outline-dark"><i class="bi bi-arrow-left"></i> Bandeja</a>
@@ -8,7 +8,7 @@
 
 @php
     $contactName = $conversation->client_name ?: 'Cliente sin nombre';
-    $initial = mb_strtoupper(mb_substr($conversation->client_name ?: $conversation->phone, 0, 1));
+    $initial = mb_strtoupper(mb_substr($conversation->contactLabel(), 0, 1));
     $vite = app(\Illuminate\Foundation\Vite::class);
     $live = config('reverb.chat_enabled') && ($vite->isRunningHot() || is_file(public_path('build/manifest.json')))
         ? [
@@ -93,8 +93,12 @@
                 <div class="card-body chat-contact">
                     <span class="chat-contact-avatar" aria-hidden="true">{{ $initial }}</span>
                     <strong>{{ $contactName }}</strong>
-                    <span class="text-muted">{{ $conversation->phone }}</span>
-                    <a class="btn btn-outline-dark btn-sm mt-2" href="https://wa.me/{{ $conversation->phone }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Abrir en WhatsApp</a>
+                    <span class="text-muted">{{ $conversation->contactIdentity() }}</span>
+                    @if($conversation->hasRealPhone())
+                        <a class="btn btn-outline-dark btn-sm mt-2" href="https://wa.me/{{ $conversation->phone }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> Abrir en WhatsApp</a>
+                    @else
+                        <span class="badge-soft mt-2" title="WhatsApp ocultó el teléfono en esta conversación">Sin teléfono visible</span>
+                    @endif
                 </div>
             </div>
 

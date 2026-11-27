@@ -7,8 +7,8 @@ use App\Models\WhatsAppConversation;
 use App\Models\WhatsAppMessage;
 use App\Services\WhatsAppService;
 use App\Support\WhatsAppLid;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -20,8 +20,7 @@ class WhatsAppInbox
     public function __construct(
         private readonly EvolutionClient $evolution,
         private readonly WhatsAppService $whatsApp,
-    ) {
-    }
+    ) {}
 
     // ------------------------------------------------------------------------------------------
     // Lectura del payload de Evolution
@@ -41,9 +40,11 @@ class WhatsAppInbox
         }
 
         // El sufijo de dispositivo de un JID multidispositivo no forma parte del teléfono.
-        $digits = preg_replace('/\D+/', '', explode(':', $user, 2)[0]);
+        $user = explode(':', $user, 2)[0];
 
-        return $digits ?: null;
+        // Un username también puede contener dígitos ("ana2026"). Solo la parte numérica completa
+        // de un JID telefónico es un teléfono; nunca se extraen dígitos sueltos de otras identidades.
+        return preg_match('/\A[0-9]+\z/D', $user) === 1 ? $user : null;
     }
 
     /** Extrae el texto de un mensaje de WhatsApp (acepta los envoltorios de Baileys). */
@@ -127,7 +128,7 @@ class WhatsAppInbox
      * Guarda un mensaje entrante (evento messages.upsert).
      *
      * @return array{message: WhatsAppMessage, notifyTeam: bool}|null
-     *         null cuando el mensaje no es de un cliente (saliente, grupo) o ya existía.
+     *                                                                null cuando el mensaje no es de un cliente (saliente, grupo) o ya existía.
      */
     public function recordIncoming(array $data): ?array
     {
@@ -141,7 +142,7 @@ class WhatsAppInbox
         if (! $contact) {
             return null;
         }
-        [$phone, $jid] = $contact;
+        [$phone, $jid, $username] = $contact;
 
         $evolutionId = isset($key['id']) ? Str::limit((string) $key['id'], 100, '') : null;
 
@@ -154,15 +155,29 @@ class WhatsAppInbox
         $type = $this->typeFrom($data, $text);
         $preview = $text !== null ? $text : '['.$type.']';
 
-        $conversation = WhatsAppConversation::query()->firstOrNew(['phone' => $phone]);
+        $conversation = $this->findConversation($phone, $jid);
         $isNewBurst = ! $conversation->exists || (int) $conversation->unread_count === 0;
 
-        if (! $conversation->exists) {
-            $conversation->jid = $jid;
+        // Si primero llegó solo el @lid y después llega el teléfono, ambas identidades apuntan a
+        // la misma persona. Se conserva una sola conversación y todo su historial.
+        if ($phone !== null && $conversation->jid !== $jid
+            && ($duplicate = WhatsAppConversation::query()->where('jid', $jid)->whereKeyNot($conversation->getKey())->first())) {
+            $duplicate->messages()->update(['conversation_id' => $conversation->id]);
+            $conversation->fill([
+                'phone' => $phone,
+                'username' => $username ?? $duplicate->username,
+                'client_name' => $conversation->client_name ?: $duplicate->client_name,
+                'unread_count' => (int) $conversation->unread_count + (int) $duplicate->unread_count,
+                'bot_active' => $conversation->bot_active && $duplicate->bot_active,
+                'advisor_wait_until' => $conversation->advisor_wait_until ?: $duplicate->advisor_wait_until,
+            ]);
+            $duplicate->delete();
         }
 
         $conversation->fill([
-            'jid' => $jid ?: $conversation->jid,
+            'jid' => $jid,
+            'phone' => $phone ?? $conversation->phone,
+            'username' => $username ?? $conversation->username,
             'client_name' => filled($data['pushName'] ?? null) ? Str::limit((string) $data['pushName'], 120, '') : $conversation->client_name,
             'unread_count' => $conversation->unread_count + 1,
             'last_message_preview' => Str::limit($preview, 250, ''),
@@ -188,13 +203,13 @@ class WhatsAppInbox
         $conversation = $message->conversation;
         StaffNotification::record(
             'whatsapp_message',
-            'WhatsApp: '.($conversation->client_name ?: $conversation->phone),
+            'WhatsApp: '.$conversation->contactLabel(),
             Str::limit($message->body ?? '['.$message->type.']', 200, ''),
             route('whatsapp.chat.show', $conversation, false),
         );
     }
 
-    /** Reutiliza la resolución de teléfonos y LID en ambos sentidos del chat. */
+    /** Reutiliza la resolución de teléfonos, LID y username en ambos sentidos del chat. */
     private function contact(array $key, array $data): ?array
     {
         $remote = (string) ($key['remoteJid'] ?? '');
@@ -203,29 +218,114 @@ class WhatsAppInbox
         }
         $lid = WhatsAppLid::isLid($remote) ? $remote : null;
 
+        $username = null;
+        foreach ([$key['remoteJidUsername'] ?? null, $key['participantUsername'] ?? null, $data['username'] ?? null] as $value) {
+            if (! is_string($value)) {
+                continue;
+            }
+            $username = WhatsAppConversation::normalizeUsername($value);
+            if ($username !== null) {
+                break;
+            }
+        }
+
         $candidates = [$key['remoteJidAlt'] ?? null, $remote];
         if (empty($key['fromMe'])) {
             array_push($candidates, $key['senderPn'] ?? null, $data['senderPn'] ?? null, $key['participantAlt'] ?? null);
         }
+
+        $phone = null;
+        $phoneJid = null;
         foreach ($candidates as $candidate) {
-            if (! is_string($candidate) || $candidate === '') {
+            $jid = $this->directJid($candidate);
+            if ($jid === null) {
                 continue;
             }
-            $jid = str_contains($candidate, '@') ? $candidate : $candidate.'@s.whatsapp.net';
-            if (($phone = self::phoneFromJid($jid)) !== null) {
-                $phone = $this->whatsApp->normalizePhone($phone, international: true);
-                WhatsAppLid::remember($lid, $phone);
 
-                return [$phone, $lid ?? $jid];
+            if ($username === null && ! ctype_digit(explode('@', $jid, 2)[0])) {
+                $username = WhatsAppConversation::normalizeUsername(explode('@', $jid, 2)[0]);
             }
+
+            $candidatePhone = self::phoneFromJid($jid);
+            if ($candidatePhone === null) {
+                continue;
+            }
+
+            $candidatePhone = $this->whatsApp->normalizePhone($candidatePhone, international: true);
+            if (preg_match('/\A[1-9][0-9]{7,14}\z/D', $candidatePhone) !== 1) {
+                continue;
+            }
+
+            $phone = $candidatePhone;
+            $phoneJid = $jid;
+            WhatsAppLid::remember($lid, $phone);
+
+            break;
         }
 
-        $phone = WhatsAppLid::phoneFor($lid);
-        if ($phone !== null) {
-            return [$phone, $lid];
+        if ($phone === null && $lid !== null) {
+            $phone = WhatsAppLid::phoneFor($lid);
         }
-        if ($lid !== null) {
-            Log::warning('WhatsApp: mensaje entrante sin número de teléfono (solo @lid); no se pudo atender', ['campos' => array_keys($key)]);
+
+        $chatJid = $lid
+            ?? $this->directJid($remote)
+            ?? $phoneJid
+            ?? ($username !== null ? $username.'@s.whatsapp.net' : null);
+
+        if ($chatJid === null) {
+            Log::warning('WhatsApp: mensaje entrante sin una identidad directa utilizable', ['campos' => array_keys($key)]);
+
+            return null;
+        }
+
+        // Un @lid desconocido ya no se descarta: es un destino válido para Evolution. El teléfono
+        // queda en null hasta que WhatsApp lo comparta; @usuario se guarda solo cuando llega explícito.
+        return [$phone, $chatJid, $username];
+    }
+
+    private function findConversation(?string $phone, string $jid): WhatsAppConversation
+    {
+        if ($phone !== null && ($conversation = WhatsAppConversation::query()->where('phone', $phone)->first())) {
+            return $conversation;
+        }
+
+        if ($conversation = WhatsAppConversation::query()->where('jid', $jid)->first()) {
+            return $conversation;
+        }
+
+        return $phone !== null
+            ? WhatsAppConversation::query()->firstOrNew(['phone' => $phone], ['jid' => $jid])
+            : WhatsAppConversation::query()->firstOrNew(['jid' => $jid]);
+    }
+
+    /** JID directo de una conversación privada; no acepta grupos, estados ni identificadores opacos. */
+    private function directJid(mixed $candidate): ?string
+    {
+        if (! is_string($candidate)) {
+            return null;
+        }
+
+        $candidate = trim($candidate);
+        if ($candidate === '') {
+            return null;
+        }
+
+        if (str_starts_with($candidate, '@') && ! str_contains(substr($candidate, 1), '@')) {
+            $candidate = substr($candidate, 1).'@s.whatsapp.net';
+        } elseif (! str_contains($candidate, '@')) {
+            $candidate .= '@s.whatsapp.net';
+        }
+
+        [$user, $server] = explode('@', $candidate, 2);
+        $user = strtolower(explode(':', $user, 2)[0]);
+
+        if ($server === 'lid' && preg_match('/\A[0-9]+\z/D', $user) === 1) {
+            return $user.'@lid';
+        }
+
+        if ($server === 's.whatsapp.net'
+            && (preg_match('/\A[0-9]+\z/D', $user) === 1 || WhatsAppConversation::normalizeUsername($user) !== null)) {
+            return $user.'@s.whatsapp.net';
         }
 
         return null;
@@ -250,7 +350,11 @@ class WhatsAppInbox
         }
 
         $contact = $this->contact($key, $data);
-        $conversation = $contact ? WhatsAppConversation::where('phone', $contact[0])->first() : null;
+        $conversation = $contact
+            ? ($contact[0] !== null
+                ? WhatsAppConversation::query()->where('phone', $contact[0])->first()
+                : WhatsAppConversation::query()->where('jid', $contact[1])->first())
+            : null;
         if (! $conversation || WhatsAppMessage::where('evolution_id', $id)->exists()) {
             return;
         }
@@ -372,13 +476,24 @@ class WhatsAppInbox
     /** Envía una respuesta y la guarda en la conversación. Devuelve true si Evolution la aceptó. */
     public function send(WhatsAppConversation $conversation, string $body, bool $useChatAddress = true): bool
     {
-        $phone = $this->whatsApp->normalizePhone($conversation->phone, international: true);
-        $this->pace($phone);
+        $phone = $conversation->realPhone();
+        $destination = $conversation->replyAddress();
+        $this->pace($destination ?? $conversation->botIdentity());
 
         $lid = $useChatAddress && WhatsAppLid::isLid($conversation->jid) ? $conversation->jid : null;
-        $receipt = $this->whatsApp->usesTemplates()
-            ? ($this->whatsApp->sendText('+'.$phone, $body) ? [] : null)
-            : $this->evolution->sendTextReceipt($phone, $body, $lid);
+        if ($destination === null || ($this->whatsApp->usesTemplates() && $phone === '')) {
+            // Cloud API no puede enviar a @usuario ni a un BSUID usando el teléfono normal. Se deja
+            // registrado el fallo, sin fabricar un número ni hacer una petición con destino inválido.
+            Log::warning('WhatsApp no enviado: la conversación no tiene un destino compatible con el canal activo', [
+                'conversation' => $conversation->id,
+                'driver' => $this->whatsApp->usesTemplates() ? 'cloud' : 'evolution',
+            ]);
+            $receipt = null;
+        } else {
+            $receipt = $this->whatsApp->usesTemplates()
+                ? ($this->whatsApp->sendText('+'.$phone, $body) ? [] : null)
+                : $this->evolution->sendTextReceipt($phone !== '' ? $phone : $destination, $body, $lid);
+        }
         $id = is_string($receipt['key']['id'] ?? null) ? Str::limit($receipt['key']['id'], 100, '') : null;
         $ok = $receipt !== null;
         $this->recordOutgoing($conversation, $body, $ok ? 'sent' : 'failed', $id);
@@ -393,14 +508,14 @@ class WhatsAppInbox
      * ejemplo) WhatsApp le muestra al cliente el aviso "Esperando el mensaje. Esto puede tomar
      * tiempo." en uno de los dos y ese mensaje llega tarde. Un segundo de separación lo evita.
      */
-    private function pace(string $phone): void
+    private function pace(string $destination): void
     {
         $gap = (int) config('services.evolution.send_gap_ms', 1200);
-        if ($gap <= 0 || $phone === '') {
+        if ($gap <= 0 || $destination === '') {
             return;
         }
 
-        $key = 'whatsapp:pace:'.$phone;
+        $key = 'whatsapp:pace:'.hash('sha256', $destination);
         $last = (int) Cache::get($key, 0);
         $now = (int) (microtime(true) * 1000);
 

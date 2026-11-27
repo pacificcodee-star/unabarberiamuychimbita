@@ -19,7 +19,7 @@
                 @if($unreadTotal) <span class="badge rounded-pill text-bg-danger">{{ $unreadTotal }} sin leer</span> @endif
             </span>
             <form method="GET" class="d-flex gap-2">
-                <input type="search" name="q" value="{{ $search }}" class="form-control form-control-sm" placeholder="Buscar nombre o número…" aria-label="Buscar conversación">
+                <input type="search" name="q" value="{{ $search }}" class="form-control form-control-sm" placeholder="Buscar nombre, @usuario o número…" aria-label="Buscar conversación">
                 <button class="btn btn-sm btn-outline-dark">Buscar</button>
             </form>
         </div>
@@ -37,10 +37,10 @@
                     <tr>
                         <td>
                             <a href="{{ route('whatsapp.chat.show', $conversation) }}" class="text-decoration-none text-reset d-flex align-items-center gap-2">
-                                <span class="sidebar-user-avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($conversation->client_name ?: $conversation->phone, 0, 1)) }}</span>
+                                <span class="sidebar-user-avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($conversation->contactLabel(), 0, 1)) }}</span>
                                 <span>
                                     <span class="fw-semibold d-block">{{ $conversation->client_name ?: 'Cliente' }}</span>
-                                    <span class="small text-muted">{{ $conversation->phone }}</span>
+                                    <span class="small text-muted">{{ $conversation->contactIdentity() }}</span>
                                 </span>
                             </a>
                         </td>

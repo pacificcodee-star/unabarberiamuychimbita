@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\WhatsAppConversation;
 use App\Models\WhatsAppMessage;
+use App\Services\WhatsApp\WhatsappBotService;
 use App\Services\WhatsApp\WhatsAppInbox;
 use App\Services\WhatsApp\WhatsAppLive;
-use App\Services\WhatsApp\WhatsappBotService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,22 +18,24 @@ use Illuminate\Validation\Rule;
  */
 class WhatsAppChatController extends Controller
 {
-    public function __construct(private readonly WhatsAppInbox $inbox)
-    {
-    }
+    public function __construct(private readonly WhatsAppInbox $inbox) {}
 
     public function index(Request $request)
     {
         $search = trim((string) $request->query('q', ''));
         $digits = preg_replace('/\D+/', '', $search);
+        $username = mb_strtolower(ltrim($search, '@'), 'UTF-8');
 
         $conversations = WhatsAppConversation::query()
             ->with('lastMessage')
-            ->when($search !== '', function ($query) use ($search, $digits) {
-                $query->where(function ($q) use ($search, $digits) {
+            ->when($search !== '', function ($query) use ($search, $digits, $username) {
+                $query->where(function ($q) use ($search, $digits, $username) {
                     $q->where('client_name', 'like', "%{$search}%");
                     if ($digits !== '') {
                         $q->orWhere('phone', 'like', "%{$digits}%");
+                    }
+                    if ($username !== '') {
+                        $q->orWhereRaw('LOWER(username) LIKE ?', ['%'.$username.'%']);
                     }
                 });
             })
@@ -154,9 +156,9 @@ class WhatsAppChatController extends Controller
      */
     public function destroy(WhatsAppConversation $conversation, WhatsappBotService $bot): RedirectResponse
     {
-        $name = $conversation->client_name ?: $conversation->phone;
+        $name = $conversation->contactLabel();
 
-        $bot->forgetConversation((string) $conversation->phone);
+        $bot->forgetConversation($conversation->botIdentity());
         $conversation->delete(); // los mensajes se borran en cascada
 
         return redirect()

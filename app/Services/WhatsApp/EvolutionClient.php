@@ -2,13 +2,15 @@
 
 namespace App\Services\WhatsApp;
 
+use App\Support\Pii;
 use App\Support\WhatsAppLid;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * Cliente HTTP de Evolution API (WhatsApp propio, corriendo en Northflank).
@@ -302,10 +304,16 @@ class EvolutionClient
             Cache::put($this->sentKey($sentKey['id']), true, now()->addHour());
         }
         foreach ([$sentKey['remoteJid'] ?? null, $sentKey['remoteJidAlt'] ?? null] as $jid) {
-            WhatsAppLid::remember(is_string($jid) ? $jid : null, $number);
+            // Solo un teléfono real demuestra la asociación. Los dígitos de un @lid o de un username
+            // no se convierten en un número de teléfono.
+            if (preg_match('/\A[1-9][0-9]{7,14}\z/D', $number) === 1) {
+                WhatsAppLid::remember(is_string($jid) ? $jid : null, $number);
+            }
         }
 
-        Log::info('WhatsApp (Evolution) enviado', ['to' => \App\Support\Pii::phone($number)]);
+        Log::info('WhatsApp (Evolution) enviado', [
+            'to' => preg_match('/\A[1-9][0-9]{7,14}\z/D', $number) === 1 ? Pii::phone($number) : 'jid',
+        ]);
 
         return $response;
     }
@@ -362,7 +370,7 @@ class EvolutionClient
             Log::warning('Evolution API respondió con error', [
                 'path' => $path,
                 'status' => $response->status(),
-                'body' => \Illuminate\Support\Str::limit($response->body(), 600),
+                'body' => Str::limit($response->body(), 600),
             ]);
 
             return null;

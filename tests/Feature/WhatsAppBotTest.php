@@ -6,15 +6,20 @@ use App\Jobs\ProcessWhatsAppMessage;
 use App\Models\Appointment;
 use App\Models\Service;
 use App\Models\SiteSetting;
+use App\Models\Turn;
 use App\Models\User;
 use App\Models\WhatsAppConversation;
 use App\Models\WhatsAppMessage;
+use App\Services\ClientNotifier;
 use App\Services\TurnService;
-use App\Services\WhatsApp\WhatsAppInbox;
+use App\Services\WhatsApp\BookingMessenger;
 use App\Services\WhatsApp\WhatsappBotService;
+use App\Services\WhatsApp\WhatsAppInbox;
+use App\Services\WhatsAppService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Factory;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -276,13 +281,13 @@ class WhatsAppBotTest extends TestCase
     {
         $cita = $this->cita(['status' => 'pendiente', 'appointment_date' => now()->toDateString(), 'appointment_time' => '10:25:00']);
         $this->escribir('hola')->assertOk();       // menú principal abierto: "1" sería "agendar cita"
-        $this->assertNotNull(\Illuminate\Support\Facades\Cache::get('wa.bot.flow.573001234567'));
+        $this->assertNotNull(Cache::get('wa.bot.flow.573001234567'));
 
-        $notifier = app(\App\Services\ClientNotifier::class);
+        $notifier = app(ClientNotifier::class);
         $notifier->appointmentBooked($cita->load(['barber', 'service']));
         $notifier->flush();
 
-        $this->assertNull(\Illuminate\Support\Facades\Cache::get('wa.bot.flow.573001234567'));
+        $this->assertNull(Cache::get('wa.bot.flow.573001234567'));
         $this->escribir('1')->assertOk();           // "1. Confirmar mi asistencia" del recordatorio
         $this->assertSame('confirmada', $cita->fresh()->status);
     }
@@ -332,14 +337,14 @@ class WhatsAppBotTest extends TestCase
     public function test_la_respuesta_con_solo_el_lid_se_reconoce_si_antes_le_escribimos(): void
     {
         $cita = $this->cita(['status' => 'pendiente']);
-        Http::swap(new \Illuminate\Http\Client\Factory);
+        Http::swap(new Factory);
         Http::fake([
             'evolution.test/message/sendText/*' => Http::response(['key' => ['remoteJid' => '210987654321098@lid', 'fromMe' => true, 'id' => 'ENV-1']]),
             'evolution.test/*' => Http::response(['created' => true]),
         ]);
 
         // Le pedimos confirmar la cita: WhatsApp responde con su @lid.
-        app(\App\Services\WhatsAppService::class)->sendText('3001234567', 'Confirma tu cita respondiendo SÍ');
+        app(WhatsAppService::class)->sendText('3001234567', 'Confirma tu cita respondiendo SÍ');
 
         // El cliente responde y llega solo el @lid, sin número.
         $this->escribir('sí', '210987654321098@lid')->assertOk();
@@ -349,14 +354,208 @@ class WhatsAppBotTest extends TestCase
             && $request['number'] === '210987654321098@lid');
     }
 
-    public function test_un_mensaje_con_solo_un_lid_desconocido_queda_en_el_registro(): void
+    public function test_un_mensaje_con_solo_un_lid_desconocido_se_guarda_y_responde_al_mismo_lid(): void
     {
-        \Illuminate\Support\Facades\Log::spy();
+        $this->escribir('hola', '555555555555555@lid')->assertOk();
 
-        $this->escribir('sí', '555555555555555@lid')->assertOk();
+        $conversation = WhatsAppConversation::query()->firstOrFail();
+        $this->assertNull($conversation->phone);
+        $this->assertNull($conversation->username);
+        $this->assertSame('555555555555555@lid', $conversation->jid);
+        $this->assertSame(2, WhatsAppMessage::query()->count());
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/message/sendText/')
+            && $request['number'] === '555555555555555@lid');
+    }
 
-        $this->assertSame(0, WhatsAppMessage::query()->count());
-        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'sin número de teléfono'))->once();
+    public function test_reconoce_el_username_y_lo_muestra_junto_al_lid_sin_inventar_telefono(): void
+    {
+        $this->escribir('hola', '122299361538159@lid', [
+            'remoteJidUsername' => 'Nombre123',
+            'pushName' => 'Ana',
+        ])->assertOk();
+
+        $conversation = WhatsAppConversation::query()->firstOrFail();
+        $this->assertNull($conversation->phone);
+        $this->assertSame('nombre123', $conversation->username);
+        $this->assertSame('Ana', $conversation->client_name);
+        $this->assertSame('122299361538159@lid', $conversation->jid);
+        $this->assertSame('@nombre123', $conversation->contactIdentity());
+        $this->assertSame(2, WhatsAppMessage::query()->count());
+        Http::assertSent(fn ($request) => $request['number'] === '122299361538159@lid');
+
+        // El estado del menú pertenece al JID, no al nombre visible ni a un teléfono inventado.
+        $this->escribir('3', '122299361538159@lid', ['remoteJidUsername' => 'Nombre123'])->assertOk();
+        $this->assertSame(1, WhatsAppConversation::query()->count());
+        $this->assertSame('services', Cache::get('wa.bot.flow.122299361538159@lid')['step']);
+    }
+
+    public function test_username_y_telefono_real_comparten_una_sola_conversacion(): void
+    {
+        $this->escribir('hola', '122299361538159@lid', [
+            'remoteJidAlt' => '573001234567@s.whatsapp.net',
+            'remoteJidUsername' => 'Nombre123',
+        ])->assertOk();
+        $this->escribir('3', '122299361538159@lid', [
+            'remoteJidAlt' => '573001234567@s.whatsapp.net',
+            'remoteJidUsername' => 'Nombre123',
+        ])->assertOk();
+
+        $conversation = WhatsAppConversation::query()->firstOrFail();
+        $this->assertSame('573001234567', $conversation->phone);
+        $this->assertSame('nombre123', $conversation->username);
+        $this->assertSame('122299361538159@lid', $conversation->jid);
+        $this->assertSame(1, WhatsAppConversation::query()->count());
+        $this->assertNotNull(Cache::get('wa.bot.flow.573001234567'));
+    }
+
+    public function test_un_username_sin_lid_se_guarda_y_recibe_respuesta_por_su_jid(): void
+    {
+        $this->escribir('hola', 'Nombre123@s.whatsapp.net', ['remoteJidUsername' => '@Nombre123'])->assertOk();
+
+        $conversation = WhatsAppConversation::query()->firstOrFail();
+        $this->assertNull($conversation->phone);
+        $this->assertSame('nombre123', $conversation->username);
+        Http::assertSent(fn ($request) => $request['number'] === 'nombre123@s.whatsapp.net');
+    }
+
+    public function test_un_remote_jid_con_arroba_tambien_guarda_el_username(): void
+    {
+        $this->escribir('hola', '@Nombre123')->assertOk();
+
+        $conversation = WhatsAppConversation::query()->firstOrFail();
+        $this->assertNull($conversation->phone);
+        $this->assertSame('nombre123', $conversation->username);
+        $this->assertSame('nombre123@s.whatsapp.net', $conversation->jid);
+        Http::assertSent(fn ($request) => $request['number'] === 'nombre123@s.whatsapp.net');
+    }
+
+    public function test_el_username_con_puntos_es_metadata_y_puede_reutilizarse_en_otro_jid(): void
+    {
+        $primera = WhatsAppConversation::query()->create([
+            'jid' => '555555555555561@lid',
+            'username' => 'Juan.Perez',
+        ]);
+        $segunda = WhatsAppConversation::query()->create([
+            'jid' => '555555555555562@lid',
+            'username' => '@JUAN.PEREZ',
+        ]);
+
+        $this->assertSame('juan.perez', $primera->username);
+        $this->assertSame('juan.perez', $segunda->username);
+        $this->assertNotSame($primera->id, $segunda->id);
+        $this->assertDatabaseCount('whatsapp_conversations', 2);
+        $this->assertNull(WhatsAppConversation::normalizeUsername('123456789'));
+        $this->assertNull(WhatsAppConversation::normalizeUsername('Ana Gómez'));
+    }
+
+    public function test_al_unificar_telefono_y_lid_conserva_una_sola_conversacion_y_todo_el_historial(): void
+    {
+        $this->escribir('hola', '573009998877@s.whatsapp.net')->assertOk();
+        $principal = WhatsAppConversation::query()->where('phone', '573009998877')->firstOrFail();
+
+        $this->escribir('hola', '555555555555563@lid', ['remoteJidUsername' => 'Nombre123'])->assertOk();
+        $this->assertDatabaseCount('whatsapp_conversations', 2);
+
+        $this->escribir('3', '555555555555563@lid', [
+            'remoteJidAlt' => '573009998877@s.whatsapp.net',
+            'remoteJidUsername' => 'Nombre123',
+        ])->assertOk();
+
+        $conversation = WhatsAppConversation::query()->firstOrFail();
+        $this->assertSame($principal->id, $conversation->id);
+        $this->assertSame('573009998877', $conversation->phone);
+        $this->assertSame('nombre123', $conversation->username);
+        $this->assertSame('555555555555563@lid', $conversation->jid);
+        $this->assertSame(6, WhatsAppMessage::query()->count());
+        $this->assertSame(6, WhatsAppMessage::query()->where('conversation_id', $principal->id)->count());
+        $this->assertSame('services', Cache::get('wa.bot.flow.573009998877')['step']);
+    }
+
+    public function test_el_nombre_visible_no_se_interpreta_como_username(): void
+    {
+        $this->escribir('hola', '555555555555556@lid', ['pushName' => '@FalsoNombre'])->assertOk();
+
+        $conversation = WhatsAppConversation::query()->firstOrFail();
+        $this->assertNull($conversation->username);
+        $this->assertSame('@FalsoNombre', $conversation->client_name);
+        $this->assertNull($conversation->phone);
+        $this->assertNull(WhatsAppInbox::phoneFromJid('ana2026@s.whatsapp.net'));
+    }
+
+    public function test_cuando_luego_llega_el_telefono_se_conserva_la_conversacion_y_el_flujo(): void
+    {
+        $this->escribir('hola', '555555555555557@lid')->assertOk();
+        $this->assertNotNull(Cache::get('wa.bot.flow.555555555555557@lid'));
+
+        $this->escribir('3', '555555555555557@lid', ['senderPn' => '573009998877@s.whatsapp.net'])->assertOk();
+
+        $conversation = WhatsAppConversation::query()->firstOrFail();
+        $this->assertSame('573009998877', $conversation->phone);
+        $this->assertSame(1, WhatsAppConversation::query()->count());
+        $this->assertSame('services', Cache::get('wa.bot.flow.573009998877')['step']);
+        $this->assertNull(Cache::get('wa.bot.flow.555555555555557@lid'));
+    }
+
+    public function test_reservar_sin_telefono_no_crea_cita_ni_turno_y_explica_la_limitacion(): void
+    {
+        $this->escribir('hola', '555555555555558@lid', ['remoteJidUsername' => 'ClientePrivado'])->assertOk();
+        $this->escribir('1', '555555555555558@lid', ['remoteJidUsername' => 'ClientePrivado'])->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'número de teléfono real'));
+        $this->assertSame(0, Appointment::query()->count());
+        $this->assertSame(0, Turn::query()->count());
+
+        $this->escribir('Vincular historial', '555555555555558@lid', ['remoteJidUsername' => 'ClientePrivado'])->assertOk();
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'vincular tu historial'));
+    }
+
+    public function test_modificar_sin_telefono_no_continua_un_flujo_abierto(): void
+    {
+        $jid = '555555555555564@lid';
+        $this->escribir('hola', $jid, ['remoteJidUsername' => 'ClientePrivado'])->assertOk();
+        $conversation = WhatsAppConversation::query()->firstOrFail();
+        $cita = $this->cita();
+        Cache::put('wa.bot.flow.'.$jid, [
+            'step' => 'modify',
+            'data' => ['appointment_id' => $cita->id],
+            'history' => [],
+        ], now()->addMinutes(30));
+
+        $this->escribir('1', $jid, ['remoteJidUsername' => 'ClientePrivado'])->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'modificar una reserva'));
+        $this->assertSame('pendiente', $cita->fresh()->status);
+        $this->assertNull($conversation->fresh()->phone);
+    }
+
+    public function test_el_panel_busca_abre_y_responde_un_chat_con_username_sin_telefono(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        $this->escribir('hola', '555555555555559@lid', ['remoteJidUsername' => 'PanelUsuario'])->assertOk();
+        $conversation = WhatsAppConversation::query()->firstOrFail();
+
+        $this->actingAs($admin)->get(route('whatsapp.chat.index', ['q' => '@panelusuario']))
+            ->assertOk()->assertSee('@panelusuario');
+        $this->actingAs($admin)->get(route('whatsapp.chat.show', $conversation))
+            ->assertOk()->assertSee('Sin teléfono visible')->assertDontSee('https://wa.me/');
+        $this->actingAs($admin)->post(route('whatsapp.chat.send', $conversation), ['body' => 'Respuesta manual'])
+            ->assertRedirect();
+        Http::assertSent(fn ($request) => $request['number'] === '555555555555559@lid'
+            && $request['text'] === 'Respuesta manual');
+    }
+
+    public function test_cloud_no_hace_una_peticion_invalida_sin_telefono(): void
+    {
+        config(['services.whatsapp.driver' => 'cloud']);
+        $conversation = WhatsAppConversation::query()->create([
+            'jid' => '555555555555560@lid',
+            'phone' => null,
+            'username' => 'clouduser',
+        ]);
+
+        $this->assertFalse(app(WhatsAppInbox::class)->send($conversation, 'No se debe enviar por Cloud sin teléfono'));
+        Http::assertNothingSent();
+        $this->assertSame('failed', $conversation->messages()->firstOrFail()->status);
     }
 
     public function test_cita_web_sobre_la_hora_manda_un_solo_mensaje(): void
@@ -364,10 +563,10 @@ class WhatsAppBotTest extends TestCase
         $barber = User::factory()->create(['role' => 'barbero', 'attention_mode' => 'citas', 'active' => true]);
         $cita = $this->cita(['barber_id' => $barber->id, 'appointment_date' => now()->toDateString(), 'appointment_time' => '10:20:00']);
 
-        $notifier = app(\App\Services\ClientNotifier::class);
+        $notifier = app(ClientNotifier::class);
         $notifier->appointmentBooked($cita->load(['barber', 'service']));
         $notifier->flush();
-        app(\App\Services\WhatsApp\BookingMessenger::class)->requestAppointmentConfirmation($cita);
+        app(BookingMessenger::class)->requestAppointmentConfirmation($cita);
 
         $sent = collect(Http::recorded())->filter(fn ($pair) => str_contains($pair[0]->url(), 'sendText'));
         $this->assertCount(1, $sent, 'Al agendar 20 minutos antes debe salir un solo mensaje por WhatsApp.');
@@ -376,11 +575,11 @@ class WhatsAppBotTest extends TestCase
 
     public function test_turno_web_con_avisos_manda_un_solo_mensaje_de_registro(): void
     {
-        \App\Models\SiteSetting::query()->delete();
+        SiteSetting::query()->delete();
         $barber = User::factory()->create(['role' => 'barbero', 'attention_mode' => 'llegada', 'active' => true]);
         // El barbero está ocupado: el turno queda en espera y no se llama enseguida.
         app(TurnService::class)->createFor($barber, ['client_name' => 'Primero', 'client_phone' => '3009990000'], notify: false);
-        \App\Models\Turn::query()->update(['status' => 'atendiendo']);
+        Turn::query()->update(['status' => 'atendiendo']);
 
         app(TurnService::class)->createFor($barber, ['client_name' => 'Ana', 'client_phone' => '3001234567', 'whatsapp_consent' => true]);
 
