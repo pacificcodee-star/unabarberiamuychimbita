@@ -6,9 +6,9 @@
     if (window.ubmcChime) return;
 
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    // Volumen de cada tono (0,05–1). El panel del administrador lo sube con data-volume en su <script>.
+    // Volumen de cada tono (0,05–2). El panel del administrador lo sube con data-volume en su <script>.
     const scriptVolume = parseFloat(document.currentScript && document.currentScript.dataset.volume);
-    const volume = Number.isFinite(scriptVolume) ? Math.min(1, Math.max(0.05, scriptVolume)) : 0.35;
+    const volume = Number.isFinite(scriptVolume) ? Math.min(2, Math.max(0.05, scriptVolume)) : 0.35;
     let ctx = null;
     let output = null; // compresor: deja subir el volumen sin que el sonido se sature
     let pendingAt = 0; // momento del aviso que quedó esperando para sonar
@@ -37,9 +37,9 @@
         gain.gain.exponentialRampToValueAtTime(0.0001, start + length);
         if (!output) {
             output = ctx.createDynamicsCompressor();
-            output.threshold.value = -6;
-            output.knee.value = 6;
-            output.ratio.value = 8;
+            output.threshold.value = -1;
+            output.knee.value = 0;
+            output.ratio.value = 20; // limitador: lo más fuerte posible sin pasar del 100 % digital
             output.connect(ctx.destination);
         }
         osc.connect(gain).connect(output);
