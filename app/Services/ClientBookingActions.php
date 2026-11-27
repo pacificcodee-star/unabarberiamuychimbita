@@ -63,7 +63,12 @@ class ClientBookingActions
 
             $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
             if ($action === 'reprogramar') {
-                if (! in_array($data['appointment_time'], Appointment::availableTimes($barber, $data['appointment_date']), true)) {
+                if (! in_array($data['appointment_time'], Appointment::availableTimes(
+                    $barber,
+                    $data['appointment_date'],
+                    $appointment->id,
+                    $appointment->service_id
+                ), true)) {
                     throw ValidationException::withMessages(['appointment_time' => 'Ese horario ya no está disponible. Elige otro.']);
                 }
                 Appointment::reserveSlot([

@@ -513,6 +513,7 @@
         // Horarios disponibles.
         const form = document.querySelector('[data-booking-slots]');
         const barber = document.getElementById('appointmentBarber');
+        const service = document.getElementById('appointmentService');
         const date = document.getElementById('appointmentDate');
         const slots = document.getElementById('appointmentTimes');
         const help = document.getElementById('appointmentTimeHelp');
@@ -545,8 +546,8 @@
             quiet = quiet === true;
             help.classList.remove('text-danger');
             const current = ++requestId;
-            if (!barber.value || !date.value) {
-                status('bi-info-circle', 'Selecciona un barbero y una fecha para ver las horas disponibles.');
+            if (!barber.value || !service.value || !date.value) {
+                status('bi-info-circle', 'Selecciona un barbero, un servicio y una fecha para ver las horas disponibles.');
                 help.textContent = 'Aquí se muestran únicamente los horarios que aún están libres. Los horarios que ya han sido reservados por otros clientes se ocultan automáticamente para evitar reservas duplicadas.';
                 updateSummary();
                 return;
@@ -568,6 +569,7 @@
             try {
                 const url = new URL(form.dataset.bookingSlots, window.location.origin);
                 url.searchParams.set('barber_id', barber.value);
+                url.searchParams.set('service_id', service.value);
                 url.searchParams.set('date', date.value);
                 // Con tiempo límite: la carga nunca se queda girando para siempre.
                 const response = await window.safeFetch(url, { headers: { Accept: 'application/json' } }, 12000);
@@ -615,10 +617,14 @@
         }
 
         barber.addEventListener('change', loadTimes);
+        service.addEventListener('change', () => {
+            slots.dataset.selected = '';
+            loadTimes();
+        });
         date.addEventListener('change', loadTimes);
         // Para volver a consultar la agenda cuando el servidor dice que la hora ya la tomó otra persona.
         const syncSlots = () => {
-            if (!document.hidden && barber.value && date.value && !slots.hasAttribute('aria-busy')) loadTimes(true);
+            if (!document.hidden && barber.value && service.value && date.value && !slots.hasAttribute('aria-busy')) loadTimes(true);
         };
         setInterval(syncSlots, 5000);
         document.addEventListener('visibilitychange', syncSlots);

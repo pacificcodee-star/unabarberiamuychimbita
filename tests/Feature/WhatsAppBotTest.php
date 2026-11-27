@@ -496,17 +496,33 @@ class WhatsAppBotTest extends TestCase
         $this->assertNull(Cache::get('wa.bot.flow.555555555555557@lid'));
     }
 
-    public function test_reservar_sin_telefono_no_crea_cita_ni_turno_y_explica_la_limitacion(): void
+    public function test_reservar_sin_telefono_pide_contacto_y_no_lo_convierte_en_identidad(): void
     {
-        $this->escribir('hola', '555555555555558@lid', ['remoteJidUsername' => 'ClientePrivado'])->assertOk();
-        $this->escribir('1', '555555555555558@lid', ['remoteJidUsername' => 'ClientePrivado'])->assertOk();
+        Service::create(['name' => 'Corte', 'price' => 20000, 'duration_minutes' => 30, 'active' => true]);
+        $jid = '555555555555558@lid';
+        $extra = ['remoteJidUsername' => 'ClientePrivado'];
+        $this->escribir('hola', $jid, $extra)->assertOk();
+        $this->escribir('1', $jid, $extra)->assertOk();
 
-        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'número de teléfono real'));
+        $this->escribir('Cliente Privado', $jid, $extra)->assertOk();
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'teléfono de contacto'));
         $this->assertSame(0, Appointment::query()->count());
         $this->assertSame(0, Turn::query()->count());
 
-        $this->escribir('Vincular historial', '555555555555558@lid', ['remoteJidUsername' => 'ClientePrivado'])->assertOk();
-        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'vincular tu historial'));
+        // Un flujo antiguo que llegue a confirmar sin contacto también vuelve a pedirlo.
+        Cache::put('wa.bot.flow.'.$jid, [
+            'step' => 'book_confirm',
+            'data' => [
+                'mode' => 'cita', 'client_name' => 'Cliente Privado', 'service_id' => 1,
+                'barber_id' => 1, 'date' => now()->addDay()->toDateString(), 'time' => '10:00',
+            ],
+            'history' => [],
+        ], now()->addMinutes(30));
+        $this->escribir('1', $jid, $extra)->assertOk();
+        Http::assertSent(fn ($request) => str_contains((string) $request['text'], 'teléfono de contacto'));
+        $this->assertSame('book_phone', Cache::get('wa.bot.flow.'.$jid)['step']);
+        $this->assertSame(0, Appointment::query()->count());
+        $this->assertNull(WhatsAppConversation::query()->firstOrFail()->phone);
     }
 
     public function test_modificar_sin_telefono_no_continua_un_flujo_abierto(): void

@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\Service;
+use App\Models\SiteSetting;
 use App\Models\User;
 use App\Services\AttendanceVerificationService;
 use App\Services\WhatsApp\BookingMessenger;
 use App\Support\AuditLog;
+use App\Support\TurnSchedule;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -68,14 +71,30 @@ class AppointmentController extends Controller
 
         $appointments = $filteredQuery->orderBy('appointment_date')->orderBy('appointment_time')->get();
 
-        $hourStart = 7;
-        $hourEnd = 20;
-        $settings = \App\Models\SiteSetting::currentData();
-        if (! empty($settings['booking_start'])) {
-            $hourStart = max(0, (int) substr($settings['booking_start'], 0, 2) - 1);
+        // El calendario abarca la jornada configurada de cada día de la semana. Si el administrador
+        // prolonga el cierre, la vista se amplía sin depender del rango global de respaldo.
+        $hourStart = 23;
+        $hourEnd = 0;
+        $settings = SiteSetting::currentData();
+        foreach ($days as $day) {
+            $opening = TurnSchedule::openingTime($day, $settings);
+            $closing = TurnSchedule::closingTime($day, $settings);
+            if ($opening === null || $closing === null) {
+                continue;
+            }
+            $hourStart = min($hourStart, max(0, (int) substr($opening, 0, 2) - 1));
+            $hourEnd = max($hourEnd, min(24, (int) substr($closing, 0, 2) + 1));
         }
-        if (! empty($settings['booking_end'])) {
-            $hourEnd = min(23, (int) substr($settings['booking_end'], 0, 2) + 1);
+        foreach ($appointments as $appointment) {
+            $appointmentStart = $appointment->startsAt();
+            $startMinutes = $appointmentStart->hour * 60 + $appointmentStart->minute;
+            $endMinutes = $startMinutes + $appointment->durationMinutes();
+            $hourStart = min($hourStart, max(0, intdiv($startMinutes, 60)));
+            $hourEnd = max($hourEnd, min(24, (int) ceil($endMinutes / 60)));
+        }
+        if ($hourStart > $hourEnd) {
+            $hourStart = 7;
+            $hourEnd = 20;
         }
 
         return view('appointments.index', [
@@ -191,7 +210,12 @@ class AppointmentController extends Controller
 
         $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
         $appointment = DB::transaction(function () use ($request, $appointment, $data) {
+            $barberId = (int) $appointment->barber_id;
+            User::whereKey([$barberId, (int) $data['barber_id']])->orderBy('id')->lockForUpdate()->get();
             $current = Appointment::query()->lockForUpdate()->findOrFail($appointment->getKey());
+            if ((int) $current->barber_id !== $barberId) {
+                throw ValidationException::withMessages(['status' => 'La cita cambió de barbero mientras se editaba. Recárgala e inténtalo de nuevo.']);
+            }
             if ($current->attendance_status !== null) {
                 throw ValidationException::withMessages(['status' => 'La asistencia de esta cita ya fue registrada.']);
             }
@@ -231,7 +255,12 @@ class AppointmentController extends Controller
         $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];
         try {
             $appointment = DB::transaction(function () use ($request, $appointment, $data) {
+                $barberId = (int) $appointment->barber_id;
+                User::whereKey($barberId)->lockForUpdate()->first();
                 $current = Appointment::query()->lockForUpdate()->findOrFail($appointment->getKey());
+                if ((int) $current->barber_id !== $barberId) {
+                    throw ValidationException::withMessages(['status' => 'La cita cambió de barbero mientras se actualizaba. Recárgala e inténtalo de nuevo.']);
+                }
                 if ($current->status === 'atendida' && ($data['status'] !== 'atendida' || $current->sale_id)) {
                     throw ValidationException::withMessages(['status' => 'Esta cita ya fue atendida y no se puede modificar.']);
                 }

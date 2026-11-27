@@ -10,11 +10,13 @@ use App\Models\SiteSetting;
 use App\Models\StaffNotification;
 use App\Models\Turn;
 use App\Models\User;
+use App\Models\WhatsAppConversation;
 use App\Services\TurnQueueService;
 use App\Services\WhatsApp\WhatsappBotService;
 use App\Support\ClientServiceAccess;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -53,13 +55,13 @@ class BotCitaTurnoTest extends TestCase
         $this->deTurno = User::factory()->create(['name' => 'Carlos Turno', 'role' => 'barbero', 'attention_mode' => 'llegada', 'active' => true]);
     }
 
-    private function escribir(string $text, string $jid = '573001234567@s.whatsapp.net'): string
+    private function escribir(string $text, string $jid = '573001234567@s.whatsapp.net', array $extra = []): string
     {
         $before = count(Http::recorded());
-        $this->postJson('/webhook/evolution', ['event' => 'messages.upsert', 'apikey' => 'hook', 'data' => [
+        $this->postJson('/webhook/evolution', ['event' => 'messages.upsert', 'apikey' => 'hook', 'data' => array_merge([
             'key' => ['remoteJid' => $jid, 'fromMe' => false, 'id' => 'T'.(++$this->n)],
             'pushName' => 'Ana', 'message' => ['conversation' => $text], 'messageTimestamp' => now()->getTimestamp(),
-        ]])->assertOk();
+        ], $extra)])->assertOk();
 
         return (string) (Http::recorded()->slice($before)->last()[0]['text'] ?? '');
     }
@@ -341,6 +343,353 @@ class BotCitaTurnoTest extends TestCase
         $this->assertNotNull($cita->attendance_confirmed_at);
         $this->assertStringContainsString('30 minutos antes', $listo);
         $this->assertStringContainsString('👤 *Cliente:* Miguel Torres', $listo);
+    }
+
+    public function test_un_username_puede_agendar_cita_con_telefono_manual_sin_verificar_identidad(): void
+    {
+        $jid = 'juan@s.whatsapp.net';
+        $this->escribir('hola', $jid);
+        $this->escribir('1', $jid);
+        $this->assertStringContainsString('nombre y apellido', $this->escribir('1', $jid));
+        $this->assertStringContainsString('teléfono de contacto', $this->escribir('Juan Perez', $jid));
+        $this->assertStringContainsString('no parece válido', $this->escribir('este no es un numero', $jid));
+        $this->escribir('+57 300 999 8877', $jid);
+        $this->escribir('1', $jid); // servicio
+        $this->escribir('1', $jid); // barbero
+        $this->escribir('1', $jid); // hoy
+        $this->escribir('1', $jid); // primer horario
+        $this->escribir('1', $jid); // confirmar
+
+        $cita = Appointment::sole();
+        $this->assertSame('+573009998877', $cita->client_phone);
+        $this->assertNull($cita->history_whatsapp_phone);
+        $this->assertFalse($cita->whatsapp_consent);
+        $this->assertDatabaseHas('consent_records', [
+            'subject_type' => $cita->getMorphClass(), 'subject_id' => $cita->id,
+            'purpose' => 'tratamiento_reserva', 'channel' => 'whatsapp_manual',
+        ]);
+        $this->assertDatabaseMissing('consent_records', [
+            'subject_type' => $cita->getMorphClass(), 'subject_id' => $cita->id,
+            'purpose' => 'avisos_whatsapp',
+        ]);
+        $this->assertSame(0, ClientNotification::query()
+            ->where('notifiable_type', $cita->getMorphClass())->where('notifiable_id', $cita->id)
+            ->where('channel', 'whatsapp')->count());
+
+        $conversation = WhatsAppConversation::query()->firstOrFail();
+        $this->assertNull($conversation->phone);
+        $this->assertSame('juan', $conversation->username);
+        $this->assertSame($jid, $conversation->jid);
+
+        // Escribir el número de otra persona no vincula su historial a este chat.
+        Appointment::create([
+            'barber_id' => $this->deCita->id, 'service_id' => Service::firstOrFail()->id,
+            'client_name' => 'Reserva Privada Ajena', 'client_phone' => '3009998877',
+            'history_whatsapp_phone' => '573009998877', 'appointment_date' => now()->addDay()->toDateString(),
+            'appointment_time' => '11:00:00', 'status' => 'atendida',
+        ]);
+        $reply = $this->escribir('Vincular historial', $jid);
+        $this->assertStringContainsString('número de teléfono real', $reply);
+        $this->assertStringNotContainsString('Reserva Privada Ajena', $reply);
+        $this->assertNull($conversation->fresh()->phone);
+    }
+
+    public function test_un_lid_con_username_puede_pedir_turno_con_telefono_manual(): void
+    {
+        $jid = '555555555555570@lid';
+        $extra = ['username' => 'Juan'];
+        $this->escribir('hola', $jid, $extra);
+        $this->escribir('2', $jid, $extra);
+        $this->assertStringContainsString('teléfono de contacto', $this->escribir('Juan Perez', $jid, $extra));
+        $this->escribir('300 999 8877', $jid, $extra);
+        $this->escribir('1', $jid, $extra); // servicio
+        $this->escribir('1', $jid, $extra); // barbero
+        $this->escribir('1', $jid, $extra); // confirmar
+
+        $turno = Turn::sole();
+        $this->assertSame('+573009998877', $turno->client_phone);
+        $this->assertNull($turno->history_whatsapp_phone);
+        $this->assertFalse($turno->whatsapp_consent);
+        $this->assertDatabaseHas('consent_records', [
+            'subject_type' => $turno->getMorphClass(), 'subject_id' => $turno->id,
+            'purpose' => 'tratamiento_reserva', 'channel' => 'whatsapp_manual',
+        ]);
+        $this->assertSame(0, ClientNotification::query()
+            ->where('notifiable_type', $turno->getMorphClass())->where('notifiable_id', $turno->id)
+            ->where('channel', 'whatsapp')->count());
+        Http::assertNotSent(fn ($request) => ($request['number'] ?? null) === '573009998877');
+        Http::assertSent(fn ($request) => ($request['number'] ?? null) === $jid);
+
+        $conversation = WhatsAppConversation::query()->firstOrFail();
+        $this->assertNull($conversation->phone);
+        $this->assertSame('juan', $conversation->username);
+        $this->assertSame($jid, $conversation->jid);
+    }
+
+    public function test_el_telefono_manual_no_abre_historial_ni_reservas_a_otro_whatsapp(): void
+    {
+        $service = Service::create(['name' => 'Servicio Manual Secreto', 'price' => 20000, 'duration_minutes' => 30, 'active' => true]);
+        $appointment = Appointment::create([
+            'barber_id' => $this->deCita->id, 'service_id' => $service->id,
+            'client_name' => 'Cliente Manual', 'client_phone' => '3009998877',
+            'appointment_date' => now()->addDay()->toDateString(), 'appointment_time' => '10:00:00',
+            'status' => 'confirmada', 'whatsapp_consent' => false,
+        ]);
+        ConsentRecord::grant($appointment, 'tratamiento_reserva', 'whatsapp_manual');
+        $turn = Turn::create([
+            'barber_id' => $this->deTurno->id, 'service_id' => $service->id,
+            'client_name' => 'Cliente Manual', 'client_phone' => '3009998877',
+            'turn_date' => now()->toDateString(), 'turn_number' => 1,
+            'status' => 'esperando', 'whatsapp_consent' => false,
+        ]);
+        ConsentRecord::grant($turn, 'tratamiento_reserva', 'whatsapp_manual');
+        $jid = '573009998877@s.whatsapp.net';
+
+        $this->escribir('hola', $jid);
+        $this->escribir('5', $jid);
+        $this->assertStringContainsString('no encontramos citas ni turnos activos', $this->escribir('1', $jid));
+        $this->escribir('hola', $jid);
+        $this->escribir('5', $jid);
+        $this->assertStringContainsString('no encontramos citas ni turnos activos', $this->escribir('2', $jid));
+
+        $appointment->update(['status' => 'atendida']);
+        $turn->update(['status' => 'atendido']);
+        $this->escribir('hola', $jid);
+        $this->escribir('5', $jid);
+        $history = $this->escribir('3', $jid);
+        $this->assertStringContainsString('Aún no registramos visitas', $history);
+        $this->assertStringNotContainsString('Servicio Manual Secreto', $history);
+
+        // La vinculación explícita sí habilita la consulta desde el número verificado.
+        $appointment->update(['status' => 'confirmada', 'history_whatsapp_phone' => '573009998877']);
+        $turn->update(['status' => 'esperando', 'history_whatsapp_phone' => '573009998877']);
+        $this->escribir('hola', $jid);
+        $this->escribir('5', $jid);
+        $this->assertStringContainsString('Tu próxima cita', $this->escribir('1', $jid));
+        $this->escribir('hola', $jid);
+        $this->escribir('5', $jid);
+        $this->assertStringContainsString('Servicio Manual Secreto', $this->escribir('2', $jid));
+    }
+
+    public function test_el_bot_muestra_horas_segun_la_duracion_del_servicio(): void
+    {
+        SiteSetting::create(['data' => ['hours_wed' => '09:00 - 20:00']]);
+        Service::create(['name' => 'Corte largo', 'price' => 30000, 'duration_minutes' => 90, 'active' => true]);
+
+        $this->escribir('hola');
+        $this->escribir('1');
+        $this->escribir('Ana Gomez');
+        $this->escribir('2'); // servicio de 90 minutos
+        $this->escribir('1'); // barbero
+        $horas = $this->escribir('1'); // hoy; muestra horas según la duración
+
+        $this->assertStringContainsString('6:30 p. m.', $horas);
+        $this->assertStringNotContainsString('7:00 p. m.', $horas);
+        $this->assertStringNotContainsString('7:30 p. m.', $horas);
+        $this->assertSame('18:30', last(Cache::get('wa.bot.flow.573001234567')['data']['slots']));
+    }
+
+    public function test_ampliar_el_cierre_actualiza_las_horas_de_un_flujo_abierto(): void
+    {
+        $setting = SiteSetting::create(['data' => ['hours_wed' => '09:00 - 18:00']]);
+        $this->escribir('hola');
+        $this->escribir('1');
+        $this->escribir('Ana Gomez');
+        $this->escribir('1');
+        $this->escribir('1'); // barbero; queda en la lista de fechas
+
+        $setting->update(['data' => array_merge($setting->data, ['hours_wed' => '09:00 - 22:00'])]);
+        $horas = $this->escribir('1'); // vuelve a calcular al elegir la fecha
+
+        $this->assertStringContainsString('9:30 p. m.', $horas);
+        $this->assertSame('21:30', last(Cache::get('wa.bot.flow.573001234567')['data']['slots']));
+    }
+
+    public function test_reducir_el_cierre_rechaza_una_hora_que_ya_no_cabe(): void
+    {
+        $setting = SiteSetting::create(['data' => ['hours_wed' => '09:00 - 22:00']]);
+        $this->escribir('hola');
+        $this->escribir('1');
+        $this->escribir('Ana Gomez');
+        $this->escribir('1');
+        $this->escribir('1');
+        $this->escribir('1'); // hoy
+        $slots = Cache::get('wa.bot.flow.573001234567')['data']['slots'];
+        $opcion = array_search('21:30', $slots, true) + 1;
+
+        $setting->update(['data' => array_merge($setting->data, ['hours_wed' => '09:00 - 18:00'])]);
+        $reply = $this->escribir((string) $opcion);
+
+        $this->assertStringContainsString('disponibilidad cambió', $reply);
+        $this->assertStringNotContainsString('9:30 p. m.', $reply);
+        $this->assertSame('17:30', last(Cache::get('wa.bot.flow.573001234567')['data']['slots']));
+        $this->assertDatabaseCount('appointments', 0);
+    }
+
+    public function test_reintentar_una_opcion_invalida_actualiza_las_horas(): void
+    {
+        $setting = SiteSetting::create(['data' => ['hours_wed' => '09:00 - 22:00']]);
+        $this->escribir('hola');
+        Cache::put('wa.bot.flow.573001234567', [
+            'step' => 'book_time',
+            'data' => [
+                'barber_id' => $this->deCita->id,
+                'service_id' => Service::firstOrFail()->id,
+                'date' => now()->toDateString(),
+                'slots' => ['21:30'],
+            ],
+            'history' => [],
+        ], now()->addMinutes(30));
+
+        $this->assertStringContainsString('No hemos podido identificar', $this->escribir('999'));
+        $setting->update(['data' => array_merge($setting->data, ['hours_wed' => '09:00 - 18:00'])]);
+        $reply = $this->escribir('1');
+
+        $this->assertStringNotContainsString('9:30 p. m.', $reply);
+        $this->assertSame('book_time', Cache::get('wa.bot.flow.573001234567')['step']);
+        $this->assertSame('17:30', last(Cache::get('wa.bot.flow.573001234567')['data']['slots']));
+    }
+
+    public function test_una_cita_ocupada_mientras_se_confirmaba_no_se_duplica(): void
+    {
+        $this->escribir('hola');
+        $this->escribir('1');
+        $this->escribir('Ana Gomez');
+        $this->escribir('1');
+        $this->escribir('1');
+        $this->escribir('1');
+        $this->escribir('1'); // deja la confirmación abierta
+        $flow = Cache::get('wa.bot.flow.573001234567');
+
+        Appointment::reserveSlot([
+            'barber_id' => $this->deCita->id, 'service_id' => Service::firstOrFail()->id,
+            'client_name' => 'Otro Cliente', 'appointment_date' => $flow['data']['date'],
+            'appointment_time' => $flow['data']['time'], 'status' => 'confirmada',
+        ]);
+        $reply = $this->escribir('1');
+
+        $this->assertStringContainsString('ya no se encuentra disponible', $reply);
+        $this->assertDatabaseCount('appointments', 1);
+        $this->assertSame('slot_taken', Cache::get('wa.bot.flow.573001234567')['step']);
+    }
+
+    public function test_reprogramar_desde_el_bot_rechaza_un_horario_que_ya_no_cabe(): void
+    {
+        $setting = SiteSetting::create(['data' => ['hours_wed' => '09:00 - 22:00']]);
+        $cita = Appointment::create([
+            'barber_id' => $this->deCita->id, 'service_id' => Service::firstOrFail()->id,
+            'client_name' => 'Ana Gomez', 'client_phone' => '3001234567',
+            'history_whatsapp_phone' => '573001234567', 'appointment_date' => now()->toDateString(),
+            'appointment_time' => '21:30:00', 'status' => 'confirmada',
+        ]);
+        $this->escribir('hola');
+        Cache::put('wa.bot.flow.573001234567', [
+            'step' => 'mod_time',
+            'data' => ['appointment_id' => $cita->id, 'date' => now()->toDateString(), 'slots' => ['21:30']],
+            'history' => [],
+        ], now()->addMinutes(30));
+
+        $setting->update(['data' => array_merge($setting->data, ['hours_wed' => '09:00 - 18:00'])]);
+        $reply = $this->escribir('1');
+
+        $this->assertStringContainsString('disponibilidad cambió', $reply);
+        $this->assertSame('mod_date', Cache::get('wa.bot.flow.573001234567')['step']);
+        $this->assertSame('21:30', $cita->fresh()->startsAt()->format('H:i'));
+    }
+
+    public function test_cambiar_servicio_desde_el_bot_no_crea_un_solapamiento(): void
+    {
+        SiteSetting::create(['data' => ['hours_wed' => '09:00 - 20:00']]);
+        $servicio = Service::firstOrFail();
+        Service::create(['name' => 'Corte largo', 'price' => 30000, 'duration_minutes' => 60, 'active' => true]);
+        $cita = Appointment::reserveSlot([
+            'barber_id' => $this->deCita->id, 'service_id' => $servicio->id,
+            'client_name' => 'Ana Gomez', 'client_phone' => '3001234567',
+            'appointment_date' => now()->toDateString(), 'appointment_time' => '10:00', 'status' => 'confirmada',
+        ]);
+        Appointment::reserveSlot([
+            'barber_id' => $this->deCita->id, 'service_id' => $servicio->id,
+            'client_name' => 'Otro Cliente', 'appointment_date' => now()->toDateString(),
+            'appointment_time' => '10:45', 'status' => 'confirmada',
+        ]);
+        $this->escribir('hola');
+        Cache::put('wa.bot.flow.573001234567', [
+            'step' => 'mod_service', 'data' => ['appointment_id' => $cita->id], 'history' => [],
+        ], now()->addMinutes(30));
+
+        $reply = $this->escribir('2'); // Corte largo
+
+        $this->assertStringContainsString('ya está ocupado', $reply);
+        $this->assertSame($servicio->id, $cita->fresh()->service_id);
+        $this->assertDatabaseCount('appointments', 2);
+    }
+
+    public function test_cambiar_servicio_desde_el_bot_actualiza_el_precio_guardado(): void
+    {
+        SiteSetting::create(['data' => ['hours_wed' => '09:00 - 20:00']]);
+        $service = Service::firstOrFail();
+        $long = Service::create(['name' => 'Corte largo', 'price' => 30000, 'duration_minutes' => 60, 'active' => true]);
+        $appointment = Appointment::reserveSlot([
+            'barber_id' => $this->deCita->id, 'service_id' => $service->id,
+            'service_price' => $service->price, 'client_name' => 'Ana Gomez', 'client_phone' => '3001234567',
+            'appointment_date' => now()->toDateString(), 'appointment_time' => '10:00', 'status' => 'confirmada',
+        ]);
+        $this->escribir('hola');
+        Cache::put('wa.bot.flow.573001234567', [
+            'step' => 'mod_service', 'data' => ['appointment_id' => $appointment->id], 'history' => [],
+        ], now()->addMinutes(30));
+
+        $reply = $this->escribir('2');
+
+        $this->assertStringContainsString('ahora es *Corte largo*', $reply);
+        $this->assertSame($long->id, $appointment->fresh()->service_id);
+        $this->assertEquals(30000, $appointment->fresh()->service_price);
+    }
+
+    public function test_cambiar_barbero_desde_el_bot_valida_sus_conflictos(): void
+    {
+        SiteSetting::create(['data' => ['hours_wed' => '09:00 - 20:00']]);
+        $destino = User::factory()->create(['name' => 'Barbero Destino', 'role' => 'barbero', 'attention_mode' => 'citas', 'active' => true]);
+        $servicio = Service::firstOrFail();
+        $cita = Appointment::reserveSlot([
+            'barber_id' => $this->deCita->id, 'service_id' => $servicio->id,
+            'client_name' => 'Ana Gomez', 'client_phone' => '3001234567',
+            'appointment_date' => now()->toDateString(), 'appointment_time' => '10:00', 'status' => 'confirmada',
+        ]);
+        Appointment::reserveSlot([
+            'barber_id' => $destino->id, 'service_id' => $servicio->id,
+            'client_name' => 'Otro Cliente', 'appointment_date' => now()->toDateString(),
+            'appointment_time' => '10:00', 'status' => 'confirmada',
+        ]);
+        $this->escribir('hola');
+        Cache::put('wa.bot.flow.573001234567', [
+            'step' => 'mod_barber',
+            'data' => ['appointment_id' => $cita->id, 'barbers' => [$destino->id]],
+            'history' => [],
+        ], now()->addMinutes(30));
+
+        $reply = $this->escribir('1');
+
+        $this->assertStringContainsString('ya tiene una cita', $reply);
+        $this->assertSame($this->deCita->id, $cita->fresh()->barber_id);
+        $this->assertDatabaseCount('appointments', 2);
+    }
+
+    public function test_ampliar_el_cierre_permite_confirmar_un_turno_despues_del_corte_anterior(): void
+    {
+        $setting = SiteSetting::create(['data' => ['hours_wed' => '09:00 - 20:00']]);
+        $this->travelTo(Carbon::parse('2026-11-18 19:29:00'));
+        $this->escribir('hola');
+        $this->escribir('2');
+        $this->escribir('Ana Gomez');
+        $this->escribir('1');
+        $this->escribir('1'); // confirmación abierta antes del corte
+
+        $setting->update(['data' => array_merge($setting->data, ['hours_wed' => '09:00 - 22:00'])]);
+        $this->travelTo(Carbon::parse('2026-11-18 19:31:00'));
+        $this->escribir('1');
+
+        $this->assertDatabaseCount('turns', 1);
     }
 
     public function test_tomar_turno_solo_muestra_barberos_de_turno_y_crea_un_turno(): void

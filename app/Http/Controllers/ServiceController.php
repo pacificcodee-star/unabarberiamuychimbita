@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Service;
+use App\Models\Turn;
 use App\Rules\ImageUpload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ServiceController extends Controller
 {
@@ -61,6 +63,26 @@ class ServiceController extends Controller
     {
         $data = $this->validatedData($request);
         $data['active'] = $request->boolean('active');
+
+        // La duración es parte de la ocupación real de cada cita. Cambiarla con reservas vigentes
+        // podría crear solapamientos o hacer que un servicio termine después del cierre.
+        $cambiaDuracion = (int) $data['duration_minutes'] !== (int) $service->duration_minutes;
+        $tieneReservasVigentes = $cambiaDuracion && (
+            $service->appointments()
+                ->where('status', '!=', 'cancelada')
+                ->whereDate('appointment_date', '>=', today())
+                ->exists()
+            || Turn::query()
+                ->where('service_id', $service->id)
+                ->whereDate('turn_date', '>=', today())
+                ->whereIn('status', ['esperando', 'llamado', 'atendiendo'])
+                ->exists()
+        );
+        if ($tieneReservasVigentes) {
+            throw ValidationException::withMessages([
+                'duration_minutes' => 'No se puede cambiar la duración mientras haya citas o turnos vigentes con este servicio. Crea otro servicio para la nueva duración.',
+            ]);
+        }
 
         if ($request->hasFile('image')) {
             $newPath = $request->file('image')->store('services', 'public');

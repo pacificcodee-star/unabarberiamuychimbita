@@ -29,13 +29,24 @@ class PublicBookingController extends Controller
     {
         $data = $request->validate([
             'barber_id' => ['required', 'integer', 'exists:users,id'],
+            'service_id' => ['nullable', 'integer', Rule::exists('services', 'id')->where('active', true)],
             'date' => ['required', 'date', 'after_or_equal:today', 'before_or_equal:'.now()->addDays(29)->toDateString()],
         ]);
         $barber = User::barbers()->where('active', true)->where('attention_mode', 'citas')->find($data['barber_id']);
         abort_if(! $barber, 404);
 
-        return response()->json(['times' => Appointment::availableTimes($barber, Carbon::parse($data['date'])->toDateString())])
-            ->header('Cache-Control', 'no-store');
+        $serviceId = isset($data['service_id']) ? (int) $data['service_id'] : null;
+        if ($serviceId && ! $barber->offersService($serviceId)) {
+            throw ValidationException::withMessages(['service_id' => 'Ese barbero no ofrece el servicio seleccionado.']);
+        }
+
+        return response()->json([
+            'times' => Appointment::availableTimes(
+                $barber,
+                Carbon::parse($data['date'])->toDateString(),
+                serviceId: $serviceId
+            ),
+        ])->header('Cache-Control', 'no-store');
     }
 
     public function index(Request $request)
@@ -135,7 +146,11 @@ class PublicBookingController extends Controller
         }
 
         $appointmentDate = Carbon::parse($data['appointment_date'])->toDateString();
-        if (! in_array($data['appointment_time'], Appointment::availableTimes($barber, $appointmentDate), true)) {
+        if (! in_array($data['appointment_time'], Appointment::availableTimes(
+            $barber,
+            $appointmentDate,
+            serviceId: (int) $data['service_id']
+        ), true)) {
             throw ValidationException::withMessages(['appointment_time' => 'Ese horario no está disponible. Elige otra hora.']);
         }
 
