@@ -31,7 +31,8 @@ class WhatsAppChatController extends Controller
             ->with('lastMessage')
             ->when($search !== '', function ($query) use ($search, $digits) {
                 $query->where(function ($q) use ($search, $digits) {
-                    $q->where('client_name', 'like', "%{$search}%");
+                    $q->where('client_name', 'like', "%{$search}%")
+                        ->orWhere('username', 'like', '%'.mb_strtolower($search).'%');
                     if ($digits !== '') {
                         $q->orWhere('phone', 'like', "%{$digits}%");
                     }
@@ -154,9 +155,9 @@ class WhatsAppChatController extends Controller
      */
     public function destroy(WhatsAppConversation $conversation, WhatsappBotService $bot): RedirectResponse
     {
-        $name = $conversation->client_name ?: $conversation->phone;
+        $name = $conversation->contactName();
 
-        $bot->forgetConversation((string) $conversation->phone);
+        $bot->forgetConversation($conversation->flowIdentity());
         $conversation->delete(); // los mensajes se borran en cascada
 
         return redirect()

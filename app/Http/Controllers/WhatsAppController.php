@@ -152,7 +152,7 @@ class WhatsAppController extends Controller
 
     /**
      * Envía una promoción a los clientes que escribieron en los últimos 30 días
-     * (ventana de conversación de WhatsApp; máximo 50 números por envío).
+     * (ventana de conversación de WhatsApp; máximo 50 chats con teléfono por envío).
      */
     public function sendPromotion(Request $request, WhatsAppInbox $inbox): RedirectResponse
     {
@@ -161,6 +161,7 @@ class WhatsAppController extends Controller
         ]);
 
         $phones = WhatsAppConversation::query()
+            ->whereNotNull('phone')
             ->where('last_message_at', '>=', now()->subDays(30))
             ->orderByDesc('last_message_at')
             ->limit(50)
