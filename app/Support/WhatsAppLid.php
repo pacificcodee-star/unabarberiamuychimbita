@@ -14,15 +14,14 @@ final class WhatsAppLid
 {
     private const DAYS = 180;
 
-    public static function isLid(?string $jid): bool
+    public static function isLid(mixed $jid): bool
     {
         return is_string($jid) && preg_match('/\A[0-9]+@lid\z/', $jid) === 1;
     }
 
     public static function remember(?string $lidJid, ?string $phone): void
     {
-        $phone = preg_replace('/\D+/', '', (string) $phone);
-        if (! self::isLid($lidJid) || $phone === '' || strlen($phone) < 8) {
+        if (! self::isLid($lidJid) || preg_match('/\A[0-9]{8,20}\z/', (string) $phone) !== 1) {
             return;
         }
 

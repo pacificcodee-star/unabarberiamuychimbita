@@ -19,12 +19,12 @@ class WhatsAppHistoryLink
 
     public function __construct(private WhatsAppService $whatsApp) {}
 
-    public function respondToCommand(string $message, string $sender): ?string
+    public function respondToCommand(string $message, ?string $sender): ?string
     {
         if (str_starts_with(trim($message), self::APPROVE)) {
             $code = substr(trim($message), strlen(self::APPROVE));
-            $phone = $this->whatsApp->normalizePhone($sender, international: true);
-            if (preg_match('/^[A-Za-z0-9]{32}$/D', $code) && Cache::get($this->key($code)) === $phone) {
+            $phone = $sender === null ? null : $this->whatsApp->normalizePhone($sender, international: true);
+            if ($phone && preg_match('/^[A-Za-z0-9]{32}$/D', $code) && Cache::get($this->key($code)) === $phone) {
                 Cache::put($this->key($code).':approved', $phone, now()->addMinutes(10));
 
                 return 'Número confirmado. Vuelve a la web o a la app donde empezaste para ver tus servicios.';
@@ -36,6 +36,10 @@ class WhatsAppHistoryLink
         // También reconoce el mensaje preparado por versiones anteriores de la página.
         if (! preg_match('/^vincular (?:mi )?historial(?: [A-Za-z0-9]{32})?[.!]?$/i', trim($message))) {
             return null;
+        }
+
+        if ($sender === null) {
+            return 'Para vincular el historial con la web se requiere un número visible. Puedes consultar tus reservas en este chat desde el menú *Consultar mi cita o turno*.';
         }
 
         $phone = $this->whatsApp->normalizePhone($sender, international: true);
