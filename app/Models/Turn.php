@@ -62,6 +62,7 @@ class Turn extends Model
         'service_id',
         'client_name',
         'client_phone',
+        'whatsapp_lid',
         'client_phone_normalized',
         'history_whatsapp_phone',
         'service_price',

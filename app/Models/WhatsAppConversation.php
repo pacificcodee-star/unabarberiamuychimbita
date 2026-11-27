@@ -6,7 +6,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/** Conversación de WhatsApp con un cliente (una por número). */
+/** Conversación de WhatsApp con un cliente, con teléfono o identificador privado. */
 class WhatsAppConversation extends Model
 {
     /** Laravel pluralizaría "WhatsAppConversation" como whats_app_conversations. */
@@ -17,6 +17,8 @@ class WhatsAppConversation extends Model
     protected $fillable = [
         'jid',
         'phone',
+        'lid',
+        'username',
         'client_name',
         'unread_count',
         'last_message_preview',
@@ -33,6 +35,21 @@ class WhatsAppConversation extends Model
             'last_message_at' => 'datetime',
             'advisor_wait_until' => 'datetime',
         ];
+    }
+
+    public function flowIdentity(): string
+    {
+        return $this->phone ?? $this->lid ?? $this->jid;
+    }
+
+    public function contactName(): string
+    {
+        return $this->client_name ?: ($this->username ?: 'Cliente de WhatsApp');
+    }
+
+    public function contactDetail(): string
+    {
+        return $this->username ?: ($this->phone ?: 'Número privado');
     }
 
     public function waitForAdvisor(): void
