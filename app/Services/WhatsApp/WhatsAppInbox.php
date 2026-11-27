@@ -7,8 +7,9 @@ use App\Models\WhatsAppConversation;
 use App\Models\WhatsAppMessage;
 use App\Services\WhatsAppService;
 use App\Support\WhatsAppLid;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -40,10 +41,8 @@ class WhatsAppInbox
             return null;
         }
 
-        // El sufijo de dispositivo de un JID multidispositivo no forma parte del teléfono.
-        $digits = preg_replace('/\D+/', '', explode(':', $user, 2)[0]);
-
-        return $digits ?: null;
+        // Valida el JID completo para que un nombre de usuario con dígitos no se lea como teléfono.
+        return preg_match('/\A\+?([0-9]{8,20})(?::[0-9]+)?\z/', $user, $parts) === 1 ? $parts[1] : null;
     }
 
     /** Extrae el texto de un mensaje de WhatsApp (acepta los envoltorios de Baileys). */
@@ -141,46 +140,80 @@ class WhatsAppInbox
         if (! $contact) {
             return null;
         }
-        [$phone, $jid] = $contact;
-
         $evolutionId = isset($key['id']) ? Str::limit((string) $key['id'], 100, '') : null;
 
-        // Reintento del webhook: ya lo procesamos antes.
-        if ($evolutionId && WhatsAppMessage::query()->where('evolution_id', $evolutionId)->exists()) {
-            return null;
+        try {
+            return $this->saveIncoming($contact, $data, $evolutionId);
+        } catch (UniqueConstraintViolationException) {
+            // Otro webhook puede haber creado el chat o guardado el mismo mensaje entre la lectura y la escritura.
+            return $this->saveIncoming($contact, $data, $evolutionId);
         }
+    }
 
+    private function saveIncoming(array $contact, array $data, ?string $evolutionId): ?array
+    {
+        [$phone, $jid, $lid, $username] = $contact;
         $text = $this->textFrom($data);
         $type = $this->typeFrom($data, $text);
         $preview = $text !== null ? $text : '['.$type.']';
+        $pushName = $data['pushName'] ?? null;
+        $senderName = is_string($pushName) && trim($pushName) !== '' ? Str::limit($pushName, 120, '') : null;
 
-        $conversation = WhatsAppConversation::query()->firstOrNew(['phone' => $phone]);
-        $isNewBurst = ! $conversation->exists || (int) $conversation->unread_count === 0;
+        return DB::transaction(function () use ($phone, $jid, $lid, $username, $data, $evolutionId, $text, $type, $preview, $senderName) {
+            if ($evolutionId && WhatsAppMessage::query()->where('evolution_id', $evolutionId)->exists()) {
+                return null;
+            }
 
-        if (! $conversation->exists) {
-            $conversation->jid = $jid;
-        }
+            $matches = WhatsAppConversation::query()->where('jid', $jid)
+                ->when($lid, fn ($query) => $query->orWhere('lid', $lid)->orWhere('jid', $lid))
+                ->when($phone, fn ($query) => $query->orWhere('phone', $phone))
+                ->orderBy('id')->lockForUpdate()->get();
 
-        $conversation->fill([
-            'jid' => $jid ?: $conversation->jid,
-            'client_name' => filled($data['pushName'] ?? null) ? Str::limit((string) $data['pushName'], 120, '') : $conversation->client_name,
-            'unread_count' => $conversation->unread_count + 1,
-            'last_message_preview' => Str::limit($preview, 250, ''),
-            'last_message_at' => now(),
-        ])->save();
+            $private = $lid ? $matches->first(fn ($chat) => $chat->lid === $lid || $chat->jid === $lid) : null;
+            $byPhone = $phone ? $matches->first(fn ($chat) => $chat->phone === $phone) : null;
+            $conversation = $byPhone ?? $private ?? $matches->firstWhere('jid', $jid) ?? new WhatsAppConversation;
+            $moveFlow = $private && $phone !== null && $private->phone === null;
 
-        $message = WhatsAppMessage::query()->create([
-            'conversation_id' => $conversation->id,
-            'direction' => WhatsAppMessage::DIRECTION_IN,
-            'type' => $type,
-            'body' => $text !== null ? Str::limit($text, 5000, '…') : null,
-            'evolution_id' => $evolutionId,
-            'status' => null,
-            'sender_name' => filled($data['pushName'] ?? null) ? Str::limit((string) $data['pushName'], 120, '') : null,
-            'raw' => $this->safeRaw($data),
-        ]);
+            if ($byPhone && $private && ! $byPhone->is($private)) {
+                $private->messages()->update(['conversation_id' => $byPhone->id]);
+                $conversation->unread_count += $private->unread_count;
+                $conversation->username ??= $private->username;
+                $conversation->client_name ??= $private->client_name;
+                if ($conversation->bot_active || (! $private->bot_active && $private->advisor_wait_until === null)) {
+                    $conversation->bot_active = $private->bot_active;
+                    $conversation->advisor_wait_until = $private->advisor_wait_until;
+                }
+                $private->delete();
+            }
 
-        return ['message' => $message, 'notifyTeam' => $isNewBurst];
+            $isNewBurst = (int) $conversation->unread_count === 0;
+            $conversation->fill([
+                'jid' => $jid,
+                'lid' => $lid ?? $conversation->lid,
+                'phone' => $phone ?? $conversation->phone,
+                'username' => $username ?? $conversation->username,
+                'client_name' => $senderName ?? $conversation->client_name,
+                'unread_count' => $conversation->unread_count + 1,
+                'last_message_preview' => Str::limit($preview, 250, ''),
+                'last_message_at' => now(),
+            ])->save();
+
+            $message = $conversation->messages()->create([
+                'direction' => WhatsAppMessage::DIRECTION_IN,
+                'type' => $type,
+                'body' => $text !== null ? Str::limit($text, 5000, '…') : null,
+                'evolution_id' => $evolutionId,
+                'status' => null,
+                'sender_name' => $senderName ?? $username,
+                'raw' => $this->safeRaw($data),
+            ]);
+
+            if ($moveFlow) {
+                DB::afterCommit(fn () => app(WhatsappBotService::class)->moveConversationFlow($lid, $phone));
+            }
+
+            return ['message' => $message, 'notifyTeam' => $isNewBurst];
+        }, 3);
     }
 
     public function notifyIncoming(WhatsAppMessage $message): void
@@ -188,47 +221,51 @@ class WhatsAppInbox
         $conversation = $message->conversation;
         StaffNotification::record(
             'whatsapp_message',
-            'WhatsApp: '.($conversation->client_name ?: $conversation->phone),
+            'WhatsApp: '.$conversation->contactName(),
             Str::limit($message->body ?? '['.$message->type.']', 200, ''),
             route('whatsapp.chat.show', $conversation, false),
         );
     }
 
-    /** Reutiliza la resolución de teléfonos y LID en ambos sentidos del chat. */
+    /** @return array{?string, string, ?string, ?string}|null Teléfono, destino, LID y nombre de usuario. */
     private function contact(array $key, array $data): ?array
     {
-        $remote = (string) ($key['remoteJid'] ?? '');
+        $remote = is_string($key['remoteJid'] ?? null) ? $key['remoteJid'] : '';
         if (preg_match('/@(g\.us|broadcast|newsletter)$/', $remote) === 1) {
             return null;
         }
-        $lid = WhatsAppLid::isLid($remote) ? $remote : null;
+        $alternate = $key['remoteJidAlt'] ?? null;
+        $remoteLid = WhatsAppLid::isLid($remote) ? $remote : null;
+        $lid = $remoteLid ?? (is_string($alternate) && WhatsAppLid::isLid($alternate) ? $alternate : null);
 
-        $candidates = [$key['remoteJidAlt'] ?? null, $remote];
+        $candidates = [$remote, $alternate];
         if (empty($key['fromMe'])) {
             array_push($candidates, $key['senderPn'] ?? null, $data['senderPn'] ?? null, $key['participantAlt'] ?? null);
         }
+        $phone = null;
         foreach ($candidates as $candidate) {
             if (! is_string($candidate) || $candidate === '') {
                 continue;
             }
             $jid = str_contains($candidate, '@') ? $candidate : $candidate.'@s.whatsapp.net';
             if (($phone = self::phoneFromJid($jid)) !== null) {
-                $phone = $this->whatsApp->normalizePhone($phone, international: true);
-                WhatsAppLid::remember($lid, $phone);
-
-                return [$phone, $lid ?? $jid];
+                break;
             }
         }
 
-        $phone = WhatsAppLid::phoneFor($lid);
-        if ($phone !== null) {
-            return [$phone, $lid];
-        }
-        if ($lid !== null) {
-            Log::warning('WhatsApp: mensaje entrante sin número de teléfono (solo @lid); no se pudo atender', ['campos' => array_keys($key)]);
+        WhatsAppLid::remember($lid, $phone);
+        $phone ??= WhatsAppLid::phoneFor($lid);
+        if ($phone === null && $lid === null) {
+            return null;
         }
 
-        return null;
+        $username = $key['remoteJidUsername'] ?? null;
+        $username = is_string($username) && preg_match('/\A@?([A-Za-z0-9._]{1,119})\z/', $username, $handle) === 1
+            ? '@'.$handle[1]
+            : null;
+        $jid = $remoteLid ?? ($phone !== null ? $phone.'@s.whatsapp.net' : $lid);
+
+        return [$phone, $jid, $lid, $username];
     }
 
     /** Las devoluciones de nuestros envíos no son una intervención humana desde el celular. */
@@ -250,7 +287,10 @@ class WhatsAppInbox
         }
 
         $contact = $this->contact($key, $data);
-        $conversation = $contact ? WhatsAppConversation::where('phone', $contact[0])->first() : null;
+        $conversation = $contact ? WhatsAppConversation::query()->where('jid', $contact[1])
+            ->when($contact[2], fn ($query, $lid) => $query->orWhere('lid', $lid))
+            ->when($contact[0], fn ($query, $phone) => $query->orWhere('phone', $phone))
+            ->first() : null;
         if (! $conversation || WhatsAppMessage::where('evolution_id', $id)->exists()) {
             return;
         }
@@ -369,15 +409,23 @@ class WhatsAppInbox
     // Envío
     // ------------------------------------------------------------------------------------------
 
-    /** Envía una respuesta y la guarda en la conversación. Devuelve true si Evolution la aceptó. */
+    /** Envía una respuesta y la guarda en el chat. Devuelve true si el proveedor la aceptó. */
     public function send(WhatsAppConversation $conversation, string $body, bool $useChatAddress = true): bool
     {
-        $phone = $this->whatsApp->normalizePhone($conversation->phone, international: true);
-        $this->pace($phone);
-
         $lid = $useChatAddress && WhatsAppLid::isLid($conversation->jid) ? $conversation->jid : null;
+
+        return $this->sendAndRecord($conversation, $body, $lid);
+    }
+
+    private function sendAndRecord(WhatsAppConversation $conversation, string $body, ?string $lid): bool
+    {
+        $phone = $conversation->phone !== null
+            ? $this->whatsApp->normalizePhone($conversation->phone, international: true)
+            : null;
+        $this->pace($phone ?? $lid ?? '');
+
         $receipt = $this->whatsApp->usesTemplates()
-            ? ($this->whatsApp->sendText('+'.$phone, $body) ? [] : null)
+            ? ($phone !== null && $this->whatsApp->sendText('+'.$phone, $body) ? [] : null)
             : $this->evolution->sendTextReceipt($phone, $body, $lid);
         $id = is_string($receipt['key']['id'] ?? null) ? Str::limit($receipt['key']['id'], 100, '') : null;
         $ok = $receipt !== null;
@@ -430,6 +478,17 @@ class WhatsAppInbox
         }
 
         return $this->send($conversation, $body, useChatAddress: false);
+    }
+
+    public function sendToLid(string $lid, string $body): bool
+    {
+        if (! WhatsAppLid::isLid($lid)) {
+            return false;
+        }
+
+        $conversation = WhatsAppConversation::query()->firstOrCreate(['lid' => $lid], ['jid' => $lid]);
+
+        return $this->sendAndRecord($conversation, $body, $lid);
     }
 
     public function evolution(): EvolutionClient

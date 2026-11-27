@@ -280,14 +280,15 @@ class EvolutionClient
         return $this->sendTextReceipt($number, $text) !== null;
     }
 
-    public function sendTextReceipt(string $number, string $text, ?string $lid = null): ?array
+    public function sendTextReceipt(?string $number, string $text, ?string $lid = null): ?array
     {
-        if (! $this->isConfigured() || $number === '' || trim($text) === '') {
+        $recipient = $lid ?? $number;
+        if (! $this->isConfigured() || blank($recipient) || trim($text) === '') {
             return null;
         }
 
         $response = $this->request('POST', '/message/sendText/'.$this->instance(), [], [
-            'number' => $lid ?? $number,
+            'number' => $recipient,
             'text' => $text,
         ], chatSend: true);
 
@@ -305,7 +306,7 @@ class EvolutionClient
             WhatsAppLid::remember(is_string($jid) ? $jid : null, $number);
         }
 
-        Log::info('WhatsApp (Evolution) enviado', ['to' => \App\Support\Pii::phone($number)]);
+        Log::info('WhatsApp (Evolution) enviado', ['to' => $number ? \App\Support\Pii::phone($number) : 'chat privado']);
 
         return $response;
     }
