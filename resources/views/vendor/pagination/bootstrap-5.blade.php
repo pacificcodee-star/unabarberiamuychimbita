@@ -1,7 +1,7 @@
 @if ($paginator->hasPages())
     <nav role="navigation" aria-label="Paginación" class="w-100">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <ul class="pagination">
+            <ul class="pagination ms-auto">
                 <li class="page-item {{ $paginator->onFirstPage() ? 'disabled' : '' }}" aria-disabled="{{ $paginator->onFirstPage() ? 'true' : 'false' }}">
                     @if ($paginator->onFirstPage())
                         <span class="page-link">Anterior</span>

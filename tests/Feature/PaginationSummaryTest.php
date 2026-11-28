@@ -22,7 +22,7 @@ class PaginationSummaryTest extends TestCase
             $this->assertStringNotContainsString('Showing', $html, $vista);
             $this->assertStringNotContainsString('Mostrando', $html, $vista);
             $this->assertStringNotContainsString('results', $html, $vista);
-            $this->assertStringContainsString('class="pagination"', $html, $vista);
+            $this->assertStringContainsString('class="pagination ms-auto"', $html, $vista);
             $this->assertStringContainsString('Anterior', $html, $vista);
             $this->assertStringContainsString('Siguiente', $html, $vista);
             $this->assertStringNotContainsString('viewBox="0 0 20 20"', $html, $vista);

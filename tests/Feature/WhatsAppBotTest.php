@@ -788,7 +788,7 @@ class WhatsAppBotTest extends TestCase
             ->assertDontSee('Mostrando', false)
             ->assertSee('Anterior', false)
             ->assertSee('Siguiente', false)
-            ->assertSee('class="pagination"', false)
+            ->assertSee('class="pagination ms-auto"', false)
             ->assertDontSee('viewBox="0 0 20 20"', false)
             ->assertDontSee('pagination.previous', false)
             ->assertDontSee('pagination.next', false)
