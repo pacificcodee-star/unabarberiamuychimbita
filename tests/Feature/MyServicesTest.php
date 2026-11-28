@@ -161,6 +161,59 @@ class MyServicesTest extends TestCase
             ->assertSee('aria-valuenow="100"', false);
     }
 
+    public function test_early_finished_turn_exposes_the_completed_timeline_to_the_public_animation(): void
+    {
+        config(['notificaciones.turn_grace_minutes' => 10]);
+        $turn = $this->book($this->barber('llegada'), 'turno');
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()
+            ->assertSee('data-service-type="turno" data-service-id="'.$turn->id.'"', false)
+            ->assertSee('data-finished="false"', false);
+
+        $this->travel(12)->minutes();
+        app(TurnQueueService::class)->advance($turn->barber_id);
+        $this->actingAs($admin)->patch(route('turns.attendance', $turn), ['decision' => 'presente'])->assertRedirect();
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()
+            ->assertSee('data-service-type="turno" data-service-id="'.$turn->id.'"', false)
+            ->assertSee('data-finished="false"', false)
+            ->assertSee('data-start=', false);
+        $this->travel(12)->minutes();
+        $this->actingAs($admin)->patch(route('turns.status', $turn), [
+            'status' => 'atendido',
+            'payment_method' => 'efectivo',
+        ])->assertSessionHasNoErrors();
+
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()
+            ->assertSee('data-service-type="turno" data-service-id="'.$turn->id.'"', false)
+            ->assertSee('data-finished="true"', false)
+            ->assertSee('aria-valuenow="100"', false)
+            ->assertSee('Turnos anteriores')
+            ->assertSee('Finalizado');
+    }
+
+    public function test_early_finished_appointment_exposes_the_completed_timeline_to_the_public_animation(): void
+    {
+        $appointment = $this->book($this->barber('citas'), 'cita');
+        $appointment->update(['status' => 'confirmada']);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+
+        $this->travelTo($appointment->startsAt());
+        $this->actingAs($admin)->patch(route('appointments.attendance', $appointment), ['decision' => 'presente'])->assertRedirect();
+        $this->travel(12)->minutes();
+        $this->actingAs($admin)->patch(route('appointments.status', $appointment), [
+            'status' => 'atendida',
+            'payment_method' => 'efectivo',
+        ])->assertSessionHasNoErrors();
+
+        $this->get('/mis-servicios', ['X-Service-List' => '1'])->assertOk()
+            ->assertSee('data-service-type="cita" data-service-id="'.$appointment->id.'"', false)
+            ->assertSee('data-finished="true"', false)
+            ->assertSee('aria-valuenow="100"', false)
+            ->assertSee('Citas anteriores')
+            ->assertSee('Atendida');
+    }
+
     public function test_web_and_pwa_keep_finished_services_with_the_cookie_after_the_session_closes(): void
     {
         $appointment = $this->book($this->barber('citas'), 'cita');

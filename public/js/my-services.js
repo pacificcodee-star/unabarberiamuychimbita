@@ -17,14 +17,17 @@
     let activeTab = tabs.find(tab => tab.getAttribute('aria-selected') === 'true')?.dataset.serviceTab || 'activos';
     let lastList = list.innerHTML.trim();
     const clockOffset = Number(root.dataset.clock) - Date.now();
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     let trigger;
     let saving = false;
     let listRequest = 0;
     let slotRequest = 0;
+    let timelineFrame = 0;
 
     function updateTimelines() {
         const now = Date.now() + clockOffset;
         for (const timeline of list.querySelectorAll('[data-service-timeline][data-start]')) {
+            if (timeline.hasAttribute('data-finishing')) continue;
             const start = Number(timeline.dataset.start);
             const duration = Number(timeline.dataset.duration);
             const elapsed = Math.max(0, Math.min((now - start) / 1000, duration * 60));
@@ -33,18 +36,90 @@
             const remaining = duration - minutes;
             const fill = timeline.querySelector('[data-timeline-fill]');
             const dot = timeline.querySelector('[data-timeline-dot]');
+            const progressbar = timeline.querySelector('[role=progressbar]');
             const angle = Math.PI * (1 + progress / 100);
-            fill.setAttribute('stroke-dashoffset', 100 - progress);
-            fill.setAttribute('opacity', progress > 0 ? 1 : 0);
-            dot.setAttribute('cx', 60 + 52 * Math.cos(angle));
-            dot.setAttribute('cy', 59 + 52 * Math.sin(angle));
-            dot.setAttribute('opacity', progress > 0 ? 1 : 0);
-            timeline.querySelector('[role=progressbar]').setAttribute('aria-valuenow', Math.round(progress));
-            timeline.querySelector('[data-timeline-label]').textContent = now >= start ? `${minutes} de ${duration} min` : `${duration} min`;
+            fill.setAttribute('stroke-dashoffset', String(100 - progress));
+            fill.setAttribute('opacity', progress > 0 ? '1' : '0');
+            dot.setAttribute('cx', String(60 + 52 * Math.cos(angle)));
+            dot.setAttribute('cy', String(59 + 52 * Math.sin(angle)));
+            dot.setAttribute('opacity', progress > 0 ? '1' : '0');
+            const value = String(Math.round(progress));
+            if (progressbar.getAttribute('aria-valuenow') !== value) progressbar.setAttribute('aria-valuenow', value);
+            const label = timeline.querySelector('[data-timeline-label]');
+            const labelText = now >= start ? `${minutes} de ${duration} min` : `${duration} min`;
+            if (label.textContent !== labelText) label.textContent = labelText;
             const detail = timeline.querySelector('[data-timeline-detail]');
             detail.hidden = now < start;
-            detail.textContent = remaining ? `${remaining} min restantes` : 'Pendiente de cierre';
+            const detailText = remaining ? `${remaining} min restantes` : 'Pendiente de cierre';
+            if (detail.textContent !== detailText) detail.textContent = detailText;
         }
+    }
+
+    function hasRunningTimelines() {
+        return list.querySelector('[data-service-timeline][data-start]:not([data-finishing])');
+    }
+
+    // El arco y su punto se calculan en cada fotograma para que no avancen a saltos de un segundo.
+    function scheduleTimelineUpdates() {
+        if (reduceMotion.matches || document.hidden || timelineFrame) return;
+        const tick = () => {
+            timelineFrame = 0;
+            if (document.hidden || reduceMotion.matches) return;
+            updateTimelines();
+            if (hasRunningTimelines()) timelineFrame = requestAnimationFrame(tick);
+        };
+        timelineFrame = requestAnimationFrame(tick);
+    }
+
+    // Si el administrador finaliza antes de la hora prevista, completamos el arco visible
+    // antes de sustituir la tarjeta por su versión del historial.
+    function finishTimeline(timeline) {
+        const fill = timeline.querySelector('[data-timeline-fill]');
+        const dot = timeline.querySelector('[data-timeline-dot]');
+        const progressbar = timeline.querySelector('[role=progressbar]');
+        if (!fill || !dot || !progressbar) return Promise.resolve();
+
+        const computedOffset = parseFloat(getComputedStyle(fill).strokeDashoffset);
+        const offset = Number.isFinite(computedOffset) ? computedOffset : Number(fill.getAttribute('stroke-dashoffset'));
+        const current = Math.max(0, Math.min(100, 100 - offset));
+        // Sincroniza el atributo con la posición pintada antes de tomar el control de la animación.
+        fill.setAttribute('stroke-dashoffset', String(offset));
+        timeline.setAttribute('data-finishing', '');
+        timeline.querySelector('[data-timeline-label]').textContent = 'Finalizado';
+        timeline.querySelector('[data-timeline-detail]').hidden = true;
+
+        const paint = (value, finished = false) => {
+            const angle = Math.PI * (1 + value / 100);
+            fill.setAttribute('stroke-dashoffset', String(100 - value));
+            fill.setAttribute('opacity', value > 0 ? '1' : '0');
+            dot.setAttribute('cx', String(60 + 52 * Math.cos(angle)));
+            dot.setAttribute('cy', String(59 + 52 * Math.sin(angle)));
+            dot.setAttribute('opacity', value > 0 && !finished ? '1' : '0');
+            progressbar.setAttribute('aria-valuenow', String(Math.round(value)));
+        };
+
+        paint(current);
+        if (reduceMotion.matches || current >= 100) {
+            paint(100, true);
+            timeline.removeAttribute('data-finishing');
+            return Promise.resolve();
+        }
+
+        return new Promise(resolve => {
+            const startedAt = performance.now();
+            const duration = 1000;
+            const frame = now => {
+                const elapsed = Math.min(1, (now - startedAt) / duration);
+                const eased = -(Math.cos(Math.PI * elapsed) - 1) / 2;
+                paint(current + (100 - current) * eased, elapsed >= 1);
+                if (elapsed < 1) requestAnimationFrame(frame);
+                else {
+                    timeline.removeAttribute('data-finishing');
+                    resolve();
+                }
+            };
+            requestAnimationFrame(frame);
+        });
     }
 
     function showTab(name) {
@@ -84,15 +159,30 @@
             if (request !== listRequest || dialog.open) return;
             const content = document.createElement('template');
             content.innerHTML = html;
-            if (!content.content.querySelector('.service-panel')) throw Error();
-            const focusedUrl = document.activeElement?.dataset.url;
-            if (lastList !== content.innerHTML.trim()) {
+            const incoming = content.content;
+            const incomingHtml = content.innerHTML.trim();
+            if (!incoming.querySelector('.service-panel')) throw Error();
+            if (lastList !== incomingHtml) {
+                const focusedUrl = document.activeElement?.dataset.url;
                 const finishedLastActive = list.querySelector('[data-has-active]')
-                    && !content.content.querySelector('[data-has-active]');
-                lastList = content.innerHTML.trim();
-                list.replaceChildren(content.content);
+                    && !incoming.querySelector('[data-has-active]');
+                const incomingTimelines = Array.from(incoming.querySelectorAll('[data-service-timeline]'));
+                const finishing = [];
+                for (const visible of list.querySelectorAll('[data-service-timeline][data-start]')) {
+                    if (visible.hasAttribute('data-finishing')) continue;
+                    const completed = incomingTimelines.find(candidate =>
+                        candidate.dataset.serviceType === visible.dataset.serviceType
+                        && candidate.dataset.serviceId === visible.dataset.serviceId
+                        && candidate.dataset.finished === 'true');
+                    if (completed) finishing.push(finishTimeline(visible));
+                }
+                if (finishing.length) await Promise.all(finishing);
+                if (request !== listRequest || dialog.open) return;
+                lastList = incomingHtml;
+                list.replaceChildren(incoming);
                 showTab(finishedLastActive ? 'historial' : activeTab);
                 updateTimelines();
+                scheduleTimelineUpdates();
                 if (focusedUrl) Array.from(list.querySelectorAll('[data-url]')).find(el => el.dataset.url === focusedUrl)?.focus();
             }
         } catch {
@@ -294,7 +384,6 @@
     });
 
     // Cierre con animación corta (en el celular la hoja baja); sin animación si el sistema pide reducir movimiento.
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const closeDialog = after => {
         if (!dialog.open || dialog.classList.contains('is-closing')) return;
         if (reduceMotion.matches || typeof dialog.getAnimations !== 'function') { dialog.close(); after?.(); return; }
@@ -350,10 +439,24 @@
     window.addEventListener('online', sync);
     navigator.serviceWorker?.addEventListener('message', event => { if (event.data === 'booking-change') sync(); });
     setInterval(sync, 5000);
-    setInterval(() => { if (!document.hidden) updateTimelines(); }, 1000);
+    setInterval(() => { if (!document.hidden && reduceMotion.matches) updateTimelines(); }, 1000);
+    const syncTimelineMotion = () => {
+        if (timelineFrame) cancelAnimationFrame(timelineFrame);
+        timelineFrame = 0;
+        updateTimelines();
+        scheduleTimelineUpdates();
+    };
+    if (typeof reduceMotion.addEventListener === 'function') reduceMotion.addEventListener('change', syncTimelineMotion);
+    else reduceMotion.addListener?.(syncTimelineMotion);
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) updateTimelines();
+        if (document.hidden) {
+            if (timelineFrame) cancelAnimationFrame(timelineFrame);
+            timelineFrame = 0;
+        } else {
+            updateTimelines();
+            scheduleTimelineUpdates();
+        }
         sync();
     });
-    updateTimelines();
+    syncTimelineMotion();
 })();

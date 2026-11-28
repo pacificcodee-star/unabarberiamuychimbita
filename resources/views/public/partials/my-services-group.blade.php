@@ -79,7 +79,7 @@
                     @endif
 
                     @if($timeline = $timelines[$type][$subject->id] ?? null)
-                        @include('public.partials.my-services-timeline', ['timeline' => $timeline, 'gradientId' => "msv-{$type}-{$subject->id}"])
+                        @include('public.partials.my-services-timeline', ['timeline' => $timeline, 'gradientId' => "msv-{$type}-{$subject->id}", 'serviceType' => $type, 'serviceId' => $subject->id])
                     @endif
 
                     @php $actions = \App\Services\ClientBookingActions::actions($subject); @endphp

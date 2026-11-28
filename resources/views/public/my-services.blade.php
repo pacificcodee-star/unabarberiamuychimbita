@@ -169,7 +169,7 @@
 .msv-timeline-progress { position: relative; width: min(100%, 9rem); min-height: 4rem; margin-inline: auto; text-align: center; }
 .msv-timeline-progress svg { display: block; width: 100%; }
 .msv-timeline-track { stroke: #bfaf97; }
-.msv-timeline-fill { transition: stroke-dashoffset .8s linear; }
+.msv-timeline-fill { transition: none; }
 .msv-timeline-dot { stroke: #fdf5e3; stroke-width: 1.4; }
 .msv-timeline-caption { position: absolute; inset: 54% .15rem auto; display: grid; line-height: 1.2; font-size: .76rem; }
 .msv-timeline-caption small[hidden] { display: none; }

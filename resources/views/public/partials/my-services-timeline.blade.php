@@ -5,6 +5,8 @@
     $duration = $timeline['duration'];
 @endphp
 <div class="msv-timeline" data-service-timeline
+    data-service-type="{{ $serviceType }}" data-service-id="{{ $serviceId }}"
+    data-finished="{{ $timeline['finished'] ? 'true' : 'false' }}"
     @if($timeline['live'] && ! $history)
         data-start="{{ $timeline['start']->timestamp * 1000 }}" data-duration="{{ $duration }}"
     @endif>
