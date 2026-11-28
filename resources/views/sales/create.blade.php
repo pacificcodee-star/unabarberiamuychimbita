@@ -102,6 +102,9 @@
                                     </td>
                                 </tr>
                             @endforeach
+                            <tr id="noItemsRow" @if(count($oldItems) > 0) hidden @endif>
+                                <td colspan="5" class="text-center text-muted py-4">Agrega al menos un servicio para registrar la venta.</td>
+                            </tr>
                             </tbody>
                         </table>
                     </div>
@@ -119,7 +122,7 @@
                         <div class="small text-muted mb-4">
                             La comisión del barbero se calcula sola, servicio por servicio, con el % que le pusiste en Barberos.
                         </div>
-                        <button type="submit" class="btn btn-gold w-100 btn-lg">
+                        <button type="submit" id="registerSaleButton" class="btn btn-gold w-100 btn-lg">
                             <i class="bi bi-check2-circle me-1"></i> Registrar servicio
                         </button>
                     </div>
@@ -160,6 +163,9 @@
     <script>
         const itemsBody = document.getElementById('itemsBody');
         const itemTemplate = document.getElementById('itemTemplate');
+        const noItemsRow = document.getElementById('noItemsRow');
+        const registerSaleButton = document.getElementById('registerSaleButton');
+        const saleForm = document.getElementById('saleForm');
         let nextIndex = {{ $nextIndex }};
 
         const money = (value) => new Intl.NumberFormat('es-CO', {
@@ -167,6 +173,12 @@
             currency: 'COP',
             maximumFractionDigits: 0
         }).format(value || 0);
+
+        function toggleItemsState() {
+            const hasItems = itemsBody.querySelectorAll('.item-row').length > 0;
+            if (noItemsRow) noItemsRow.hidden = hasItems;
+            if (registerSaleButton) registerSaleButton.disabled = !hasItems;
+        }
 
         function updateTotal() {
             let total = 0;
@@ -176,6 +188,7 @@
                 total += price * quantity;
             });
             document.getElementById('saleTotal').textContent = money(total);
+            toggleItemsState();
         }
 
         function updateRow(row) {
@@ -202,10 +215,8 @@
             });
 
             row.querySelector('.remove-item').addEventListener('click', () => {
-                if (itemsBody.querySelectorAll('.item-row').length > 1) {
-                    row.remove();
-                    updateTotal();
-                }
+                row.remove();
+                updateTotal();
             });
 
             if (!priceInput.value) {
@@ -219,11 +230,19 @@
         }
 
         itemsBody.querySelectorAll('.item-row').forEach(bindRow);
+        toggleItemsState();
 
         document.getElementById('addItem').addEventListener('click', () => {
             const html = itemTemplate.innerHTML.replaceAll('__INDEX__', nextIndex++);
             itemsBody.insertAdjacentHTML('beforeend', html);
             bindRow(itemsBody.lastElementChild);
+        });
+
+        saleForm?.addEventListener('submit', (event) => {
+            if (itemsBody.querySelectorAll('.item-row').length === 0) {
+                event.preventDefault();
+                alert('Agrega al menos un servicio para registrar la venta.');
+            }
         });
     </script>
 @endpush
