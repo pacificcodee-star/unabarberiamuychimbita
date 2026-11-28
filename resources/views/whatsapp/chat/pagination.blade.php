@@ -1,12 +1,6 @@
 @if ($paginator->hasPages())
     <nav role="navigation" aria-label="Paginación de conversaciones" class="w-100">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <p class="small text-muted mb-0">
-                Mostrando <span class="fw-semibold">{{ $paginator->firstItem() }}</span>
-                a <span class="fw-semibold">{{ $paginator->lastItem() }}</span>
-                de <span class="fw-semibold">{{ $paginator->total() }}</span> resultados
-            </p>
-
             <ul class="pagination">
                 <li class="page-item {{ $paginator->onFirstPage() ? 'disabled' : '' }}" aria-disabled="{{ $paginator->onFirstPage() ? 'true' : 'false' }}">
                     @if ($paginator->onFirstPage())

@@ -785,8 +785,7 @@ class WhatsAppBotTest extends TestCase
 
         $this->actingAs($admin)->get(route('whatsapp.chat.index'))
             ->assertOk()
-            ->assertSee('Mostrando', false)
-            ->assertSee('resultados', false)
+            ->assertDontSee('Mostrando', false)
             ->assertSee('Anterior', false)
             ->assertSee('Siguiente', false)
             ->assertSee('class="pagination"', false)
