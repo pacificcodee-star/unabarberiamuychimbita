@@ -258,14 +258,15 @@ class BusinessHours
     }
 
     /**
-     * Inicio y fin de las citas vigentes del barbero ese día, según la duración de su servicio.
+     * Inicio y fin de las citas vigentes del barbero ese día. Si ya fue atendida, el fin es el
+     * momento real persistido; si sigue abierta, se usa la duración prevista del servicio.
      *
      * @return list<array{0: Carbon, 1: Carbon}>
      */
     private function busyRanges(int $barberId, string $date, ?int $ignoreAppointmentId): array
     {
         return Appointment::query()
-            ->with('service')
+            ->with(['service', 'completionEvent'])
             ->where('barber_id', $barberId)
             ->whereDate('appointment_date', $date)
             ->where('status', '!=', 'cancelada')
@@ -275,7 +276,7 @@ class BusinessHours
             ->map(function (Appointment $appointment) use ($date) {
                 $start = $this->at(Carbon::parse($date), substr((string) $appointment->appointment_time, 0, 5));
 
-                return [$start, $start->copy()->addMinutes($appointment->durationMinutes())];
+                return [$start, $appointment->occupiedUntil()];
             })
             ->all();
     }

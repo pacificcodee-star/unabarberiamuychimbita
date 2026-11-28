@@ -164,7 +164,33 @@
                                     </form>
                                 @endif
                             @else
-                                <span class="badge-soft {{ $turn->status === 'atendiendo' ? 'blue' : ($turn->status === 'cancelado' ? 'red' : 'gold') }}">{{ $turn->statusLabel() }}</span>
+                                <form method="POST" action="{{ route('turns.status', $turn) }}" data-turn-status-form onsubmit="return this.elements.status.value !== 'atendido' || confirm('¿Finalizar este servicio y cobrarlo completo? El tiempo sobrante quedará libre.');">
+                                    @csrf
+                                    @method('PATCH')
+                                    <select name="status" class="form-select form-select-sm" aria-label="Estado del turno" onchange="attendedChange(this)" style="min-width: 140px;">
+                                        @foreach(\App\Models\Turn::STATUSES as $key => $label)
+                                            @php
+                                                $isCurrent = $turn->status === $key;
+                                                $canUse = $isCurrent || $turn->canTransitionTo($key);
+                                                // La asistencia sigue siendo obligatoria: estas dos opciones
+                                                // no se habilitan hasta que el administrador marque "Llegó".
+                                                if (in_array($key, ['atendiendo', 'atendido'], true) && $turn->attendance_status !== 'presente' && ! ($turn->status === 'atendiendo' && $key === 'atendido')) {
+                                                    $canUse = $isCurrent;
+                                                }
+                                                if ($key === 'cancelado' && $turn->attendance_status === 'presente') {
+                                                    $canUse = $isCurrent;
+                                                }
+                                                if ($turn->attendance_status === 'ausente' && $key !== 'cancelado') {
+                                                    $canUse = $isCurrent;
+                                                }
+                                            @endphp
+                                            <option value="{{ $key }}" @selected($isCurrent) @disabled(! $canUse)>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                    <select name="payment_method" class="form-select form-select-sm mt-1 attended-pay" aria-label="Medio de pago" title="¿Cómo pagó el cliente?" hidden>
+                                        @foreach(\App\Models\Sale::PAYMENT_METHODS as $pm => $pmLabel)<option value="{{ $pm }}">{{ $pmLabel }}</option>@endforeach
+                                    </select>
+                                </form>
                                 @if($turn->attendance_status === 'presente')
                                     <div class="small text-success mt-1"><i class="bi bi-person-check"></i> Llegada verificada</div>
                                 @elseif($turn->attendance_status === 'ausente')
@@ -177,22 +203,6 @@
                             @endif
                         </td>
                         <td class="text-end text-nowrap">
-                            @if($turn->status === 'esperando')
-                                <form method="POST" action="{{ route('turns.status', $turn) }}" class="d-inline">
-                                    @csrf
-                                    @method('PATCH')
-                                    <input type="hidden" name="status" value="llamado">
-                                    <button class="btn btn-sm btn-outline-dark" title="Llamar este turno"><i class="bi bi-megaphone me-1"></i> Llamar</button>
-                                </form>
-                            @elseif($turn->status === 'cancelado')
-                                <form method="POST" action="{{ route('turns.status', $turn) }}" class="d-inline">
-                                    @csrf
-                                    @method('PATCH')
-                                    <input type="hidden" name="status" value="esperando">
-                                    <button class="btn btn-sm btn-outline-dark"><i class="bi bi-arrow-counterclockwise me-1"></i> Volver a la fila</button>
-                                </form>
-                            @endif
-
                             @if($canVerify)
                                 <form method="POST" action="{{ route('turns.attendance', $turn) }}" class="d-inline-flex gap-1 ms-1" data-attendance-form>
                                     @csrf

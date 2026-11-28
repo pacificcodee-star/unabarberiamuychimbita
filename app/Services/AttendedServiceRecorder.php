@@ -57,7 +57,9 @@ class AttendedServiceRecorder
             /** @var User $barber */
             $barber = $current->barber;
             $service = $current->service;
-            $price = round((float) $service->price, 2);
+            // Se cobra el precio acordado al reservar. Solo los registros antiguos sin snapshot
+            // usan el precio actual del catálogo.
+            $price = round((float) ($current->service_price ?? $service->price), 2);
             $percent = $barber->commissionPercentFor($service->id);
             $commission = round($price * $percent / 100, 2);
             $label = $current instanceof Appointment ? 'Cita' : 'Turno';

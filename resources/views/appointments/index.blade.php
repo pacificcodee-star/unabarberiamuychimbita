@@ -152,7 +152,7 @@
                             $spans = $dayItems->map(function ($a) {
                                 [$h, $m] = array_map('intval', explode(':', substr((string) $a->appointment_time, 0, 5)));
                                 $start = $h * 60 + $m;
-                                return ['id' => $a->id, 'start' => $start, 'end' => $start + (int) ($a->service?->duration_minutes ?: 30)];
+                                return ['id' => $a->id, 'start' => $start, 'end' => $start + $a->occupiedMinutes()];
                             })->sortBy('start')->values();
                             $lanes = []; $clusters = []; $laneEnds = []; $clusterId = -1; $clusterEnd = -1;
                             foreach ($spans as $span) {
@@ -188,7 +188,7 @@
                                         $timeStr = substr((string) $appointment->appointment_time, 0, 5);
                                         [$hh, $mm] = array_map('intval', explode(':', $timeStr));
                                         $startMin = $hh * 60 + $mm;
-                                        $duration = (int) ($appointment->service?->duration_minutes ?: 30);
+                                        $duration = $appointment->occupiedMinutes();
                                         $top = max(0, ($startMin - $rangeMinutesStart) * $pxPerMinute);
                                         $height = max(30, $duration * $pxPerMinute - 4);
                                         $height = min($height, $totalHeight - $top);
@@ -198,6 +198,7 @@
                                         $canVerifyArrival = auth()->user()->isAdmin() && $verification->canVerify($appointment);
                                         $canVerifyAbsence = auth()->user()->isAdmin() && $verification->canVerify($appointment, decision: 'ausente');
                                         $canVerify = $canVerifyArrival || $canVerifyAbsence;
+                                        $canFinish = auth()->user()->isAdmin() && $appointment->attendance_status === 'presente' && in_array($appointment->status, ['pendiente', 'confirmada'], true);
                                         $attendanceLabel = $appointment->attendanceLabel();
                                         $displayStatusLabel = $canVerify ? 'Verificar llegada' : ($attendanceLabel ?? $statusLabel);
                                         $attendanceDetail = match (true) {
@@ -242,6 +243,8 @@
                                            data-can-verify-arrival="{{ $canVerifyArrival ? '1' : '0' }}"
                                            data-can-verify-absence="{{ $canVerifyAbsence ? '1' : '0' }}"
                                            data-attendance-visible="{{ $canVerify || $appointment->attendance_status !== null ? '1' : '0' }}"
+                                           data-can-finish="{{ $canFinish ? '1' : '0' }}"
+                                           data-finish-url="{{ e(route('appointments.status', $appointment)) }}"
                                            data-notes="{{ e($appointment->notes ?? '') }}"
                                            data-edit-url="{{ e($editUrl) }}"
                                            data-delete-url="{{ e($deleteUrl) }}"
@@ -315,6 +318,21 @@
                         @endif
                     </div>
                     <div class="appt-locked" data-appt-locked hidden><i class="bi bi-lock-fill" aria-hidden="true"></i> Este servicio ya no se puede editar.</div>
+                    @if(auth()->user()->isAdmin())
+                        <div class="appt-finish" data-appt-finish-box hidden>
+                            <span><i class="bi bi-cash-coin" aria-hidden="true"></i> <strong>Finalizar y cobrar</strong></span>
+                            <p>Se cobrará el servicio completo. El tiempo que sobre quedará libre de inmediato para otro cliente, en la página, la base de datos y WhatsApp.</p>
+                            <form method="POST" action="#" data-appt-finish-form class="d-flex flex-wrap gap-2">
+                                @csrf
+                                @method('PATCH')
+                                <input type="hidden" name="status" value="atendida">
+                                <select name="payment_method" class="form-select form-select-sm" aria-label="Medio de pago" required style="flex: 1 1 150px;">
+                                    @foreach(\App\Models\Sale::PAYMENT_METHODS as $pm => $pmLabel)<option value="{{ $pm }}">{{ $pmLabel }}</option>@endforeach
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-gold" onclick="return confirm('¿Finalizar este servicio y cobrarlo completo? El tiempo sobrante quedará libre.');"><i class="bi bi-check2-circle me-1"></i> Finalizar y cobrar</button>
+                            </form>
+                        </div>
+                    @endif
                 </div>
 
                 <div class="modal-footer">
@@ -469,6 +487,9 @@
     .appt-attendance { margin-top: 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--c-amber) 28%, var(--ui-border)); border-radius: 14px; background: var(--c-amber-soft); }
     .appt-attendance > span { display: inline-flex; align-items: center; gap: 7px; color: var(--c-amber); font-size: .82rem; }
     .appt-attendance p { margin: 5px 0 10px; color: var(--ui-text-2); font-size: .8rem; line-height: 1.45; }
+    .appt-finish { margin-top: 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--c-emerald) 28%, var(--ui-border)); border-radius: 14px; background: var(--c-emerald-soft); }
+    .appt-finish > span { display: inline-flex; align-items: center; gap: 7px; color: var(--c-emerald); font-size: .82rem; }
+    .appt-finish p { margin: 5px 0 10px; color: var(--ui-text-2); font-size: .8rem; line-height: 1.45; }
     .cal-event.is-attendance-target { outline: 3px solid var(--c-amber); outline-offset: 2px; z-index: 5; }
     .appt-modal .modal-footer { justify-content: space-between; flex-wrap: nowrap; }
     .appt-modal .modal-footer form { margin: 0; }
@@ -492,6 +513,8 @@
             const deleteForm = modalEl.querySelector('[data-appt-delete-form]');
             const attendanceBox = modalEl.querySelector('[data-appt-attendance-box]');
             const attendanceForm = modalEl.querySelector('[data-appt-attendance-form]');
+            const finishBox = modalEl.querySelector('[data-appt-finish-box]');
+            const finishForm = modalEl.querySelector('[data-appt-finish-form]');
             const editLinks = modalEl.querySelectorAll('[data-appt-edit], [data-appt-edit-quick]');
             const call = modalEl.querySelector('[data-appt-call]');
             const wa = modalEl.querySelector('[data-appt-wa]');
@@ -532,6 +555,10 @@
                     attendanceForm.action = d.attendanceUrl || '#';
                     attendanceForm.querySelector('[data-appt-decision="presente"]').disabled = d.canVerifyArrival !== '1';
                     attendanceForm.querySelector('[data-appt-decision="ausente"]').disabled = d.canVerifyAbsence !== '1';
+                }
+                if (finishBox && finishForm) {
+                    finishBox.hidden = d.canFinish !== '1';
+                    finishForm.action = d.finishUrl || '#';
                 }
                 modal.show();
             };

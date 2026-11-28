@@ -489,6 +489,37 @@ class BotCitaTurnoTest extends TestCase
         $this->assertSame('18:30', last(Cache::get('wa.bot.flow.573001234567')['data']['slots']));
     }
 
+    public function test_el_bot_muestra_el_tiempo_liberado_por_una_cita_finalizada_antes(): void
+    {
+        SiteSetting::create(['data' => ['hours_wed' => '09:00 - 20:00']]);
+        $long = Service::create(['name' => 'Corte largo', 'price' => 100000, 'duration_minutes' => 130, 'active' => true]);
+        $appointment = Appointment::create([
+            'barber_id' => $this->deCita->id,
+            'service_id' => $long->id,
+            'service_price' => 100000,
+            'client_name' => 'Cita que terminó temprano',
+            'client_phone' => '3001234567',
+            'appointment_date' => '2026-11-18',
+            'appointment_time' => '10:00',
+            'status' => 'confirmada',
+            'attendance_status' => 'presente',
+            'started_at' => '2026-11-18 10:00:00',
+        ]);
+
+        $this->travelTo(Carbon::parse('2026-11-18 11:30:00'));
+        $appointment->update(['status' => 'atendida']); // 130 previstos, 90 reales: quedan 40 libres.
+
+        $this->escribir('hola');
+        $this->escribir('1');
+        $this->escribir('Ana Gomez');
+        $this->escribir('2'); // servicio de 130 minutos
+        $this->escribir('1'); // barbero
+        $horas = $this->escribir('1'); // hoy
+
+        $this->assertStringContainsString('11:31 a. m.', $horas);
+        $this->assertContains('11:31', Cache::get('wa.bot.flow.573001234567')['data']['slots']);
+    }
+
     public function test_ampliar_el_cierre_actualiza_las_horas_de_un_flujo_abierto(): void
     {
         $setting = SiteSetting::create(['data' => ['hours_wed' => '09:00 - 18:00']]);

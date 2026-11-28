@@ -40,7 +40,7 @@ class AppointmentController extends Controller
         }
 
         $baseQuery = Appointment::query()
-            ->with(['barber', 'service'])
+            ->with(['barber', 'service', 'completionEvent'])
             ->whereDate('appointment_date', '>=', $start->toDateString())
             ->whereDate('appointment_date', '<=', $end->toDateString());
 
@@ -81,7 +81,7 @@ class AppointmentController extends Controller
         foreach ($appointments as $appointment) {
             $appointmentStart = $appointment->startsAt();
             $startMinutes = $appointmentStart->hour * 60 + $appointmentStart->minute;
-            $endMinutes = $startMinutes + $appointment->durationMinutes();
+            $endMinutes = $startMinutes + $appointment->occupiedMinutes();
             $hourStart = min($hourStart, max(0, intdiv($startMinutes, 60)));
             $hourEnd = max($hourEnd, min(24, (int) ceil($endMinutes / 60)));
         }
@@ -129,6 +129,7 @@ class AppointmentController extends Controller
             $data['barber_id'] = $request->user()->id;
         }
 
+        $data['service_price'] = ($data['service_id'] ?? null) ? Service::whereKey($data['service_id'])->value('price') : null;
         $this->ensureBarberHandlesAppointments((int) $data['barber_id']);
 
         $appointment = Appointment::reserveSlot($data, message: 'Ese horario ya está ocupado para el barbero seleccionado. Elige otra hora.');
@@ -195,6 +196,7 @@ class AppointmentController extends Controller
             $data['barber_id'] = $request->user()->id;
         }
 
+        $data['service_price'] = ($data['service_id'] ?? null) ? Service::whereKey($data['service_id'])->value('price') : null;
         $this->ensureBarberHandlesAppointments((int) $data['barber_id']);
 
         $before = ['status' => $appointment->status, 'starts_at' => $appointment->startsAt()];

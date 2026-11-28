@@ -232,6 +232,46 @@ class Appointment extends Model
         return $minutes > 0 ? $minutes : max(1, (int) config('notificaciones.default_service_minutes', 30));
     }
 
+    /**
+     * Hora real en que se finalizó el servicio. El evento de estado ya existe en la base de datos,
+     * así no hace falta una columna ni una migración nueva.
+     */
+    public function completedAt(): ?Carbon
+    {
+        if ($this->status !== 'atendida') {
+            return null;
+        }
+
+        $finishedAt = $this->completionEvent?->created_at;
+        $start = $this->startsAt();
+        if (! $finishedAt || $finishedAt->lt($start) || ! $finishedAt->isSameDay($start)) {
+            return null;
+        }
+
+        $finishedAt = $finishedAt->copy();
+        // La agenda pública trabaja por minutos: si terminó a las 11:30:30, el primer minuto
+        // seguro después del margen de separación es 11:32, no 11:31.
+        if ($finishedAt->second > 0) {
+            $finishedAt->addMinute();
+        }
+
+        return $finishedAt->setSecond(0)->setMicrosecond(0);
+    }
+
+    /** Fin real si ya se atendió; de lo contrario, el fin previsto de la duración del servicio. */
+    public function occupiedUntil(): Carbon
+    {
+        return $this->completedAt() ?? $this->startsAt()->addMinutes($this->durationMinutes());
+    }
+
+    /** Minutos que la cita bloquea realmente en la agenda. */
+    public function occupiedMinutes(): int
+    {
+        $seconds = max(0, $this->startsAt()->diffInSeconds($this->occupiedUntil()));
+
+        return max(1, intdiv($seconds, 60));
+    }
+
     /** Fecha y hora exactas en que empieza la cita. */
     public function startsAt(): Carbon
     {
