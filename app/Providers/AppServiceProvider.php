@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\SiteSetting;
 use App\Models\Turn;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\URL;
@@ -28,6 +29,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // El panel usa Bootstrap: evita el paginador Tailwind predeterminado, sus flechas enormes
+        // sin estilos y el resumen de resultados en inglés.
+        Paginator::defaultView('pagination::bootstrap-5');
+
         // Nombres cortos y estables para asociar suscripciones y avisos con turnos y citas.
         Relation::morphMap([
             'turn' => Turn::class,
