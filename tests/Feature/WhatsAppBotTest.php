@@ -22,6 +22,7 @@ use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Sleep;
 use Tests\TestCase;
 
 /**
@@ -47,6 +48,9 @@ class WhatsAppBotTest extends TestCase
             'services.evolution.webhook_secret' => self::APIKEY,
             'services.evolution.instance' => 'barberia',
             'services.evolution.bot_enabled' => true,
+            // Las pruebas existentes no necesitan esperar; los casos de los 3 segundos lo activan.
+            'services.evolution.reply_delay_seconds' => 0,
+            'services.evolution.send_gap_ms' => 0,
         ]);
 
         Http::fake(['evolution.test/*' => Http::response(['created' => true])]);
@@ -69,15 +73,92 @@ class WhatsAppBotTest extends TestCase
 
     public function test_vps_encola_una_sola_respuesta_y_confirma_recepcion_sin_esperar_whatsapp(): void
     {
-        config(['services.evolution.queue_incoming' => true]);
+        config(['services.evolution.queue_incoming' => true, 'services.evolution.reply_delay_seconds' => 3]);
         Queue::fake([ProcessWhatsAppMessage::class]);
 
         $this->escribir('hola', '573001234567@s.whatsapp.net', ['id' => 'ENTRANTE-COLA'])->assertOk();
         $this->escribir('hola', '573001234567@s.whatsapp.net', ['id' => 'ENTRANTE-COLA'])->assertOk();
 
         Queue::assertPushed(ProcessWhatsAppMessage::class, 1);
+        Queue::assertPushed(ProcessWhatsAppMessage::class, function (ProcessWhatsAppMessage $job) {
+            return $job->delay?->getTimestamp() === now()->addSeconds(3)->getTimestamp();
+        });
         Http::assertNothingSent();
         $this->assertDatabaseHas('whatsapp_messages', ['evolution_id' => 'ENTRANTE-COLA', 'direction' => 'in']);
+    }
+
+    public function test_sin_cola_espera_tres_segundos_y_luego_guarda_la_respuesta_del_bot(): void
+    {
+        config(['services.evolution.reply_delay_seconds' => 3]);
+        Sleep::fake(syncWithCarbon: true);
+        $receivedAt = now();
+
+        $this->escribir('hola', '573001234567@s.whatsapp.net', ['id' => 'ENTRANTE-ESPERA'])->assertOk();
+
+        Sleep::assertSleptTimes(1);
+        Sleep::assertSlept(fn ($duration) => abs($duration->totalSeconds - 3) < 0.001);
+        $this->assertTrue(now()->equalTo($receivedAt->copy()->addSeconds(3)));
+        $incoming = WhatsAppMessage::where('evolution_id', 'ENTRANTE-ESPERA')->firstOrFail();
+        $reply = WhatsAppMessage::where('conversation_id', $incoming->conversation_id)
+            ->where('direction', WhatsAppMessage::DIRECTION_OUT)->firstOrFail();
+        $this->assertTrue($incoming->created_at->equalTo($receivedAt));
+        $this->assertTrue($reply->created_at->equalTo($receivedAt->copy()->addSeconds(3)));
+        Http::assertSentCount(1);
+    }
+
+    public function test_una_conversacion_de_meses_y_otra_inactiva_cuatro_horas_responden_y_llegan_al_feed(): void
+    {
+        $old = now()->subMonths(3);
+        $conversation = WhatsAppConversation::query()->create([
+            'phone' => '573001234567',
+            'jid' => '573001234567@s.whatsapp.net',
+            'client_name' => 'Cliente anterior al bot',
+            'bot_active' => true,
+            'unread_count' => 1,
+            'last_message_at' => $old,
+        ]);
+        $conversation->forceFill(['created_at' => $old, 'updated_at' => $old])->save();
+        $historical = new WhatsAppMessage([
+            'conversation_id' => $conversation->id,
+            'direction' => WhatsAppMessage::DIRECTION_IN,
+            'type' => 'text',
+            'body' => 'Mensaje de hace tres meses',
+        ]);
+        $historical->created_at = $old;
+        $historical->save();
+        $after = $historical->id;
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+
+        // Un mensaje histórico se conserva en el historial, pero no dispara una respuesta atrasada.
+        $this->escribir('Mensaje histórico recuperado', $conversation->jid, [
+            'id' => 'HISTORICO-ANTES-DEL-BOT',
+            'messageTimestamp' => $old->getTimestamp(),
+        ])->assertOk();
+        Http::assertNothingSent();
+        $this->assertDatabaseHas('whatsapp_messages', ['evolution_id' => 'HISTORICO-ANTES-DEL-BOT']);
+
+        // Un mensaje nuevo en esa misma conversación sí reabre el bot, incluso si el webhook se repite.
+        $this->escribir('Hola, volví después de meses', $conversation->jid, ['id' => 'REAPERTURA-ANTIGUA'])->assertOk();
+        $this->escribir('Hola, volví después de meses', $conversation->jid, ['id' => 'REAPERTURA-ANTIGUA'])->assertOk();
+        $this->assertDatabaseCount('whatsapp_conversations', 1);
+        $this->assertSame($conversation->id, WhatsAppConversation::query()->value('id'));
+        Http::assertSentCount(1);
+
+        $this->travel(4)->hours();
+        $this->escribir('Te escribo de nuevo cuatro horas después', $conversation->jid, ['id' => 'REAPERTURA-4H'])->assertOk();
+        Http::assertSentCount(2);
+
+        $this->actingAs($admin)->getJson(route('whatsapp.chat.messages', [
+            'conversation' => $conversation,
+            'after' => $after,
+        ]))->assertOk()
+            ->assertJsonCount(5, 'messages')
+            ->assertJsonPath('messages.0.body', 'Mensaje histórico recuperado')
+            ->assertJsonPath('messages.1.body', 'Hola, volví después de meses')
+            ->assertJsonPath('messages.2.direction', 'out')
+            ->assertJsonPath('messages.3.body', 'Te escribo de nuevo cuatro horas después')
+            ->assertJsonPath('messages.4.direction', 'out')
+            ->assertJsonPath('unread', 0);
     }
 
     public function test_reanuda_a_los_30_minutos_sin_respuesta_y_no_envia_el_menu_dos_veces(): void

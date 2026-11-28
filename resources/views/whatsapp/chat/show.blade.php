@@ -478,8 +478,9 @@
                     if (request === controller) {
                         request = null;
                         if (!stopped && !paused && !document.hidden) {
-                            // Una señal durante la consulta puede corresponder a un mensaje posterior a su respuesta.
-                            timer = setTimeout(refresh, refreshRequested ? 0 : (liveConnected ? 30000 : 2500));
+                            // La señal en vivo es inmediata. El sondeo sigue siendo una red de seguridad:
+                            // una pestaña abierta horas puede conservar un socket que ya no recibe eventos.
+                            timer = setTimeout(refresh, refreshRequested ? 0 : (liveConnected ? 2000 : 1000));
                         }
                     }
                 }

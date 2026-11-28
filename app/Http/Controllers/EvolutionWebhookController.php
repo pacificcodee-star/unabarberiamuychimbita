@@ -110,20 +110,24 @@ class EvolutionWebhookController extends Controller
             }
 
             $id = $stored['message']->id;
+            $respondAt = now()->addSeconds((int) config('services.evolution.reply_delay_seconds', 3));
             if ($queued) {
                 // En el VPS el trabajo y el mensaje comparten la misma transacción de base de datos.
-                ProcessWhatsAppMessage::dispatch($id, $stored['notifyTeam'])->beforeCommit();
+                // El delay lo aplica la cola: el worker queda libre para atender otras conversaciones.
+                ProcessWhatsAppMessage::dispatch($id, $stored['notifyTeam'], $respondAt)
+                    ->delay($respondAt)
+                    ->beforeCommit();
             } elseif (app()->runningUnitTests()) {
                 // En las pruebas no hay una respuesta HTTP que esperar (la app se reutiliza entre
                 // peticiones), así que se procesa en línea como siempre.
-                ProcessWhatsAppMessage::dispatchSync($id, $stored['notifyTeam']);
+                ProcessWhatsAppMessage::dispatchSync($id, $stored['notifyTeam'], $respondAt);
             } else {
                 // Sin cola: se contesta a Evolution ENSEGUIDA y el bot trabaja después (Laravel
                 // cierra la petición HTTP y luego ejecuta el trabajo). Antes se hacía dispatchSync:
                 // con varios clientes escribiendo a la vez el webhook tardaba más de lo que
                 // Evolution espera, Evolution reintentaba el mismo evento y el cliente recibía
                 // la respuesta repetida o minutos después.
-                ProcessWhatsAppMessage::dispatchAfterResponse($id, $stored['notifyTeam']);
+                ProcessWhatsAppMessage::dispatchAfterResponse($id, $stored['notifyTeam'], $respondAt);
             }
         };
 

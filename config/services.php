@@ -81,6 +81,8 @@ return [
         // hacen que WhatsApp muestre "Esperando el mensaje" y que el segundo llegue tarde.
         'send_gap_ms' => (int) env('EVOLUTION_SEND_GAP_MS', 1200),
         'queue_incoming' => (bool) env('EVOLUTION_QUEUE_INCOMING', false),
+        // El cliente ve su mensaje al instante; la respuesta automática sale 3 segundos después.
+        'reply_delay_seconds' => max(0, (int) env('EVOLUTION_BOT_DELAY_SECONDS', 3)),
         // Secreto que se exige en cada webhook entrante (campo "apikey" del cuerpo).
         'webhook_secret' => env('EVOLUTION_WEBHOOK_SECRET'),
         // URL a la que Evolution envía los mensajes entrantes. Vacío = APP_URL/webhook/evolution.

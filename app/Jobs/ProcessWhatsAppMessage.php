@@ -5,11 +5,13 @@ namespace App\Jobs;
 use App\Models\WhatsAppMessage;
 use App\Services\WhatsApp\WhatsAppInbox;
 use App\Services\WhatsApp\WhatsappBotService;
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Sleep;
 
 class ProcessWhatsAppMessage implements ShouldQueue
 {
@@ -18,13 +20,24 @@ class ProcessWhatsAppMessage implements ShouldQueue
     // El flujo puede confirmar o crear reservas. No se ejecuta dos veces por un fallo al enviar.
     public int $tries = 1;
 
-    public function __construct(private int $messageId, private bool $notifyTeam) {}
+    public function __construct(
+        private int $messageId,
+        private bool $notifyTeam,
+        private ?CarbonInterface $respondAt = null,
+    ) {}
 
     public function handle(WhatsappBotService $bot, WhatsAppInbox $inbox): void
     {
         $message = WhatsAppMessage::with('conversation')->find($this->messageId);
         if (! $message?->conversation) {
             return;
+        }
+
+        // Con cola, respondAt también es el delay del trabajo y no ocupa al worker. Sin cola se
+        // espera aquí para responder siempre 3 segundos después de guardar el mensaje entrante.
+        $remaining = $this->respondAt ? $this->respondAt->getTimestamp() - now()->getTimestamp() : 0;
+        if ($remaining > 0) {
+            Sleep::sleep($remaining);
         }
 
         // Un cliente escribe "hola" y enseguida "1": si ambas peticiones se atienden a la vez, las
