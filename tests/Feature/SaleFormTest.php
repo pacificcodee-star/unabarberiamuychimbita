@@ -11,7 +11,7 @@ class SaleFormTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_el_formulario_permite_quitar_servicios_y_muestra_el_estado_vacio(): void
+    public function test_la_equis_limpia_los_valores_sin_eliminar_la_fila_del_servicio(): void
     {
         $barber = User::factory()->create(['role' => 'barbero', 'active' => true]);
         Service::create([
@@ -23,11 +23,16 @@ class SaleFormTest extends TestCase
 
         $this->actingAs($barber)->get(route('sales.create'))
             ->assertOk()
-            ->assertSee('id="noItemsRow"', false)
-            ->assertSee('Agrega al menos un servicio para registrar la venta.', false)
-            ->assertSee('id="registerSaleButton"', false)
+            ->assertSee('title="Limpiar"', false)
+            ->assertSee('aria-label="Limpiar servicio"', false)
             ->assertSee('remove-item', false)
-            ->assertSee('row.remove();', false)
-            ->assertDontSee("itemsBody.querySelectorAll('.item-row').length > 1", false);
+            ->assertSee("serviceSelect.value = '';", false)
+            ->assertSee("priceInput.value = '';", false)
+            ->assertSee("row.querySelector('.quantity-input').value = '1';", false)
+            ->assertSee("row.querySelector('.subtotal').textContent = money(0);", false)
+            ->assertDontSee('row.remove();', false)
+            ->assertDontSee('id="noItemsRow"', false)
+            ->assertDontSee('id="registerSaleButton"', false)
+            ->assertDontSee('toggleItemsState', false);
     }
 }
