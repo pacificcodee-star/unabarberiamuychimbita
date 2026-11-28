@@ -82,7 +82,7 @@
             </table>
         </div>
         @if($conversations->hasPages())
-            <div class="card-footer">{{ $conversations->links() }}</div>
+            <div class="card-footer">{{ $conversations->links('whatsapp.chat.pagination') }}</div>
         @endif
     </div>
 @endsection

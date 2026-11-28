@@ -771,6 +771,31 @@ class WhatsAppBotTest extends TestCase
         $this->actingAs($admin)->get(route('whatsapp.chat.show', $conversation))->assertOk();
     }
 
+    public function test_la_paginacion_de_la_bandeja_usa_bootstrap_sin_flechas_gigantes(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+        foreach (range(1, 21) as $number) {
+            WhatsAppConversation::create([
+                'jid' => '57301000'.str_pad((string) $number, 3, '0', STR_PAD_LEFT).'@s.whatsapp.net',
+                'phone' => '57301000'.str_pad((string) $number, 3, '0', STR_PAD_LEFT),
+                'client_name' => 'Cliente '.$number,
+                'last_message_at' => now()->subMinutes($number),
+            ]);
+        }
+
+        $this->actingAs($admin)->get(route('whatsapp.chat.index'))
+            ->assertOk()
+            ->assertSee('Mostrando', false)
+            ->assertSee('resultados', false)
+            ->assertSee('Anterior', false)
+            ->assertSee('Siguiente', false)
+            ->assertSee('class="pagination"', false)
+            ->assertDontSee('viewBox="0 0 20 20"', false)
+            ->assertDontSee('pagination.previous', false)
+            ->assertDontSee('pagination.next', false)
+            ->assertDontSee('Showing', false);
+    }
+
     public function test_los_enlaces_de_chats_privados_requieren_acceso_al_panel(): void
     {
         $url = route('whatsapp.chat.show', 76);
